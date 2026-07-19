@@ -215,6 +215,20 @@
   }
   body.admin-mode .delete-btn{ display:flex; }
 
+  .edit-btn{
+    position:absolute; top:8px; right:46px; width:30px; height:30px; border-radius:50%;
+    background: var(--cream); border:2px solid var(--red); color: var(--red);
+    display:none; align-items:center; justify-content:center; cursor:pointer; font-size:0.8rem;
+    z-index:2;
+  }
+  body.admin-mode .edit-btn{ display:flex; }
+
+  .card-author{ font-size:0.76rem; color: var(--red-dim); font-weight:700; margin: 0.15rem 0 0.3rem; }
+  .card-desc{
+    font-size:0.8rem; color:#6b5644; line-height:1.4; margin:0.3rem 0 0;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+
   .empty-state{
     grid-column: 1/-1; text-align:center; padding: 5rem 1rem; color: var(--text);
     font-family:'Baloo 2', sans-serif; font-weight:600; font-size:1.2rem;
@@ -409,10 +423,34 @@
     <div class="modal-hint">Formats reconnus nativement : YouTube (standard, youtu.be, Shorts), Vimeo, Dailymotion, Twitch (vidéo ou clip), ou lien direct vers un fichier vidéo (.mp4/.webm/.ogg). Tout autre lien (Facebook, TikTok, page perso, etc.) sera intégré tel quel dans un cadre — cela fonctionne si le site autorise l'affichage en iframe, sinon un bouton "ouvrir le lien" sera proposé.</div>
     <label for="add-title">Titre (optionnel)</label>
     <input type="text" id="add-title" placeholder="Laisser vide pour utiliser le titre YouTube si disponible">
+    <label for="add-author">Auteur (optionnel)</label>
+    <input type="text" id="add-author" placeholder="Nom de l'auteur ou de la chaîne">
+    <label for="add-description">Description (optionnel)</label>
+    <input type="text" id="add-description" placeholder="Courte description de la vidéo">
     <div class="modal-error" id="add-error">Lien non reconnu.</div>
     <div class="modal-actions">
       <button class="btn" data-close="add-overlay">Annuler</button>
       <button class="btn primary" id="add-submit">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit video modal -->
+<div class="overlay" id="edit-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="edit-overlay">&times;</button>
+    <h2>Modifier la vidéo</h2>
+    <input type="hidden" id="edit-id">
+    <label for="edit-title">Titre</label>
+    <input type="text" id="edit-title" placeholder="Titre de la vidéo">
+    <label for="edit-author">Auteur</label>
+    <input type="text" id="edit-author" placeholder="Nom de l'auteur ou de la chaîne">
+    <label for="edit-description">Description</label>
+    <input type="text" id="edit-description" placeholder="Courte description de la vidéo">
+    <div class="modal-error" id="edit-error"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="edit-overlay">Annuler</button>
+      <button class="btn primary" id="edit-submit">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -724,6 +762,7 @@ function renderGrid(){
     return `
     <div class="card" data-id="${v.id}" data-video-id="${escapeHtml(v.videoId)}" data-platform="${v.platform || 'youtube'}" data-twitch-type="${v.twitchType || ''}">
       <button class="delete-btn" data-delete-id="${v.id}" title="Supprimer">✕</button>
+      <button class="edit-btn" data-edit-id="${v.id}" title="Modifier">✎</button>
       <div class="thumb-wrap" ${thumb ? '' : 'style="display:flex;align-items:center;justify-content:center;background:#1a1a1a;"'}>
         <span class="slate">${String(currentVideos.length - i).padStart(2,'0')}</span>
         ${thumb
@@ -735,6 +774,8 @@ function renderGrid(){
       <div class="card-body">
         <p class="card-title">${escapeHtml(v.title)}</p>
         <div class="card-date">${formatDate(v.addedAt)}</div>
+        ${v.author ? `<div class="card-author">${escapeHtml(v.author)}</div>` : ''}
+        ${v.description ? `<p class="card-desc">${escapeHtml(v.description)}</p>` : ''}
       </div>
     </div>
   `;
@@ -742,7 +783,7 @@ function renderGrid(){
 
   grid.querySelectorAll('.card').forEach(card=>{
     card.addEventListener('click', (e)=>{
-      if(e.target.closest('.delete-btn')) return;
+      if(e.target.closest('.delete-btn') || e.target.closest('.edit-btn')) return;
       playVideo(card.dataset.videoId, card.dataset.platform, card.dataset.twitchType);
     });
   });
@@ -750,6 +791,12 @@ function renderGrid(){
     btn.addEventListener('click', (e)=>{
       e.stopPropagation();
       deleteVideo(btn.dataset.deleteId);
+    });
+  });
+  grid.querySelectorAll('.edit-btn').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openEditVideo(btn.dataset.editId);
     });
   });
 }
@@ -870,6 +917,8 @@ document.getElementById('add-link').addEventListener('keydown', (e)=>{
 async function submitVideo(){
   const linkInput = document.getElementById('add-link');
   const titleInput = document.getElementById('add-title');
+  const authorInput = document.getElementById('add-author');
+  const descriptionInput = document.getElementById('add-description');
   const errorEl = document.getElementById('add-error');
   errorEl.style.display = 'none';
 
@@ -898,6 +947,8 @@ async function submitVideo(){
       platform: detected.platform,
       videoId: detected.id,
       title,
+      author: authorInput.value.trim() || null,
+      description: descriptionInput.value.trim() || null,
       addedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     if(detected.twitchType) payload.twitchType = detected.twitchType;
@@ -905,6 +956,8 @@ async function submitVideo(){
     await videosRef.add(payload);
     linkInput.value = '';
     titleInput.value = '';
+    authorInput.value = '';
+    descriptionInput.value = '';
     closeOverlay('add-overlay');
   }catch(e){
     alert("Erreur lors de l'ajout de la vidéo.");
@@ -914,6 +967,53 @@ async function submitVideo(){
     submitBtn.disabled = false;
   }
 }
+
+/* =========================================================
+   Admin : modification des infos d'une vidéo (titre, auteur, description)
+   ========================================================= */
+function openEditVideo(id){
+  const v = currentVideos.find(x => x.id === id);
+  if(!v) return;
+  document.getElementById('edit-id').value = v.id;
+  document.getElementById('edit-title').value = v.title || '';
+  document.getElementById('edit-author').value = v.author || '';
+  document.getElementById('edit-description').value = v.description || '';
+  document.getElementById('edit-error').style.display = 'none';
+  openOverlay('edit-overlay');
+}
+
+document.getElementById('edit-submit').addEventListener('click', async ()=>{
+  const id = document.getElementById('edit-id').value;
+  const errorEl = document.getElementById('edit-error');
+  errorEl.style.display = 'none';
+  if(!id) return;
+
+  const title = document.getElementById('edit-title').value.trim();
+  if(!title){
+    errorEl.textContent = "Le titre ne peut pas être vide.";
+    errorEl.style.display = 'block';
+    return;
+  }
+  const author = document.getElementById('edit-author').value.trim();
+  const description = document.getElementById('edit-description').value.trim();
+
+  const btn = document.getElementById('edit-submit');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  try{
+    await videosRef.doc(id).update({
+      title,
+      author: author || null,
+      description: description || null
+    });
+    closeOverlay('edit-overlay');
+  }catch(e){
+    errorEl.textContent = "Erreur lors de l'enregistrement.";
+    errorEl.style.display = 'block';
+    console.error(e);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+});
 
 /* =========================================================
    COMPTE — Firebase Authentication + profil partagé Firestore
