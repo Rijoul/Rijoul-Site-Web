@@ -286,7 +286,14 @@
 
   /* ---------- Lecteur vidéo interne (style verre iOS 26) ---------- */
   .player-overlay{ background: rgba(6,4,10,0.82); backdrop-filter: blur(10px); }
-  .player-shell{ position:relative; max-width:960px; width:100%; }
+  .player-shell{ position:relative; max-width:960px; width:100%; display:flex; flex-direction:column; }
+
+  /* Barre au-dessus du lecteur : uniquement le bouton fermer, jamais sur la vidéo */
+  .player-topbar{
+    display:flex; justify-content:flex-end; align-items:center;
+    padding: 0 0.2rem 0.7rem;
+    flex-shrink:0;
+  }
 
   .player-modal{
     width:100%; border-radius:28px; overflow:hidden; background:#000;
@@ -295,11 +302,6 @@
   .player-media{ position:relative; width:100%; aspect-ratio:16/9; background:#000; overflow:hidden; }
   .player-media iframe, .player-media video{ width:100%; height:100%; display:block; border:none; background:#000; }
 
-  /* Halo sombre en haut/bas pour garder les boutons verre lisibles sur n'importe quel fond vidéo */
-  .player-media::before{
-    content:''; position:absolute; top:0; left:0; right:0; height:96px; z-index:2; pointer-events:none;
-    background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 100%);
-  }
   .player-media.direct-mode::after{
     content:''; position:absolute; left:0; right:0; bottom:0; height:120px; z-index:1; pointer-events:none;
     background: linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%);
@@ -357,7 +359,7 @@
   .glass-btn svg{ width:18px; height:18px; }
 
   .player-close{
-    position:absolute; top:0.9rem; right:0.9rem; z-index:6;
+    position:relative;
     width:40px; height:40px;
   }
 
@@ -416,7 +418,8 @@
   .play-badge{ pointer-events:none; }
 
   @media (max-width:640px){
-    .player-close{ top:0.7rem; right:0.7rem; width:36px; height:36px; }
+    .player-close{ width:36px; height:36px; }
+    .player-topbar{ padding: 0 0.1rem 0.6rem; }
     .player-info-bar, .player-info-desc{ padding-left:1.1rem; padding-right:1.1rem; }
     .player-info-bar::before{ left:1.1rem; right:1.1rem; }
     .custom-controls{ bottom:12px; width: calc(100% - 20px); padding:0.5rem 0.8rem 0.5rem 0.5rem; }
@@ -711,13 +714,14 @@
 <!-- Player modal -->
 <div class="overlay player-overlay" id="player-overlay">
   <div class="player-shell">
+    <div class="player-topbar">
+      <button class="player-close glass-btn" data-close="player-overlay" title="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
     <div class="player-modal">
       <div class="player-media" id="player-media">
         <iframe id="player-iframe" src="" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
-
-        <button class="player-close glass-btn" data-close="player-overlay" title="Fermer">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-        </button>
 
         <!-- Contrôles personnalisés (fichiers vidéo directs uniquement) -->
         <div class="custom-controls" id="custom-controls" style="display:none;">
