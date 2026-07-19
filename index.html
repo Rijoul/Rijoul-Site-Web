@@ -11,7 +11,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 
 <style>
   :root{
@@ -285,23 +284,6 @@
   .modal-error{ color: var(--danger); font-weight:600; font-size:0.82rem; margin: -0.6rem 0 1rem; display:none; }
   .modal-hint{ font-size:0.78rem; color:#a3856f; margin-top:-0.6rem; margin-bottom:1.2rem; line-height:1.5; }
 
-  .upload-btn{
-    width:100%; justify-content:center; color: var(--dark-text); border-color: var(--red);
-    background: #fffaf1; margin-bottom: 0.3rem;
-  }
-  .upload-btn:hover{ background: var(--red); color: #fff; }
-  .upload-btn svg{ width:17px; height:17px; }
-  .upload-filename{
-    font-size:0.78rem; color: var(--dark-text); font-weight:600; text-align:center;
-    margin: 0.5rem 0 0; display:none;
-  }
-  .upload-progress-wrap{
-    width:100%; height:6px; border-radius:999px; background: var(--cream-2); overflow:hidden;
-    margin: 0.7rem 0 0; display:none;
-  }
-  .upload-progress-bar{ height:100%; width:0%; background: var(--red); transition: width .15s ease; }
-  .upload-status{ font-size:0.76rem; color:#a3856f; font-weight:600; text-align:center; margin-top:0.4rem; }
-
   /* ---------- Lecteur vidéo interne (style verre / Apple) ---------- */
   .player-overlay{ background: rgba(8,6,14,0.78); backdrop-filter: blur(6px); }
   .player-shell{ position:relative; max-width:960px; width:100%; }
@@ -531,19 +513,6 @@
     <button class="modal-close" data-close="add-overlay">&times;</button>
     <h2>Ajouter une vidéo</h2>
 
-    <input type="file" id="upload-file-input" accept="video/*" style="display:none">
-    <button class="btn upload-btn" id="upload-trigger-btn" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-      Importer une vidéo depuis votre appareil
-    </button>
-    <div id="upload-filename" class="upload-filename"></div>
-    <div id="upload-progress-wrap" class="upload-progress-wrap">
-      <div id="upload-progress-bar" class="upload-progress-bar"></div>
-    </div>
-    <div id="upload-status" class="upload-status"></div>
-
-    <div class="auth-divider">ou coller un lien</div>
-
     <label for="add-link">Lien de la vidéo</label>
     <input type="text" id="add-link" placeholder="https://www.youtube.com/watch?v=... ou n'importe quel lien vidéo">
     <div class="modal-hint">Formats reconnus nativement : YouTube (standard, youtu.be, Shorts), Vimeo, Dailymotion, Twitch (vidéo ou clip), ou lien direct vers un fichier vidéo (.mp4/.webm/.ogg). Tout autre lien (Facebook, TikTok, page perso, etc.) sera intégré tel quel dans un cadre — cela fonctionne si le site autorise l'affichage en iframe, sinon un bouton "ouvrir le lien" sera proposé.</div>
@@ -728,7 +697,6 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
 const googleProvider = new firebase.auth.GoogleAuthProvider();
-const storage = firebase.storage();
 
 // Collection Firestore PARTAGÉE entre tous les sites Rijoul/ASSTTF/ONYX (même projet Firebase)
 // Même chemin que ASSTTF : artifacts/onyx-pro-chat/public/data/profiles/{uid}
@@ -889,7 +857,6 @@ function closeOverlay(id){ document.getElementById(id).classList.remove('open');
 document.querySelectorAll('[data-close]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     closeOverlay(btn.dataset.close);
-    if(btn.dataset.close === 'add-overlay') resetUploadUI();
   });
 });
 document.querySelectorAll('.overlay').forEach(ov=>{
@@ -992,9 +959,9 @@ function playVideo(v){
   customControls.style.display = 'none';
 
   // Panneau d'informations (verre) — uniquement pour les lecteurs "maison"
-  // (import local et liens génériques). Les plateformes qui ont leur propre
-  // système de lecture (YouTube, Vimeo, Dailymotion, Twitch) gardent leur
-  // interface native, sans overlay verre par-dessus.
+  // (liens directs vers fichiers et liens génériques). Les plateformes qui ont
+  // leur propre système de lecture (YouTube, Vimeo, Dailymotion, Twitch) gardent
+  // leur interface native, sans overlay verre par-dessus.
   const infoBar = document.getElementById('player-info-bar');
   const infoDesc = document.getElementById('player-info-desc');
   const hasOwnPlayer = ['youtube', 'vimeo', 'dailymotion', 'twitch'].includes(platform);
@@ -1180,7 +1147,6 @@ async function addVideoDoc(payload){
   document.getElementById('add-title').value = '';
   document.getElementById('add-author').value = '';
   document.getElementById('add-description').value = '';
-  resetUploadUI();
   closeOverlay('add-overlay');
 }
 
@@ -1194,7 +1160,7 @@ async function submitVideo(){
 
   const detected = detectVideo(linkInput.value);
   if(!detected){
-    errorEl.textContent = "Merci d'entrer un lien valide (commençant par http:// ou https://) ou d'importer un fichier depuis votre appareil.";
+    errorEl.textContent = "Merci d'entrer un lien valide (commençant par http:// ou https://).";
     errorEl.style.display = 'block';
     return;
   }
@@ -1230,96 +1196,6 @@ async function submitVideo(){
     submitBtn.disabled = false;
   }
 }
-
-/* =========================================================
-   Import local : envoie un fichier vidéo (mp4, webm, ogg…) depuis
-   l'appareil vers Firebase Storage, puis crée la vidéo (platform "direct")
-   ========================================================= */
-const uploadTriggerBtn = document.getElementById('upload-trigger-btn');
-const uploadFileInput = document.getElementById('upload-file-input');
-const uploadFilenameEl = document.getElementById('upload-filename');
-const uploadProgressWrap = document.getElementById('upload-progress-wrap');
-const uploadProgressBar = document.getElementById('upload-progress-bar');
-const uploadStatusEl = document.getElementById('upload-status');
-
-function resetUploadUI(){
-  uploadFileInput.value = '';
-  uploadFilenameEl.style.display = 'none';
-  uploadFilenameEl.textContent = '';
-  uploadProgressWrap.style.display = 'none';
-  uploadProgressBar.style.width = '0%';
-  uploadStatusEl.textContent = '';
-  uploadTriggerBtn.disabled = false;
-}
-
-uploadTriggerBtn.addEventListener('click', ()=> uploadFileInput.click());
-
-uploadFileInput.addEventListener('change', async ()=>{
-  const file = uploadFileInput.files[0];
-  if(!file) return;
-
-  const errorEl = document.getElementById('add-error');
-  errorEl.style.display = 'none';
-
-  if(!file.type.startsWith('video/')){
-    errorEl.textContent = "Merci de sélectionner un fichier vidéo (mp4, webm, ogg, mov…).";
-    errorEl.style.display = 'block';
-    resetUploadUI();
-    return;
-  }
-
-  const user = auth.currentUser;
-  if(!user){
-    errorEl.textContent = "Connecte-toi en tant qu'admin pour importer une vidéo.";
-    errorEl.style.display = 'block';
-    resetUploadUI();
-    return;
-  }
-
-  uploadFilenameEl.textContent = file.name;
-  uploadFilenameEl.style.display = 'block';
-  uploadProgressWrap.style.display = 'block';
-  uploadProgressBar.style.width = '0%';
-  uploadStatusEl.textContent = 'Import en cours…';
-  uploadTriggerBtn.disabled = true;
-
-  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
-  const path = `videos/${user.uid}/${Date.now()}_${safeName}`;
-  const task = storage.ref(path).put(file);
-
-  task.on('state_changed', (snap)=>{
-    const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-    uploadProgressBar.style.width = pct + '%';
-    uploadStatusEl.textContent = `Import en cours… ${pct}%`;
-  }, (err)=>{
-    console.error(err);
-    uploadStatusEl.textContent = '';
-    errorEl.textContent = "Erreur lors de l'import du fichier.";
-    errorEl.style.display = 'block';
-    resetUploadUI();
-  }, async ()=>{
-    try{
-      const url = await task.snapshot.ref.getDownloadURL();
-      uploadStatusEl.textContent = 'Enregistrement…';
-      const titleInput = document.getElementById('add-title');
-      const authorInput = document.getElementById('add-author');
-      const descriptionInput = document.getElementById('add-description');
-      const title = titleInput.value.trim() || file.name.replace(/\.[a-zA-Z0-9]+$/, '') || 'Vidéo sans titre';
-      await addVideoDoc({
-        platform: 'direct',
-        videoId: url,
-        title,
-        author: authorInput.value.trim() || null,
-        description: descriptionInput.value.trim() || null
-      });
-    }catch(err){
-      console.error(err);
-      errorEl.textContent = "Fichier importé mais impossible de créer la vidéo.";
-      errorEl.style.display = 'block';
-      resetUploadUI();
-    }
-  });
-});
 
 /* =========================================================
    Admin : modification des infos d'une vidéo (titre, auteur, description)
