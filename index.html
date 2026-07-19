@@ -517,15 +517,15 @@
    CONFIGURATION — à personnaliser
    ========================================================= */
 
-// 1) Configuration Firebase : remplace par la config de ton projet
-//    (Console Firebase → Paramètres du projet → Vos applications → SDK config)
+// 1) Configuration Firebase — projet partagé RIJOUL / ASSTTF / ONYX
+//    (même projet Firebase que les autres sites, pour synchroniser les comptes)
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCkiMirg--YtJMCENWm6Ba4qBn7XY55qrQ",
+  authDomain: "onyx-chat-by-rijoul.firebaseapp.com",
+  projectId: "onyx-chat-by-rijoul",
+  storageBucket: "onyx-chat-by-rijoul.firebasestorage.app",
+  messagingSenderId: "699855199393",
+  appId: "1:699855199393:web:0b454be9733e3853ada4e0"
 };
 
 // 2) Mot de passe admin (change-le avant mise en ligne)
@@ -548,10 +548,14 @@ const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-// Collection Firestore PARTAGÉE entre tous les sites Rijoul/NovaLink (même projet Firebase)
-// Doc id = uid Firebase Auth → { displayName, photoURL, email, updatedAt }
-const USERS_COLLECTION = "users";
-const usersRef = db.collection(USERS_COLLECTION);
+// Collection Firestore PARTAGÉE entre tous les sites Rijoul/ASSTTF/ONYX (même projet Firebase)
+// Même chemin que ASSTTF : artifacts/onyx-pro-chat/public/data/profiles/{uid}
+// Doc id = uid Firebase Auth → { displayName, photoURL, email, createdAt, updatedAt }
+const ONYX_APP_ID = "onyx-pro-chat";
+const usersRef = db
+  .collection("artifacts").doc(ONYX_APP_ID)
+  .collection("public").doc("data")
+  .collection("profiles");
 let profileUnsub = null; // désabonnement de l'écoute temps réel du profil courant
 let currentProfilePhoto = null; // base64 en attente de sauvegarde dans la modale profil
 
@@ -805,9 +809,9 @@ async function submitVideo(){
 }
 
 /* =========================================================
-   COMPTE — Firebase Authentication
-   (rien n'est écrit dans Firestore ; seul le service Auth de
-   Firebase est utilisé pour connecter / créer des comptes)
+   COMPTE — Firebase Authentication + profil partagé Firestore
+   Le profil (nom, photo) est stocké dans la même collection que
+   les autres sites RIJOUL/ASSTTF/ONYX pour être synchronisé partout.
    ========================================================= */
 
 const accountBtn = document.getElementById('account-btn');
@@ -845,7 +849,7 @@ function renderAccountUI(label, photoURL){
   }
 }
 
-/* S'assure que le document users/{uid} existe ; ne l'écrase pas s'il existe déjà
+/* S'assure que le document profils/{uid} existe ; ne l'écrase pas s'il existe déjà
    (pour ne pas effacer un nom/photo déjà défini depuis un autre site) */
 async function ensureUserProfile(user){
   const ref = usersRef.doc(user.uid);
@@ -855,6 +859,7 @@ async function ensureUserProfile(user){
       displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Compte'),
       photoURL: user.photoURL || null,
       email: user.email || null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     });
   }
@@ -930,8 +935,8 @@ document.getElementById('profile-save').addEventListener('click', async ()=>{
   const btn = document.getElementById('profile-save');
   btn.disabled = true; btn.textContent = 'Enregistrement…';
   try{
-    // Écrit dans la collection "users" partagée : visible immédiatement sur
-    // tous les sites (ASSTTF, ONYX CHAT, ONYX REEL) connectés au même projet Firebase.
+    // Écrit dans la collection de profils partagée : visible immédiatement sur
+    // tous les sites (ASSTTF, ONYX CHAT, ONYX REEL…) connectés au même projet Firebase.
     await usersRef.doc(user.uid).set({
       displayName: name,
       photoURL: currentProfilePhoto,
@@ -1027,6 +1032,7 @@ document.getElementById('signup-submit').addEventListener('click', async ()=>{
       displayName: finalName,
       photoURL: null,
       email: cred.user.email || null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
     closeOverlay('account-overlay');
@@ -1068,7 +1074,7 @@ document.getElementById('forgot-link').addEventListener('click', async ()=>{
   }
 });
 
-/* Réagit à l'état de connexion : synchronise le profil partagé (collection "users") */
+/* Réagit à l'état de connexion : synchronise le profil partagé (collection de profils) */
 auth.onAuthStateChanged(async (user)=>{
   if(user){
     accountBtn.style.display = 'none';
