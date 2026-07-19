@@ -397,22 +397,7 @@
 
 <!-- Floating admin controls -->
 <button class="fab" id="fab-add" title="Ajouter une vidéo">+</button>
-<div class="admin-tag">Mode admin <button id="admin-logout">quitter</button></div>
-
-<!-- Password modal -->
-<div class="overlay" id="auth-overlay-old">
-  <div class="modal">
-    <button class="modal-close" data-close="auth-overlay-old">&times;</button>
-    <h2>Accès administrateur</h2>
-    <label for="admin-password">Mot de passe</label>
-    <input type="password" id="admin-password" placeholder="••••••••">
-    <div class="modal-error" id="admin-error">Mot de passe incorrect.</div>
-    <div class="modal-actions">
-      <button class="btn" data-close="auth-overlay-old">Annuler</button>
-      <button class="btn primary" id="admin-submit">Entrer</button>
-    </div>
-  </div>
-</div>
+<div class="admin-tag">Mode admin <button id="admin-logout">se déconnecter</button></div>
 
 <!-- Add video modal -->
 <div class="overlay" id="add-overlay">
@@ -527,8 +512,8 @@ const firebaseConfig = {
   appId: "1:699855199393:web:0b454be9733e3853ada4e0"
 };
 
-// 2) Mot de passe admin (change-le avant mise en ligne)
-const ADMIN_PASSWORD = "rijoul2026";
+// 2) UID Firebase du compte administrateur autorisé à gérer les vidéos
+const ADMIN_UID = "K4DFzCs0MVccolAVciX1ViPUBk83";
 
 // 3) Lien "S'abonner" — mets l'URL de ta chaîne
 const CHANNEL_URL = "https://www.youtube.com/";
@@ -721,43 +706,16 @@ document.getElementById('fab-add').addEventListener('click', ()=>{
   if(isAdmin){
     openOverlay('add-overlay');
   }else{
-    document.getElementById('admin-error').style.display = 'none';
-    document.getElementById('admin-password').value = '';
-    openOverlay('auth-overlay-old');
+    // Pas admin (ou pas connecté) : on ouvre la connexion au compte
+    clearAuthErrors();
+    openOverlay('account-overlay');
   }
 });
 
-document.getElementById('admin-submit').addEventListener('click', tryAdminLogin);
-document.getElementById('admin-password').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') tryAdminLogin();
-});
-
-function tryAdminLogin(){
-  const val = document.getElementById('admin-password').value;
-  if(val === ADMIN_PASSWORD){
-    isAdmin = true;
-    sessionStorage.setItem('onyx_admin', '1');
-    document.body.classList.add('admin-mode');
-    closeOverlay('auth-overlay-old');
-    renderGrid();
-    openOverlay('add-overlay');
-  }else{
-    document.getElementById('admin-error').style.display = 'block';
-  }
-}
-
+// Le bouton "quitter" du badge admin déconnecte simplement le compte
 document.getElementById('admin-logout').addEventListener('click', ()=>{
-  isAdmin = false;
-  sessionStorage.removeItem('onyx_admin');
-  document.body.classList.remove('admin-mode');
-  renderGrid();
+  auth.signOut();
 });
-
-// Reste connecté pendant la session du navigateur
-if(sessionStorage.getItem('onyx_admin') === '1'){
-  isAdmin = true;
-  document.body.classList.add('admin-mode');
-}
 
 /* =========================================================
    Admin : ajout de vidéo
@@ -1073,8 +1031,13 @@ document.getElementById('forgot-link').addEventListener('click', async ()=>{
   }
 });
 
-/* Réagit à l'état de connexion : synchronise le profil partagé (collection de profils) */
+/* Réagit à l'état de connexion : synchronise le profil partagé + statut admin (basé sur l'UID) */
 auth.onAuthStateChanged(async (user)=>{
+  // Statut admin déterminé par l'UID Firebase connecté (pas de mot de passe)
+  isAdmin = !!(user && user.uid === ADMIN_UID);
+  document.body.classList.toggle('admin-mode', isAdmin);
+  renderGrid();
+
   if(user){
     accountBtn.style.display = 'none';
     userChip.classList.add('visible');
