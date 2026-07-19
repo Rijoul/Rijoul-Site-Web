@@ -285,8 +285,13 @@
   .modal-hint{ font-size:0.78rem; color:#a3856f; margin-top:-0.6rem; margin-bottom:1.2rem; line-height:1.5; }
 
   /* ---------- Lecteur vidéo interne (style verre iOS 26) ---------- */
-  .player-overlay{ background: rgba(6,4,10,0.82); backdrop-filter: blur(10px); }
-  .player-shell{ position:relative; max-width:960px; width:100%; display:flex; flex-direction:column; }
+  .player-overlay{ background: rgba(6,4,10,0.82); backdrop-filter: blur(10px); overflow-y:auto; }
+  .player-shell{
+    position:relative; max-width:960px; width:100%; display:flex; flex-direction:column;
+    max-height: calc(100vh - 1.2rem);
+    max-height: calc(100dvh - 1.2rem);
+    margin: auto;
+  }
 
   /* Barre au-dessus du lecteur : uniquement le bouton fermer, jamais sur la vidéo */
   .player-topbar{
@@ -298,9 +303,13 @@
   .player-modal{
     width:100%; border-radius:28px; overflow:hidden; background:#000;
     box-shadow: 0 40px 100px -20px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.08);
+    display:flex; flex-direction:column; min-height:0;
   }
-  .player-media{ position:relative; width:100%; aspect-ratio:16/9; background:#000; overflow:hidden; }
-  .player-media iframe, .player-media video{ width:100%; height:100%; display:block; border:none; background:#000; }
+  .player-media{
+    position:relative; width:100%; aspect-ratio:16/9; background:#000; overflow:hidden;
+    flex-shrink:1; min-height:0;
+  }
+  .player-media iframe, .player-media video{ width:100%; height:100%; display:block; border:none; background:#000; object-fit:contain; }
 
   .player-media.direct-mode::after{
     content:''; position:absolute; left:0; right:0; bottom:0; height:120px; z-index:1; pointer-events:none;
@@ -313,6 +322,7 @@
     background: rgba(18,14,24,0.82);
     backdrop-filter: blur(28px) saturate(190%);
     -webkit-backdrop-filter: blur(28px) saturate(190%);
+    flex-shrink:0;
   }
   .player-info-bar::before{
     content:''; position:absolute; top:0; left:1.5rem; right:1.5rem; height:1px;
@@ -334,14 +344,29 @@
     font-family:'Baloo 2', sans-serif; font-weight:600; font-size:0.8rem; color: rgba(255,255,255,0.58);
     margin-top:0.2rem;
   }
-  .player-info-desc{
-    font-family:'Baloo 2', sans-serif; font-weight:500; font-size:0.86rem; line-height:1.55;
-    color: rgba(255,255,255,0.72); margin:0.6rem 0 0; padding: 0 1.5rem 1.3rem;
+  .player-info-desc-wrap{
+    position:relative;
     background: rgba(18,14,24,0.82);
     backdrop-filter: blur(28px) saturate(190%);
     -webkit-backdrop-filter: blur(28px) saturate(190%);
+    padding: 0 1.5rem 1.1rem;
+    flex-shrink:1; min-height:0; overflow-y:auto;
   }
-  .player-info-desc:empty{ display:none; padding:0; margin:0; }
+  .player-info-desc-wrap:empty{ display:none; padding:0; }
+  .player-info-desc{
+    font-family:'Baloo 2', sans-serif; font-weight:500; font-size:0.86rem; line-height:1.55;
+    color: rgba(255,255,255,0.72); margin:0.6rem 0 0;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .player-info-desc.expanded{ -webkit-line-clamp:unset; overflow:visible; }
+  .player-info-desc:empty{ display:none; margin:0; }
+  .desc-toggle{
+    display:none; background:none; border:none; cursor:pointer; padding:0.35rem 0 0;
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.76rem; letter-spacing:0.02em;
+    color: rgba(255,255,255,0.85); text-decoration:underline;
+  }
+  .desc-toggle.visible{ display:inline-flex; }
+  .desc-toggle:hover{ color:#fff; }
 
   /* Boutons verre — style iOS 26 : blur profond, liseré lumineux, reflet interne, rebond au tap */
   .glass-btn{
@@ -420,9 +445,26 @@
   @media (max-width:640px){
     .player-close{ width:36px; height:36px; }
     .player-topbar{ padding: 0 0.1rem 0.6rem; }
-    .player-info-bar, .player-info-desc{ padding-left:1.1rem; padding-right:1.1rem; }
+    .player-info-bar, .player-info-desc-wrap{ padding-left:1.1rem; padding-right:1.1rem; }
     .player-info-bar::before{ left:1.1rem; right:1.1rem; }
     .custom-controls{ bottom:12px; width: calc(100% - 20px); padding:0.5rem 0.8rem 0.5rem 0.5rem; }
+  }
+
+  /* Paysage sur mobile (hauteur d'écran réduite) : on limite la hauteur de la
+     vidéo pour que tout le lecteur (vidéo + infos) reste visible sans déborder
+     de l'écran, la largeur s'ajuste automatiquement selon le ratio 16/9. */
+  @media (max-height:500px) and (orientation:landscape){
+    .overlay.player-overlay{ padding:0.4rem; align-items:center; }
+    .player-shell{ max-height: calc(100vh - 0.8rem); max-height: calc(100dvh - 0.8rem); }
+    .player-media{
+      aspect-ratio:16/9; width:auto; height:min(62vh, 62dvh); max-width:100%; max-height:62vh; max-height:62dvh;
+      margin:0 auto; flex-shrink:0;
+    }
+    .player-modal{ width:auto; max-width:100%; margin:0 auto; align-items:center; }
+    .player-info-bar{ padding:0.7rem 1.1rem 0.3rem; }
+    .player-info-desc-wrap{ padding:0 1.1rem 0.7rem; max-height:14vh; max-height:14dvh; }
+    .player-info-title{ font-size:0.92rem; }
+    .player-info-desc{ font-size:0.78rem; -webkit-line-clamp:1; }
   }
 
   /* ---------- Auth modal ---------- */
@@ -751,7 +793,10 @@
           <div class="player-info-author" id="player-info-author"></div>
         </div>
       </div>
-      <p class="player-info-desc" id="player-info-desc"></p>
+      <div class="player-info-desc-wrap" id="player-info-desc-wrap">
+        <p class="player-info-desc" id="player-info-desc"></p>
+        <button type="button" class="desc-toggle" id="desc-toggle">Voir plus</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1039,6 +1084,28 @@ function formatSeconds(s){
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+/* Réinitialise le bloc description (relance le clamp + bouton "Voir plus") */
+function resetDescToggle(){
+  const descEl = document.getElementById('player-info-desc');
+  const toggleBtn = document.getElementById('desc-toggle');
+  descEl.classList.remove('expanded');
+  toggleBtn.textContent = 'Voir plus';
+  toggleBtn.classList.remove('visible');
+  // Attend le prochain frame pour que le texte soit rendu avant de mesurer l'overflow
+  requestAnimationFrame(()=>{
+    if(descEl.textContent.trim() && descEl.scrollHeight > descEl.clientHeight + 1){
+      toggleBtn.classList.add('visible');
+    }
+  });
+}
+
+document.getElementById('desc-toggle').addEventListener('click', ()=>{
+  const descEl = document.getElementById('player-info-desc');
+  const toggleBtn = document.getElementById('desc-toggle');
+  const expanded = descEl.classList.toggle('expanded');
+  toggleBtn.textContent = expanded ? 'Voir moins' : 'Voir plus';
+});
+
 function playVideo(v){
   const { videoId, platform, twitchType, title, author, description } = v;
   const iframe = document.getElementById('player-iframe');
@@ -1061,6 +1128,7 @@ function playVideo(v){
   document.getElementById('player-info-title').textContent = title || 'Vidéo sans titre';
   document.getElementById('player-info-author').textContent = author || '';
   infoDesc.textContent = description || '';
+  resetDescToggle();
   const avatar = document.getElementById('player-info-avatar');
   avatar.textContent = (author || title || '?').trim().charAt(0).toUpperCase();
 
