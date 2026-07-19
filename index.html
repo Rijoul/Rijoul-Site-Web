@@ -404,11 +404,11 @@
   <div class="modal">
     <button class="modal-close" data-close="add-overlay">&times;</button>
     <h2>Ajouter une vidéo</h2>
-    <label for="add-link">Lien YouTube</label>
-    <input type="text" id="add-link" placeholder="https://www.youtube.com/watch?v=...">
-    <div class="modal-hint">Formats acceptés : lien standard, youtu.be, Shorts ou lien d'intégration.</div>
+    <label for="add-link">Lien de la vidéo</label>
+    <input type="text" id="add-link" placeholder="https://www.youtube.com/watch?v=... ou Vimeo, Dailymotion, Twitch, .mp4…">
+    <div class="modal-hint">Formats acceptés : YouTube (standard, youtu.be, Shorts), Vimeo, Dailymotion, Twitch (vidéo ou clip), ou lien direct vers un fichier vidéo (.mp4/.webm/.ogg).</div>
     <label for="add-title">Titre (optionnel)</label>
-    <input type="text" id="add-title" placeholder="Laisser vide pour utiliser le titre YouTube">
+    <input type="text" id="add-title" placeholder="Laisser vide pour utiliser le titre YouTube si disponible">
     <div class="modal-error" id="add-error">Lien YouTube non reconnu.</div>
     <div class="modal-actions">
       <button class="btn" data-close="add-overlay">Annuler</button>
@@ -593,6 +593,62 @@ function extractYouTubeId(url){
   return null;
 }
 
+function extractVimeoId(url){
+  if(!url) return null;
+  const m = url.trim().match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  return m ? m[1] : null;
+}
+
+function extractDailymotionId(url){
+  if(!url) return null;
+  const patterns = [
+    /dailymotion\.com\/video\/([a-zA-Z0-9]+)/,
+    /dai\.ly\/([a-zA-Z0-9]+)/,
+  ];
+  for(const re of patterns){
+    const m = url.trim().match(re);
+    if(m) return m[1];
+  }
+  return null;
+}
+
+function extractTwitchInfo(url){
+  if(!url) return null;
+  url = url.trim();
+  let m = url.match(/twitch\.tv\/videos\/(\d+)/);
+  if(m) return { type: 'video', id: m[1] };
+  m = url.match(/clips\.twitch\.tv\/([a-zA-Z0-9_-]+)/) || url.match(/twitch\.tv\/[^/]+\/clip\/([a-zA-Z0-9_-]+)/);
+  if(m) return { type: 'clip', id: m[1] };
+  return null;
+}
+
+function isDirectVideoFile(url){
+  if(!url) return false;
+  return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url.trim());
+}
+
+// Détecte la plateforme et construit les infos nécessaires à l'intégration
+function detectVideo(url){
+  if(!url) return null;
+  url = url.trim();
+
+  const ytId = extractYouTubeId(url);
+  if(ytId) return { platform: 'youtube', id: ytId };
+
+  const vimeoId = extractVimeoId(url);
+  if(vimeoId) return { platform: 'vimeo', id: vimeoId };
+
+  const dmId = extractDailymotionId(url);
+  if(dmId) return { platform: 'dailymotion', id: dmId };
+
+  const twitch = extractTwitchInfo(url);
+  if(twitch) return { platform: 'twitch', id: twitch.id, twitchType: twitch.type };
+
+  if(isDirectVideoFile(url)) return { platform: 'direct', id: url };
+
+  return null;
+}
+
 async function fetchYouTubeTitle(videoId){
   try{
     const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
@@ -623,6 +679,16 @@ document.querySelectorAll('.overlay').forEach(ov=>{
 /* =========================================================
    Rendu de la galerie
    ========================================================= */
+function thumbForVideo(v){
+  if(v.platform === 'youtube') return `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
+  return null; // pas de vignette fiable pour les autres plateformes sans appel API supplémentaire
+}
+
+function platformLabel(platform){
+  const labels = { vimeo: 'VIMEO', dailymotion: 'DAILYMOTION', twitch: 'TWITCH', direct: 'VIDÉO' };
+  return labels[platform] || '';
+}
+
 function renderGrid(){
   const grid = document.getElementById('video-grid');
   const count = document.getElementById('video-count');
@@ -633,12 +699,17 @@ function renderGrid(){
     return;
   }
 
-  grid.innerHTML = currentVideos.map((v, i) => `
-    <div class="card" data-id="${v.id}" data-video-id="${v.videoId}">
+  grid.innerHTML = currentVideos.map((v, i) => {
+    const thumb = thumbForVideo(v);
+    return `
+    <div class="card" data-id="${v.id}" data-video-id="${v.videoId}" data-platform="${v.platform || 'youtube'}" data-twitch-type="${v.twitchType || ''}">
       <button class="delete-btn" data-delete-id="${v.id}" title="Supprimer">✕</button>
-      <div class="thumb-wrap">
+      <div class="thumb-wrap" ${thumb ? '' : 'style="display:flex;align-items:center;justify-content:center;background:#1a1a1a;"'}>
         <span class="slate">${String(currentVideos.length - i).padStart(2,'0')}</span>
-        <img src="https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg" alt="${escapeHtml(v.title)}" loading="lazy">
+        ${thumb
+          ? `<img src="${thumb}" alt="${escapeHtml(v.title)}" loading="lazy">`
+          : `<span style="font-family:'Fredoka';font-weight:700;color:var(--cream);font-size:1rem;letter-spacing:0.05em;opacity:0.6;">${platformLabel(v.platform)}</span>`
+        }
         <div class="play-badge"><div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
       </div>
       <div class="card-body">
@@ -646,12 +717,13 @@ function renderGrid(){
         <div class="card-date">${formatDate(v.addedAt)}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   grid.querySelectorAll('.card').forEach(card=>{
     card.addEventListener('click', (e)=>{
       if(e.target.closest('.delete-btn')) return;
-      playVideo(card.dataset.videoId);
+      playVideo(card.dataset.videoId, card.dataset.platform, card.dataset.twitchType);
     });
   });
   grid.querySelectorAll('.delete-btn').forEach(btn=>{
@@ -668,13 +740,50 @@ function escapeHtml(str){
   return d.innerHTML;
 }
 
-function playVideo(videoId){
+function playVideo(videoId, platform, twitchType){
   const iframe = document.getElementById('player-iframe');
-  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  const wrapper = iframe.parentElement;
+  // Nettoie un éventuel lecteur <video> laissé par une lecture précédente
+  const existingVideoTag = wrapper.querySelector('video');
+  if(existingVideoTag) existingVideoTag.remove();
+
+  if(platform === 'direct'){
+    iframe.style.display = 'none';
+    iframe.src = '';
+    const videoTag = document.createElement('video');
+    videoTag.src = videoId;
+    videoTag.controls = true;
+    videoTag.autoplay = true;
+    videoTag.style.width = '100%';
+    videoTag.style.aspectRatio = '16/9';
+    videoTag.style.display = 'block';
+    wrapper.appendChild(videoTag);
+  }else{
+    iframe.style.display = 'block';
+    if(platform === 'vimeo'){
+      iframe.src = `https://player.vimeo.com/video/${videoId}?autoplay=1`;
+    }else if(platform === 'dailymotion'){
+      iframe.src = `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`;
+    }else if(platform === 'twitch'){
+      const parent = window.location.hostname || 'localhost';
+      if(twitchType === 'clip'){
+        iframe.src = `https://clips.twitch.tv/embed?clip=${videoId}&parent=${parent}&autoplay=true`;
+      }else{
+        iframe.src = `https://player.twitch.tv/?video=${videoId}&parent=${parent}&autoplay=true`;
+      }
+    }else{
+      // youtube par défaut
+      iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+    }
+  }
   openOverlay('player-overlay');
 }
 document.querySelector('[data-close="player-overlay"]').addEventListener('click', ()=>{
-  document.getElementById('player-iframe').src = '';
+  const iframe = document.getElementById('player-iframe');
+  iframe.src = '';
+  iframe.style.display = 'block';
+  const videoTag = iframe.parentElement.querySelector('video');
+  if(videoTag) videoTag.remove();
 });
 
 /* =========================================================
@@ -731,8 +840,9 @@ async function submitVideo(){
   const errorEl = document.getElementById('add-error');
   errorEl.style.display = 'none';
 
-  const videoId = extractYouTubeId(linkInput.value);
-  if(!videoId){
+  const detected = detectVideo(linkInput.value);
+  if(!detected){
+    errorEl.textContent = "Lien non reconnu. Formats acceptés : YouTube, Vimeo, Dailymotion, Twitch, ou fichier vidéo direct (.mp4/.webm/.ogg).";
     errorEl.style.display = 'block';
     return;
   }
@@ -742,17 +852,21 @@ async function submitVideo(){
   submitBtn.disabled = true;
 
   let title = titleInput.value.trim();
-  if(!title){
-    title = await fetchYouTubeTitle(videoId);
-    if(!title) title = 'Vidéo sans titre';
+  if(!title && detected.platform === 'youtube'){
+    title = await fetchYouTubeTitle(detected.id);
   }
+  if(!title) title = 'Vidéo sans titre';
 
   try{
-    await videosRef.add({
-      videoId,
+    const payload = {
+      platform: detected.platform,
+      videoId: detected.id,
       title,
       addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    };
+    if(detected.twitchType) payload.twitchType = detected.twitchType;
+
+    await videosRef.add(payload);
     linkInput.value = '';
     titleInput.value = '';
     closeOverlay('add-overlay');
