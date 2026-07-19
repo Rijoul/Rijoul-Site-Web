@@ -100,57 +100,60 @@
   /* ---------- Header / Hero ---------- */
   header{
     position: relative; z-index:1;
-    padding: 6vh 6vw 8vh;
+    padding: 9vh 6vw 6vh;
     text-align:center;
-    border-bottom: 1px solid var(--panel-line);
   }
   .eyebrow{
-    font-family:'Cormorant Garamond', serif;
-    font-style:italic;
-    letter-spacing:0.35em;
+    font-family:'Fredoka', sans-serif;
+    font-weight:500;
+    letter-spacing:0.25em;
     text-transform:uppercase;
     font-size:0.78rem;
-    color: var(--gold-bright);
-    opacity:0.85;
-    margin-bottom: 1.2rem;
+    color: var(--text);
+    opacity:0.8;
+    margin-bottom: 1rem;
   }
   h1.brand{
-    font-family:'Cinzel', serif;
-    font-weight:600;
-    font-size: clamp(2.4rem, 7vw, 5rem);
-    letter-spacing:0.06em;
+    font-family:'Fredoka', sans-serif;
+    font-weight:700;
+    font-size: clamp(3rem, 11vw, 6.5rem);
+    letter-spacing:0.01em;
     margin: 0;
-    background: linear-gradient(180deg, #fdf2c8 0%, var(--gold) 55%, var(--gold-dim) 100%);
+    line-height:1;
+    background: linear-gradient(180deg, var(--title-top) 0%, var(--title-bottom) 100%);
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
+    -webkit-text-stroke: 3px var(--cream);
+    paint-order: stroke fill;
+    filter: drop-shadow(0 6px 0 rgba(0,0,0,0.06));
   }
-  .rule{
-    width:0; height:1px; background: var(--gold);
-    margin: 1.6rem auto; animation: draw 1.4s cubic-bezier(.2,.7,.2,1) forwards 0.3s;
-  }
-  @keyframes draw{ to{ width: 180px; } }
+  .rule{ display:none; }
   .tagline{
-    font-family:'Cormorant Garamond', serif;
-    font-size: clamp(1.05rem, 2vw, 1.4rem);
-    color: var(--text-dim);
-    max-width: 560px;
-    margin: 0 auto;
-    font-style: italic;
+    font-family:'Baloo 2', sans-serif;
+    font-weight:500;
+    font-size: clamp(1rem, 2vw, 1.2rem);
+    color: var(--text);
+    opacity:0.9;
+    max-width: 480px;
+    margin: 1.4rem auto 0;
   }
 
   .subscribe-row{
     margin-top:2.2rem; display:flex; gap:0.9rem; justify-content:center; flex-wrap:wrap;
   }
   .btn{
-    font-family:'Manrope'; font-size:0.82rem; letter-spacing:0.08em; text-transform:uppercase;
-    padding:0.85rem 1.6rem; border-radius:2px; cursor:pointer; border:1px solid var(--gold-dim);
-    background:transparent; color: var(--gold-bright); transition: all .25s ease; text-decoration:none;
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.95rem; letter-spacing:0.01em; text-transform:none;
+    padding:0.95rem 2rem; border-radius:999px; cursor:pointer; border:2px solid var(--cream);
+    background:transparent; color: var(--cream); transition: all .25s ease; text-decoration:none;
     display:inline-flex; align-items:center; gap:0.5rem;
   }
-  .btn:hover{ background: var(--gold); color:#0a0a0a; border-color: var(--gold); }
-  .btn.primary{ background: var(--gold); color:#0a0a0a; }
-  .btn.primary:hover{ background: var(--gold-bright); }
+  .btn:hover{ background: var(--cream); color: var(--dark-text); transform: translateY(-2px); }
+  .btn.primary{
+    background: var(--red); color: var(--navy); border-color: var(--red);
+    box-shadow: 0 10px 24px -8px rgba(200,16,46,0.65);
+  }
+  .btn.primary:hover{ background: #ff2d4d; color: var(--navy); }
 
   /* ---------- Gallery ---------- */
   main{ position:relative; z-index:1; padding: 6vh 6vw 10vh; max-width:1400px; margin:0 auto; }
