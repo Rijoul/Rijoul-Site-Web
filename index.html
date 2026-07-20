@@ -667,6 +667,8 @@
     <h2>Ajouter une vidéo</h2>
 
     <div class="import-link-row"><a id="open-import-channel">Importer toutes les vidéos d'une chaîne YouTube →</a></div>
+    <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos YouTube →</a></div>
+    <div class="import-progress" id="refresh-progress"></div>
 
     <label for="add-link">Lien de la vidéo</label>
     <input type="text" id="add-link" placeholder="https://www.youtube.com/watch?v=... ou n'importe quel lien vidéo">
@@ -1033,10 +1035,35 @@ async function fetchYouTubeTitle(videoId){
   }
 }
 
+// Date de publication réelle sur YouTube (nécessite YOUTUBE_API_KEY).
+// Retourne un objet Date, ou null si indisponible (pas de clé API, vidéo introuvable, etc.)
+async function fetchYouTubePublishedAt(videoId){
+  if(!YOUTUBE_API_KEY) return null;
+  try{
+    const data = await ytApiGet('videos', { part: 'snippet', id: videoId, fields: 'items(snippet(publishedAt))' });
+    const iso = data.items && data.items[0] && data.items[0].snippet && data.items[0].snippet.publishedAt;
+    return iso ? new Date(iso) : null;
+  }catch(e){
+    console.warn('Date de publication YouTube indisponible :', e);
+    return null;
+  }
+}
+
 function formatDate(ts){
   if(!ts) return '';
   const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+// Date utilisée pour le tri et l'affichage : la vraie date de publication
+// sur la plateforme d'origine si on la connaît, sinon la date d'ajout au site.
+function effectiveDate(v){
+  return v.publishedAt || v.addedAt;
+}
+function effectiveMillis(v){
+  const ts = effectiveDate(v);
+  if(!ts) return 0;
+  return ts.toMillis ? ts.toMillis() : new Date(ts).getTime();
 }
 
 function openOverlay(id){ document.getElementById(id).classList.add('open'); }
@@ -1082,7 +1109,7 @@ function renderGrid(){
       <button class="delete-btn" data-delete-id="${v.id}" title="Supprimer">✕</button>
       <button class="edit-btn" data-edit-id="${v.id}" title="Modifier">✎</button>
       <div class="thumb-wrap" ${thumb ? '' : 'style="display:flex;align-items:center;justify-content:center;background:#1a1a1a;"'}>
-        <span class="slate">${String(currentVideos.length - i).padStart(2,'0')}</span>
+        <span class="slate">${String(i + 1).padStart(2,'0')}</span>
         ${thumb
           ? `<img src="${thumb}" alt="${escapeHtml(v.title)}" loading="lazy">`
           : `<span style="font-family:'Fredoka';font-weight:700;color:var(--cream);font-size:1rem;letter-spacing:0.05em;opacity:0.6;text-align:center;padding:0 1rem;">${escapeHtml(platformLabel(v))}</span>`
@@ -1091,7 +1118,7 @@ function renderGrid(){
       </div>
       <div class="card-body">
         <p class="card-title">${escapeHtml(v.title)}</p>
-        <div class="card-date">${formatDate(v.addedAt)}</div>
+        <div class="card-date">${formatDate(effectiveDate(v))}</div>
         ${v.author ? `<div class="card-author">${escapeHtml(v.author)}</div>` : ''}
         ${v.description ? `<p class="card-desc">${escapeHtml(v.description)}</p>` : ''}
       </div>
@@ -1304,6 +1331,9 @@ document.querySelector('[data-close="player-overlay"]').addEventListener('click'
    ========================================================= */
 videosRef.orderBy('addedAt', 'desc').onSnapshot((snapshot)=>{
   currentVideos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  // Tri par date de publication réelle sur la plateforme d'origine (la plus
+  // récente en haut), avec repli sur la date d'ajout si elle est inconnue.
+  currentVideos.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
   renderGrid();
 }, (err)=>{
   document.getElementById('video-grid').innerHTML =
@@ -1377,8 +1407,12 @@ async function submitVideo(){
   submitBtn.disabled = true;
 
   let title = titleInput.value.trim();
+  let publishedAtDate = null;
   if(!title && detected.platform === 'youtube'){
     title = await fetchYouTubeTitle(detected.id);
+  }
+  if(detected.platform === 'youtube'){
+    publishedAtDate = await fetchYouTubePublishedAt(detected.id);
   }
   if(!title && detected.platform === 'generic'){
     title = hostnameOf(detected.id) || 'Vidéo sans titre';
@@ -1394,6 +1428,7 @@ async function submitVideo(){
       description: descriptionInput.value.trim() || null
     };
     if(detected.twitchType) payload.twitchType = detected.twitchType;
+    if(publishedAtDate) payload.publishedAt = firebase.firestore.Timestamp.fromDate(publishedAtDate);
     await addVideoDoc(payload);
   }catch(e){
     alert("Erreur lors de l'ajout de la vidéo.");
@@ -1417,6 +1452,58 @@ document.getElementById('open-import-channel').addEventListener('click', (e)=>{
   progress.classList.remove('visible');
   document.getElementById('import-progress-bar').style.width = '0%';
   openOverlay('import-overlay');
+});
+
+/* =========================================================
+   Admin : rafraîchir la date de publication réelle des vidéos
+   YouTube existantes qui ne l'ont pas encore (importées/ajoutées
+   avant la mise en place de ce champ). Nécessite YOUTUBE_API_KEY.
+   ========================================================= */
+document.getElementById('refresh-dates-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  const progressEl = document.getElementById('refresh-progress');
+
+  if(!YOUTUBE_API_KEY){
+    progressEl.classList.add('visible');
+    progressEl.textContent = "Aucune clé API YouTube configurée. Ajoute ta clé dans la variable YOUTUBE_API_KEY du code de la page.";
+    return;
+  }
+
+  const toRefresh = currentVideos.filter(v => v.platform === 'youtube' && !v.publishedAt);
+  if(toRefresh.length === 0){
+    progressEl.classList.add('visible');
+    progressEl.textContent = "Toutes les vidéos YouTube ont déjà leur date de publication réelle.";
+    return;
+  }
+
+  if(!confirm(`${toRefresh.length} vidéo(s) YouTube n'ont pas encore leur date de publication réelle. Lancer la mise à jour maintenant ?`)) return;
+
+  link.style.pointerEvents = 'none';
+  link.style.opacity = '0.6';
+  progressEl.classList.add('visible');
+
+  let done = 0, updated = 0, failed = 0;
+  for(const v of toRefresh){
+    progressEl.innerHTML = `Rafraîchissement… ${done}/${toRefresh.length}<div class="bar-track"><div class="bar-fill" style="width:${Math.round((done/toRefresh.length)*100)}%"></div></div>`;
+    try{
+      const publishedAtDate = await fetchYouTubePublishedAt(v.videoId);
+      if(publishedAtDate){
+        await videosRef.doc(v.id).update({ publishedAt: firebase.firestore.Timestamp.fromDate(publishedAtDate) });
+        updated++;
+      }else{
+        failed++;
+      }
+    }catch(err){
+      console.error(err);
+      failed++;
+    }
+    done++;
+  }
+
+  progressEl.innerHTML = `Terminé : ${updated} date(s) mise(s) à jour${failed ? `, ${failed} échec(s)` : ''}.`;
+  link.style.pointerEvents = '';
+  link.style.opacity = '';
 });
 
 // Reconnaît /channel/UC..., /@handle, /c/NomPerso et /user/NomLegacy
@@ -1495,10 +1582,14 @@ async function fetchAllUploads(playlistId, onProgress){
     for(const item of (data.items || [])){
       const videoId = item.contentDetails && item.contentDetails.videoId;
       if(!videoId) continue;
+      // videoPublishedAt = date de mise en ligne réelle de la vidéo (plus fiable
+      // que snippet.publishedAt, qui est la date d'ajout à la playlist "uploads")
+      const publishedIso = (item.contentDetails && item.contentDetails.videoPublishedAt) || item.snippet.publishedAt;
       items.push({
         videoId,
         title: item.snippet.title,
-        description: item.snippet.description || ''
+        description: item.snippet.description || '',
+        publishedAt: publishedIso ? new Date(publishedIso) : null
       });
     }
     pageToken = data.nextPageToken || '';
@@ -1562,14 +1653,16 @@ document.getElementById('import-submit').addEventListener('click', async ()=>{
     let done = 0;
     for(const u of toImport){
       const shortDesc = (u.description || '').split('\n')[0].slice(0, 200) || null;
-      await videosRef.add({
+      const docPayload = {
         platform: 'youtube',
         videoId: u.videoId,
         title: u.title || 'Vidéo sans titre',
         author: channel.channelTitle,
         description: shortDesc,
         addedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      };
+      if(u.publishedAt) docPayload.publishedAt = firebase.firestore.Timestamp.fromDate(u.publishedAt);
+      await videosRef.add(docPayload);
       done++;
       const pct = 40 + Math.round((done / Math.max(1, toImport.length)) * 60);
       setImportProgress(`Importation… ${done}/${toImport.length} vidéo(s) ajoutée(s)`, pct);
