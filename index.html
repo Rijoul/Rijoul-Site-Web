@@ -767,7 +767,7 @@
     <input type="text" id="add-description" placeholder="Courte description de la vidéo">
     <div class="modal-checkbox-row">
       <input type="checkbox" id="add-is-short">
-      <label for="add-is-short">Vidéo courte (format vertical 9:16 / Shorts)</label>
+      <label for="add-is-short" id="add-is-short-label">Vidéo courte (format vertical 9:16 / Shorts)</label>
     </div>
     <div class="modal-error" id="add-error">Lien non reconnu.</div>
     <div class="modal-actions">
@@ -1543,11 +1543,119 @@ document.getElementById('add-submit').addEventListener('click', submitVideo);
 document.getElementById('add-link').addEventListener('keydown', (e)=>{
   if(e.key === 'Enter') submitVideo();
 });
-// Pré-coche automatiquement "vidéo courte" si le lien collé est un Short YouTube
-document.getElementById('add-link').addEventListener('input', (e)=>{
-  if(isYouTubeShortUrl(e.target.value)){
-    document.getElementById('add-is-short').checked = true;
+
+/* =========================================================
+   Détection automatique du format (16:9 vs 9:16) à partir du lien
+   ========================================================= */
+let addLinkDetectToken = 0; // évite qu'une détection en retard écrase une saisie plus récente
+let addIsShortManuallySet = false; // devient true dès que l'admin touche la case lui-même
+
+const addIsShortCheckbox = document.getElementById('add-is-short');
+const addIsShortLabel = document.getElementById('add-is-short-label');
+addIsShortCheckbox.addEventListener('change', ()=>{ addIsShortManuallySet = true; });
+
+function setAddIsShortLabel(text){
+  addIsShortLabel.textContent = text;
+}
+
+async function fetchOEmbedRatio(oembedUrl){
+  const res = await fetch(oembedUrl);
+  if(!res.ok) throw new Error('oEmbed indisponible');
+  const data = await res.json();
+  if(data.width && data.height) return data.width / data.height;
+  return null;
+}
+
+// Charge juste les métadonnées d'un fichier vidéo direct (sans le télécharger
+// en entier) pour connaître ses dimensions réelles
+function fetchDirectVideoRatio(url){
+  return new Promise((resolve)=>{
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.muted = true;
+    probe.style.display = 'none';
+    const cleanup = ()=>{ probe.src = ''; probe.remove(); };
+    probe.addEventListener('loadedmetadata', ()=>{
+      const ratio = (probe.videoWidth && probe.videoHeight) ? probe.videoWidth / probe.videoHeight : null;
+      cleanup();
+      resolve(ratio);
+    });
+    probe.addEventListener('error', ()=>{ cleanup(); resolve(null); });
+    setTimeout(()=>{ cleanup(); resolve(null); }, 8000); // sécurité si ça ne charge jamais
+    document.body.appendChild(probe);
+    probe.src = url;
+  });
+}
+
+// Tente de deviner automatiquement le format (portrait/paysage) du lien
+// collé et pré-coche la case en conséquence. L'admin garde toujours la
+// main : dès qu'il modifie la case lui-même, on arrête d'y toucher.
+async function autoDetectShortFormat(url){
+  const myToken = ++addLinkDetectToken;
+  const detected = detectVideo(url);
+  if(!detected) return;
+
+  // Cas déjà connu instantanément : URL Shorts YouTube
+  if(detected.platform === 'youtube' && detected.isShort){
+    if(!addIsShortManuallySet) addIsShortCheckbox.checked = true;
+    setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement');
+    return;
   }
+
+  let oembedUrl = null;
+  if(detected.platform === 'youtube'){
+    oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${detected.id}&format=json`;
+  }else if(detected.platform === 'vimeo'){
+    oembedUrl = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent('https://vimeo.com/' + detected.id)}`;
+  }else if(detected.platform === 'dailymotion'){
+    oembedUrl = `https://www.dailymotion.com/services/oembed?url=${encodeURIComponent('https://www.dailymotion.com/video/' + detected.id)}&format=json`;
+  }
+
+  try{
+    let ratio = null;
+    if(oembedUrl){
+      ratio = await fetchOEmbedRatio(oembedUrl);
+    }else if(detected.platform === 'direct'){
+      setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — analyse du fichier…');
+      ratio = await fetchDirectVideoRatio(detected.id);
+    }
+
+    if(myToken !== addLinkDetectToken) return; // le lien a changé entre-temps, on jette ce résultat
+
+    if(ratio){
+      if(!addIsShortManuallySet) addIsShortCheckbox.checked = ratio < 1;
+      setAddIsShortLabel(`Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement : ${ratio < 1 ? 'format vertical' : 'format horizontal'}`);
+    }else{
+      setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
+    }
+  }catch(e){
+    if(myToken !== addLinkDetectToken) return;
+    console.warn('Détection auto du format impossible :', e);
+    setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
+  }
+}
+
+// Se déclenche quand l'admin colle un lien ou quitte le champ, pas à chaque
+// frappe (pour éviter de spammer les API pendant la saisie)
+document.getElementById('add-link').addEventListener('input', (e)=>{
+  // Reset immédiat pour un nouveau lien : on ne veut plus l'ancien état "manuel"
+  addIsShortManuallySet = false;
+  setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
+  // Cas synchrone : URL Shorts YouTube reconnaissable tout de suite
+  if(isYouTubeShortUrl(e.target.value)){
+    addIsShortCheckbox.checked = true;
+  }
+});
+document.getElementById('add-link').addEventListener('blur', (e)=>{
+  const url = e.target.value.trim();
+  if(url) autoDetectShortFormat(url);
+});
+document.getElementById('add-link').addEventListener('paste', ()=>{
+  // Laisse le temps au champ de recevoir la valeur collée avant de la lire
+  setTimeout(()=>{
+    const url = document.getElementById('add-link').value.trim();
+    if(url) autoDetectShortFormat(url);
+  }, 0);
 });
 
 /* Ajoute un document vidéo dans Firestore et réinitialise la modale */
@@ -1558,6 +1666,8 @@ async function addVideoDoc(payload){
   document.getElementById('add-author').value = '';
   document.getElementById('add-description').value = '';
   document.getElementById('add-is-short').checked = false;
+  addIsShortManuallySet = false;
+  setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
   closeOverlay('add-overlay');
 }
 
@@ -1580,6 +1690,13 @@ async function submitVideo(){
   const submitBtn = document.getElementById('add-submit');
   submitBtn.textContent = 'Ajout…';
   submitBtn.disabled = true;
+
+  // S'assure que la détection automatique du format a eu le temps de
+  // s'exécuter au moins une fois avant l'ajout (au cas où l'admin valide
+  // très vite après avoir collé le lien, sans quitter le champ)
+  if(!addIsShortManuallySet){
+    await autoDetectShortFormat(linkInput.value.trim());
+  }
 
   let title = titleInput.value.trim();
   let publishedAtDate = null;
