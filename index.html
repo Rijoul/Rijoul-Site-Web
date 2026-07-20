@@ -671,10 +671,6 @@
 
 <header>
   <h1 class="brand">RIJOUL</h1>
-  <div class="subscribe-row">
-    <a href="#" id="subscribe-link" class="btn primary" target="_blank" rel="noopener">Abonne toi</a>
-    <a href="#" class="btn" id="hero-see-videos">Voir les vidéos</a>
-  </div>
   <nav class="site-nav" id="site-nav">
     <button class="site-nav-btn" data-section="section-home">Accueil</button>
     <button class="site-nav-btn" data-section="section-videos">Vidéos</button>
@@ -981,28 +977,23 @@ const firebaseConfig = {
 // 2) UID Firebase du compte administrateur autorisé à gérer les vidéos
 const ADMIN_UID = "K4DFzCs0MVccolAVciX1ViPUBk83";
 
-// 3) Lien "S'abonner" — mets l'URL de ta chaîne
-const CHANNEL_URL = "https://www.youtube.com/";
-
-// 4) Nom de la collection Firestore utilisée pour stocker les vidéos
+// 3) Nom de la collection Firestore utilisée pour stocker les vidéos
 const COLLECTION_NAME = "videos";
 
-// 5) Clé API YouTube Data v3 — nécessaire UNIQUEMENT pour la fonction
+// 4) Clé API YouTube Data v3 — nécessaire UNIQUEMENT pour la fonction
 //    "Importer toutes les vidéos d'une chaîne". À créer sur
 //    https://console.cloud.google.com/apis/credentials
 const YOUTUBE_API_KEY = "AIzaSyCHXby76C8CeuDyoSrg2dcfBcF4ghKQMKA";
 
-// 6) Nombre de vidéos chargées par défaut, et par clic sur "Afficher plus"
+// 5) Nombre de vidéos chargées par défaut, et par clic sur "Afficher plus"
 //    (réduit à 20 pour limiter fortement les lectures Firestore)
 const PAGE_SIZE = 20;
 
-// 7) Durée de vie du cache local (téléphone/navigateur) avant de revérifier
+// 6) Durée de vie du cache local (téléphone/navigateur) avant de revérifier
 //    Firestore. Tant que ce délai n'est pas écoulé, AUCUNE lecture réseau
 //    n'est faite pour les données concernées : tout vient du cache local.
 const CACHE_TTL_MS = 5 * 60 * 1000;          // 5 minutes : première page de vidéos
 const CHANNELS_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes : compteurs d'abonnés
-
-document.getElementById('subscribe-link').href = CHANNEL_URL;
 
 /* =========================================================
    Firebase init
@@ -1243,10 +1234,6 @@ function showSection(id){
 }
 document.querySelectorAll('.site-nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> showSection(btn.dataset.section));
-});
-document.getElementById('hero-see-videos').addEventListener('click', (e)=>{
-  e.preventDefault();
-  showSection('section-videos');
 });
 
 /* =========================================================
@@ -2192,8 +2179,8 @@ async function findExistingVideoIds(videoIds){
 
 /* =========================================================
    Mise à jour automatique des chaînes suivies : ne se déclenche
-   que pour l'admin, à intervalle espacé (15 min) et seulement si
-   l'onglet est visible, pour limiter drastiquement les appels.
+   que pour l'admin, uniquement à la connexion (pas de vérification
+   automatique périodique en arrière-plan).
    ========================================================= */
 async function fetchLatestUploads(playlistId, maxResults = 25){
   const data = await ytApiGet('playlistItems', { part: 'snippet,contentDetails', playlistId, maxResults });
@@ -2897,14 +2884,8 @@ auth.onAuthStateChanged(async (user)=>{
   document.body.classList.toggle('admin-mode', isAdmin);
 
   if(isAdmin && !wasAdmin){
+    // Vérifie les nouvelles vidéos des chaînes suivies uniquement à la connexion admin
     checkTrackedChannelsForNewVideos();
-    if(trackedChannelsCheckInterval) clearInterval(trackedChannelsCheckInterval);
-    trackedChannelsCheckInterval = setInterval(()=>{
-      if(document.visibilityState === 'visible') checkTrackedChannelsForNewVideos();
-    }, 15 * 60 * 1000); // toutes les 15 minutes au lieu de chaque minute
-  }else if(!isAdmin && trackedChannelsCheckInterval){
-    clearInterval(trackedChannelsCheckInterval);
-    trackedChannelsCheckInterval = null;
   }
 
   if(realUser){
