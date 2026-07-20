@@ -261,6 +261,11 @@
     border:3px dashed var(--panel-line); border-radius: 26px;
   }
 
+  /* ---------- Bouton "Afficher plus" ---------- */
+  .load-more-row{ display:flex; justify-content:center; margin-top:2.4rem; }
+  .load-more-btn{ display:none; }
+  .load-more-btn.visible{ display:inline-flex; }
+
   /* ---------- Floating admin button ---------- */
   .fab{
     position: fixed; bottom: 2rem; right: 2rem; z-index:10;
@@ -609,6 +614,7 @@
     font-weight:600; font-size:0.78rem; color:#6b5644; transition: all .2s ease; flex-shrink:0;
   }
   .reaction-btn:hover{ border-color: var(--red); background:#fff; }
+  .reaction-btn[disabled]{ opacity:0.6; cursor:default; }
   .reaction-btn svg{ width:15px; height:15px; fill:none; stroke:#6b5644; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition: all .2s ease; }
   .reaction-btn.active-like{ background: var(--red); border-color: var(--red); color:#fff; }
   .reaction-btn.active-like svg{ fill:#fff; stroke:#fff; }
@@ -622,6 +628,7 @@
   .subscribe-card-btn:hover{ background:#ff2d4d; border-color:#ff2d4d; }
   .subscribe-card-btn.subscribed{ background:#fffaf1; color: var(--red-dim); border-color: var(--cream-2); }
   .subscribe-card-btn.subscribed:hover{ background:#fdeceb; border-color:#e8b8b8; }
+  .subscribe-card-btn[disabled]{ opacity:0.6; cursor:default; }
   .subs-count{ color:#a3856f; font-weight:600; }
 
   /* ---------- Section Abonnements ---------- */
@@ -681,6 +688,9 @@
     <div class="grid" id="video-grid-home">
       <div class="empty-state">Chargement des vidéos…</div>
     </div>
+    <div class="load-more-row">
+      <button class="btn primary load-more-btn" id="load-more-home">Afficher plus</button>
+    </div>
   </section>
 
   <!-- Section Vidéos : vidéos "longues" au format 16:9 -->
@@ -692,6 +702,9 @@
     <div class="grid" id="video-grid">
       <div class="empty-state">Chargement des vidéos…</div>
     </div>
+    <div class="load-more-row">
+      <button class="btn primary load-more-btn" id="load-more-videos">Afficher plus</button>
+    </div>
   </section>
 
   <!-- Section Shorts : vidéos "courtes" au format 9:16, séparées des vidéos longues -->
@@ -702,6 +715,9 @@
     </div>
     <div class="grid shorts-grid" id="shorts-grid">
       <div class="empty-state">Chargement des shorts…</div>
+    </div>
+    <div class="load-more-row">
+      <button class="btn primary load-more-btn" id="load-more-shorts">Afficher plus</button>
     </div>
   </section>
 
@@ -961,6 +977,10 @@ const COLLECTION_NAME = "videos";
 //    la restreindre par référent HTTP à ce site pour plus de sécurité).
 const YOUTUBE_API_KEY = "AIzaSyCHXby76C8CeuDyoSrg2dcfBcF4ghKQMKA";
 
+// 6) Pagination des galeries : nombre de vidéos affichées par défaut, et
+//    nombre de vidéos supplémentaires révélées à chaque clic sur "Afficher plus"
+const PAGE_SIZE = 50;
+
 document.getElementById('subscribe-link').href = CHANNEL_URL;
 
 /* =========================================================
@@ -986,12 +1006,19 @@ const usersRef = db
 let profileUnsub = null; // désabonnement de l'écoute temps réel du profil courant
 let currentProfilePhoto = null; // base64 en attente de sauvegarde dans la modale profil
 
+// Réactions (like/dislike) de chaque utilisateur : stockées dans UN SEUL
+// document par utilisateur (userReactions/{uid} → { reactions: { videoId: 'like'|'dislike' } }).
+// Ce choix évite d'avoir besoin d'un index composite Firestore (contrairement à
+// une collectionGroup sur des sous-collections), ce qui rend le système plus
+// simple à faire fonctionner du premier coup.
+const userReactionsRef = db.collection('userReactions');
+
 // Collection publique des "chaînes" (identifiées par channelId YouTube, ou à
 // défaut par le nom de l'auteur saisi manuellement) : stocke le nombre
 // d'abonnés, visible par tout le monde à côté du nom de la chaîne.
 const channelsRef = db.collection('channels');
 // Abonnements personnels de chaque utilisateur, pour qu'ils soient
-// retrouvés automatiquement à sa prochaine visite : artifacts/{uid}/subs/{channelDocId}
+// retrouvés automatiquement à sa prochaine visite : userSubscriptions/{uid}/subs/{channelDocId}
 function userSubsCollection(uid){
   return db.collection('userSubscriptions').doc(uid).collection('subs');
 }
@@ -1030,6 +1057,7 @@ let trackedChannelsCheckInterval = null;
 // Réactions (like/dislike) de l'utilisateur courant : { videoId: 'like'|'dislike' }
 let userReactions = {};
 let userReactionsUnsub = null;
+let reactionInFlight = new Set(); // évite les doubles-clics pendant qu'une requête est en cours
 
 // Chaînes publiques (compteur d'abonnés) : { channelDocId: { name, subscriberCount } }
 let channelsData = {};
@@ -1037,6 +1065,10 @@ let channelsData = {};
 // Abonnements de l'utilisateur courant : Set des channelDocId suivis
 let userSubscribedKeys = new Set();
 let userSubsUnsub = null;
+let subscribeInFlight = new Set(); // évite les doubles-clics pendant qu'une requête est en cours
+
+// Nombre de vidéos actuellement affichées dans chaque section paginée
+let visibleCounts = { home: PAGE_SIZE, videos: PAGE_SIZE, shorts: PAGE_SIZE };
 
 /* =========================================================
    Utilitaires
@@ -1243,53 +1275,66 @@ async function ensureAnyAuth(){
   return cred.user;
 }
 
+/* Écoute en temps réel le document de réactions de l'utilisateur courant.
+   Un seul document par utilisateur => pas besoin d'index composite. */
 function subscribeUserReactions(uid){
   if(userReactionsUnsub){ userReactionsUnsub(); userReactionsUnsub = null; }
-  // Nécessite un index de groupe de collection sur 'reactions' (champ 'uid').
-  // Si Firestore renvoie une erreur d'index manquant, ouvre le lien fourni
-  // dans la console pour le créer automatiquement.
-  userReactionsUnsub = db.collectionGroup('reactions').where('uid', '==', uid).onSnapshot((snap)=>{
-    const map = {};
-    snap.forEach(doc=>{
-      const videoId = doc.ref.parent.parent.id;
-      map[videoId] = doc.data().type;
-    });
-    userReactions = map;
+  userReactionsUnsub = userReactionsRef.doc(uid).onSnapshot((snap)=>{
+    userReactions = (snap.exists && snap.data().reactions) || {};
     renderGrid();
   }, (err)=>{
-    console.warn("Impossible de charger les réactions de l'utilisateur (index Firestore manquant ?) :", err);
+    console.warn("Impossible de charger les réactions de l'utilisateur :", err);
   });
 }
 
 async function toggleReaction(videoId, type){
+  if(reactionInFlight.has(videoId)) return; // évite le double-clic pendant l'écriture
+  reactionInFlight.add(videoId);
+  renderGrid();
+
   let user;
   try{
     user = await ensureAnyAuth();
   }catch(e){
-    console.error('Connexion anonyme impossible :', e);
+    console.error('Connexion impossible pour réagir :', e);
+    alert("Impossible de réagir pour le moment. Vérifie ta connexion internet et réessaie.");
+    reactionInFlight.delete(videoId);
+    renderGrid();
     return;
   }
+
   const videoRef = videosRef.doc(videoId);
-  const reactionRef = videoRef.collection('reactions').doc(user.uid);
+  const userRef = userReactionsRef.doc(user.uid);
+
   try{
     await db.runTransaction(async (tx)=>{
-      const snap = await tx.get(reactionRef);
-      const existing = snap.exists ? snap.data().type : null;
+      const userSnap = await tx.get(userRef);
+      const currentReactions = (userSnap.exists && userSnap.data().reactions) || {};
+      const existing = currentReactions[videoId] || null;
+      const newReactions = { ...currentReactions };
       const updates = {};
+
       if(existing === type){
-        tx.delete(reactionRef);
+        // Même bouton recliqué : on retire la réaction
+        delete newReactions[videoId];
         updates[type === 'like' ? 'likeCount' : 'dislikeCount'] = firebase.firestore.FieldValue.increment(-1);
       }else{
-        tx.set(reactionRef, { uid: user.uid, type, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        newReactions[videoId] = type;
         updates[type === 'like' ? 'likeCount' : 'dislikeCount'] = firebase.firestore.FieldValue.increment(1);
         if(existing){
           updates[existing === 'like' ? 'likeCount' : 'dislikeCount'] = firebase.firestore.FieldValue.increment(-1);
         }
       }
+
+      tx.set(userRef, { reactions: newReactions, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       tx.update(videoRef, updates);
     });
   }catch(e){
     console.error('Erreur lors de la réaction :', e);
+    alert("Impossible d'enregistrer ta réaction pour le moment. Réessaie dans un instant.");
+  }finally{
+    reactionInFlight.delete(videoId);
+    renderGrid();
   }
 }
 
@@ -1319,6 +1364,11 @@ async function toggleSubscription(v){
   const key = channelKeyOf(v);
   if(!key) return;
   const cdId = channelDocId(key);
+
+  if(subscribeInFlight.has(cdId)) return; // évite le double-clic pendant l'écriture
+  subscribeInFlight.add(cdId);
+  renderGrid();
+
   const uid = auth.currentUser.uid;
   const channelRef = channelsRef.doc(cdId);
   const subRef = userSubsCollection(uid).doc(cdId);
@@ -1336,11 +1386,17 @@ async function toggleSubscription(v){
     });
   }catch(e){
     console.error("Erreur lors de l'abonnement :", e);
+    alert("Impossible de modifier ton abonnement pour le moment. Réessaie dans un instant.");
+  }finally{
+    subscribeInFlight.delete(cdId);
+    renderGrid();
   }
 }
 
 async function unsubscribeChannel(cdId){
   if(!isConnected) return;
+  if(subscribeInFlight.has(cdId)) return;
+  subscribeInFlight.add(cdId);
   const uid = auth.currentUser.uid;
   const subRef = userSubsCollection(uid).doc(cdId);
   const channelRef = channelsRef.doc(cdId);
@@ -1353,6 +1409,10 @@ async function unsubscribeChannel(cdId){
     });
   }catch(e){
     console.error("Erreur lors du désabonnement :", e);
+    alert("Impossible de te désabonner pour le moment. Réessaie dans un instant.");
+  }finally{
+    subscribeInFlight.delete(cdId);
+    renderGrid();
   }
 }
 
@@ -1373,12 +1433,13 @@ function platformLabel(v){
 function reactionButtonsHtml(v){
   const myReaction = userReactions[v.id] || null;
   const likeCount = v.likeCount || 0;
+  const busy = reactionInFlight.has(v.id);
   return `
-    <button class="reaction-btn ${myReaction === 'like' ? 'active-like' : ''}" data-reaction-video="${v.id}" data-reaction-type="like" title="J'aime">
+    <button class="reaction-btn ${myReaction === 'like' ? 'active-like' : ''}" data-reaction-video="${v.id}" data-reaction-type="like" title="J'aime" ${busy ? 'disabled' : ''}>
       <svg viewBox="0 0 24 24"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>
       <span>${likeCount}</span>
     </button>
-    <button class="reaction-btn ${myReaction === 'dislike' ? 'active-dislike' : ''}" data-reaction-video="${v.id}" data-reaction-type="dislike" title="Je n'aime pas">
+    <button class="reaction-btn ${myReaction === 'dislike' ? 'active-dislike' : ''}" data-reaction-video="${v.id}" data-reaction-type="dislike" title="Je n'aime pas" ${busy ? 'disabled' : ''}>
       <svg viewBox="0 0 24 24" style="transform:rotate(180deg);"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>
     </button>
   `;
@@ -1389,8 +1450,9 @@ function subscribeButtonHtml(v){
   if(!key) return '';
   const cdId = channelDocId(key);
   const subscribed = userSubscribedKeys.has(cdId);
+  const busy = subscribeInFlight.has(cdId);
   const title = isConnected ? '' : "Connecte-toi pour t'abonner";
-  return `<button class="subscribe-card-btn ${subscribed ? 'subscribed' : ''}" data-subscribe-video="${v.id}" title="${title}">${subscribed ? 'Abonné ✓' : "S'abonner"}</button>`;
+  return `<button class="subscribe-card-btn ${subscribed ? 'subscribed' : ''}" data-subscribe-video="${v.id}" title="${title}" ${busy ? 'disabled' : ''}>${subscribed ? 'Abonné ✓' : "S'abonner"}</button>`;
 }
 
 function subsCountHtml(v){
@@ -1465,19 +1527,31 @@ function bindCardEvents(grid, list){
   });
 }
 
-// Rend une liste de vidéos dans un grid donné, avec compteur associé
-function renderVideoGrid(gridId, countId, list, emptyMessage){
+// Rend une liste de vidéos dans un grid donné, avec compteur associé.
+// Si sectionKey est fourni, la liste est paginée (limitée à visibleCounts[sectionKey])
+// et le bouton "Afficher plus" (moreBtnId) est affiché/masqué en conséquence.
+function renderVideoGrid(gridId, countId, list, emptyMessage, moreBtnId, sectionKey){
   const grid = document.getElementById(gridId);
   const count = document.getElementById(countId);
   if(count) count.textContent = list.length + (list.length > 1 ? ' vidéos' : ' vidéo');
 
+  const moreBtn = moreBtnId ? document.getElementById(moreBtnId) : null;
+
   if(list.length === 0){
     grid.innerHTML = `<div class="empty-state">${emptyMessage}</div>`;
+    if(moreBtn) moreBtn.classList.remove('visible');
     return;
   }
 
-  grid.innerHTML = list.map((v, i) => cardHtml(v, i)).join('');
-  bindCardEvents(grid, list);
+  const limit = sectionKey ? (visibleCounts[sectionKey] || PAGE_SIZE) : list.length;
+  const visibleList = list.slice(0, limit);
+
+  grid.innerHTML = visibleList.map((v, i) => cardHtml(v, i)).join('');
+  bindCardEvents(grid, visibleList);
+
+  if(moreBtn){
+    moreBtn.classList.toggle('visible', list.length > limit);
+  }
 }
 
 function getLongVideos(){ return currentVideos.filter(v => !v.isShort); }
@@ -1487,20 +1561,39 @@ function renderGrid(){
   const longVideos = getLongVideos();
   const shortVideos = getShortVideos();
 
-  // Vidéos (longues, 16:9)
-  renderVideoGrid('video-grid', 'video-count', longVideos,
-    isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.");
-
-  // Accueil : affiche la même chose que la section Vidéos
+  // Accueil : affiche la même chose que la section Vidéos, paginé (50 par défaut)
   renderVideoGrid('video-grid-home', 'video-count-home', longVideos,
-    isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.");
+    isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.",
+    'load-more-home', 'home');
 
-  // Shorts (courtes, 9:16)
+  // Vidéos (longues, 16:9), paginé (50 par défaut)
+  renderVideoGrid('video-grid', 'video-count', longVideos,
+    isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.",
+    'load-more-videos', 'videos');
+
+  // Shorts (courtes, 9:16), paginé (50 par défaut)
   renderVideoGrid('shorts-grid', 'shorts-count', shortVideos,
-    isAdmin ? "Aucun short pour l'instant. Ajoute une vidéo et coche « Vidéo courte »." : "Aucun short pour l'instant. Revenez bientôt.");
+    isAdmin ? "Aucun short pour l'instant. Ajoute une vidéo et coche « Vidéo courte »." : "Aucun short pour l'instant. Revenez bientôt.",
+    'load-more-shorts', 'shorts');
 
   renderSubsSection();
 }
+
+// Boutons "Afficher plus" : révèlent 50 vidéos de plus dans leur section,
+// et se cachent automatiquement une fois qu'il n'y a plus rien à charger
+// (géré directement dans renderVideoGrid à chaque rendu).
+document.getElementById('load-more-home').addEventListener('click', ()=>{
+  visibleCounts.home += PAGE_SIZE;
+  renderGrid();
+});
+document.getElementById('load-more-videos').addEventListener('click', ()=>{
+  visibleCounts.videos += PAGE_SIZE;
+  renderGrid();
+});
+document.getElementById('load-more-shorts').addEventListener('click', ()=>{
+  visibleCounts.shorts += PAGE_SIZE;
+  renderGrid();
+});
 
 function renderSubsSection(){
   const intro = document.getElementById('subs-intro');
