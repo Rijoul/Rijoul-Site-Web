@@ -520,6 +520,25 @@
     border-left: 3px solid var(--red); padding-left:0.7rem;
   }
 
+  /* ---------- Import de chaîne YouTube ---------- */
+  .import-link-row{
+    display:flex; justify-content:flex-start; margin: -0.6rem 0 1.3rem;
+  }
+  .import-link-row a{
+    font-size:0.8rem; font-weight:700; color: var(--red); cursor:pointer; text-decoration:underline;
+  }
+  .import-progress{
+    font-size:0.8rem; font-weight:600; color:#6b5644; background:#fffaf1; border:2px solid var(--cream-2);
+    border-radius:14px; padding:0.7rem 0.9rem; margin: -0.6rem 0 1.2rem; display:none; line-height:1.5;
+  }
+  .import-progress.visible{ display:block; }
+  .import-progress .bar-track{
+    height:6px; border-radius:999px; background: var(--cream-2); margin-top:0.5rem; overflow:hidden;
+  }
+  .import-progress .bar-fill{
+    height:100%; width:0%; background: var(--red); border-radius:999px; transition: width .3s ease;
+  }
+
   footer{
     position:relative; z-index:1; text-align:center; padding: 3rem 1rem 4rem;
     font-family:'Baloo 2', sans-serif; font-weight:600; color: var(--text); opacity:0.85; font-size:0.9rem;
@@ -647,6 +666,8 @@
     <button class="modal-close" data-close="add-overlay">&times;</button>
     <h2>Ajouter une vidéo</h2>
 
+    <div class="import-link-row"><a id="open-import-channel">Importer toutes les vidéos d'une chaîne YouTube →</a></div>
+
     <label for="add-link">Lien de la vidéo</label>
     <input type="text" id="add-link" placeholder="https://www.youtube.com/watch?v=... ou n'importe quel lien vidéo">
     <div class="modal-hint">Formats reconnus nativement : YouTube (standard, youtu.be, Shorts), Vimeo, Dailymotion, Twitch (vidéo ou clip), ou lien direct vers un fichier vidéo (.mp4/.webm/.ogg). Tout autre lien (Facebook, TikTok, page perso, etc.) sera intégré tel quel dans un cadre — cela fonctionne si le site autorise l'affichage en iframe, sinon un bouton "ouvrir le lien" sera proposé.</div>
@@ -660,6 +681,27 @@
     <div class="modal-actions">
       <button class="btn" data-close="add-overlay">Annuler</button>
       <button class="btn primary" id="add-submit">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import channel modal -->
+<div class="overlay" id="import-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="import-overlay">&times;</button>
+    <h2>Importer une chaîne YouTube</h2>
+
+    <label for="import-channel-link">Lien de la chaîne</label>
+    <input type="text" id="import-channel-link" placeholder="https://www.youtube.com/@nomdelachaine, /channel/UC..., /c/... ou /user/...">
+    <div class="modal-hint">Toutes les vidéos publiques de la chaîne seront ajoutées automatiquement (les vidéos déjà présentes, identifiées par leur lien YouTube, seront ignorées). Nécessite une clé API YouTube Data v3 valide configurée dans le code de la page (variable <code>YOUTUBE_API_KEY</code>).</div>
+    <div class="modal-error" id="import-error"></div>
+    <div class="import-progress" id="import-progress">
+      <span id="import-progress-text">Préparation…</span>
+      <div class="bar-track"><div class="bar-fill" id="import-progress-bar"></div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" data-close="import-overlay">Fermer</button>
+      <button class="btn primary" id="import-submit">Importer toutes les vidéos</button>
     </div>
   </div>
 </div>
@@ -825,6 +867,13 @@ const CHANNEL_URL = "https://www.youtube.com/";
 
 // 4) Nom de la collection Firestore utilisée pour stocker les vidéos
 const COLLECTION_NAME = "videos";
+
+// 5) Clé API YouTube Data v3 — nécessaire UNIQUEMENT pour la fonction
+//    "Importer toutes les vidéos d'une chaîne". À créer sur
+//    https://console.cloud.google.com/apis/credentials (active l'API
+//    "YouTube Data API v3" sur le projet, puis crée une clé API ; tu peux
+//    la restreindre par référent HTTP à ce site pour plus de sécurité).
+const YOUTUBE_API_KEY = "AIzaSyCHXby76C8CeuDyoSrg2dcfBcF4ghKQMKA";
 
 document.getElementById('subscribe-link').href = CHANNEL_URL;
 
@@ -1354,6 +1403,193 @@ async function submitVideo(){
     submitBtn.disabled = false;
   }
 }
+
+/* =========================================================
+   Admin : import automatique de toutes les vidéos d'une chaîne YouTube
+   Nécessite YOUTUBE_API_KEY (YouTube Data API v3) configurée plus haut.
+   ========================================================= */
+
+document.getElementById('open-import-channel').addEventListener('click', (e)=>{
+  e.preventDefault();
+  closeOverlay('add-overlay');
+  document.getElementById('import-error').style.display = 'none';
+  const progress = document.getElementById('import-progress');
+  progress.classList.remove('visible');
+  document.getElementById('import-progress-bar').style.width = '0%';
+  openOverlay('import-overlay');
+});
+
+// Reconnaît /channel/UC..., /@handle, /c/NomPerso et /user/NomLegacy
+function parseChannelRef(url){
+  if(!url) return null;
+  url = url.trim();
+  let m = url.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+  if(m) return { type: 'id', value: m[1] };
+
+  m = url.match(/youtube\.com\/@([a-zA-Z0-9._-]+)/);
+  if(m) return { type: 'handle', value: '@' + m[1] };
+
+  m = url.match(/youtube\.com\/c\/([a-zA-Z0-9._-]+)/);
+  if(m) return { type: 'custom', value: m[1] };
+
+  m = url.match(/youtube\.com\/user\/([a-zA-Z0-9._-]+)/);
+  if(m) return { type: 'user', value: m[1] };
+
+  // Lien collé sans domaine complet, ex: "@nomdelachaine"
+  if(/^@[a-zA-Z0-9._-]+$/.test(url)) return { type: 'handle', value: url };
+  // ID de chaîne brut
+  if(/^UC[a-zA-Z0-9_-]{22}$/.test(url)) return { type: 'id', value: url };
+
+  return null;
+}
+
+async function ytApiGet(endpoint, params){
+  const usp = new URLSearchParams({ ...params, key: YOUTUBE_API_KEY });
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${usp.toString()}`);
+  const data = await res.json();
+  if(!res.ok){
+    const message = (data && data.error && data.error.message) || `Erreur API YouTube (${res.status})`;
+    throw new Error(message);
+  }
+  return data;
+}
+
+// Résout un identifiant de chaîne (id/handle/custom/user) vers son
+// channelId, sa playlist "uploads" et son nom affiché.
+async function resolveChannel(ref){
+  let data;
+  if(ref.type === 'id'){
+    data = await ytApiGet('channels', { part: 'snippet,contentDetails', id: ref.value });
+  }else if(ref.type === 'handle'){
+    data = await ytApiGet('channels', { part: 'snippet,contentDetails', forHandle: ref.value.replace(/^@/, '') });
+  }else if(ref.type === 'user'){
+    data = await ytApiGet('channels', { part: 'snippet,contentDetails', forUsername: ref.value });
+  }else{
+    // "custom" (/c/Nom) n'est pas résoluble directement par l'API : on passe par une recherche
+    data = await ytApiGet('search', { part: 'snippet', type: 'channel', q: ref.value, maxResults: 1 });
+    const first = data.items && data.items[0];
+    if(!first) return null;
+    return resolveChannel({ type: 'id', value: first.snippet.channelId });
+  }
+
+  const channel = data.items && data.items[0];
+  if(!channel) return null;
+  return {
+    channelId: channel.id,
+    channelTitle: channel.snippet.title,
+    uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads
+  };
+}
+
+// Récupère tous les items (vidéoId, titre, description) de la playlist "uploads", avec pagination
+async function fetchAllUploads(playlistId, onProgress){
+  const items = [];
+  let pageToken = '';
+  do{
+    const data = await ytApiGet('playlistItems', {
+      part: 'snippet,contentDetails',
+      playlistId,
+      maxResults: 50,
+      pageToken
+    });
+    for(const item of (data.items || [])){
+      const videoId = item.contentDetails && item.contentDetails.videoId;
+      if(!videoId) continue;
+      items.push({
+        videoId,
+        title: item.snippet.title,
+        description: item.snippet.description || ''
+      });
+    }
+    pageToken = data.nextPageToken || '';
+    if(onProgress) onProgress(items.length);
+  }while(pageToken);
+  return items;
+}
+
+function setImportProgress(text, pct){
+  document.getElementById('import-progress').classList.add('visible');
+  document.getElementById('import-progress-text').textContent = text;
+  document.getElementById('import-progress-bar').style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+
+document.getElementById('import-submit').addEventListener('click', async ()=>{
+  const linkInput = document.getElementById('import-channel-link');
+  const errorEl = document.getElementById('import-error');
+  const submitBtn = document.getElementById('import-submit');
+  errorEl.style.display = 'none';
+
+  if(!YOUTUBE_API_KEY){
+    errorEl.textContent = "Aucune clé API YouTube configurée. Ajoute ta clé dans la variable YOUTUBE_API_KEY du code de la page.";
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const ref = parseChannelRef(linkInput.value);
+  if(!ref){
+    errorEl.textContent = "Lien de chaîne non reconnu. Utilise un lien du type /channel/UC…, /@nom, /c/nom ou /user/nom.";
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Importation…';
+  setImportProgress('Recherche de la chaîne…', 5);
+
+  try{
+    const channel = await resolveChannel(ref);
+    if(!channel){
+      throw new Error("Chaîne introuvable.");
+    }
+
+    setImportProgress(`Chaîne trouvée : ${channel.channelTitle}. Liste des vidéos…`, 15);
+    const uploads = await fetchAllUploads(channel.uploadsPlaylistId, (count)=>{
+      setImportProgress(`${count} vidéo(s) trouvée(s) sur la chaîne « ${channel.channelTitle} »…`, 40);
+    });
+
+    if(uploads.length === 0){
+      setImportProgress('Aucune vidéo publique trouvée sur cette chaîne.', 100);
+      return;
+    }
+
+    // Ignore les vidéos YouTube déjà présentes dans la galerie (dédoublonnage par videoId)
+    const existingIds = new Set(
+      currentVideos.filter(v => v.platform === 'youtube').map(v => v.videoId)
+    );
+    const toImport = uploads.filter(u => !existingIds.has(u.videoId));
+    const skipped = uploads.length - toImport.length;
+
+    let done = 0;
+    for(const u of toImport){
+      const shortDesc = (u.description || '').split('\n')[0].slice(0, 200) || null;
+      await videosRef.add({
+        platform: 'youtube',
+        videoId: u.videoId,
+        title: u.title || 'Vidéo sans titre',
+        author: channel.channelTitle,
+        description: shortDesc,
+        addedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      done++;
+      const pct = 40 + Math.round((done / Math.max(1, toImport.length)) * 60);
+      setImportProgress(`Importation… ${done}/${toImport.length} vidéo(s) ajoutée(s)`, pct);
+    }
+
+    const summary = skipped > 0
+      ? `Terminé : ${done} vidéo(s) importée(s), ${skipped} déjà présente(s) ignorée(s).`
+      : `Terminé : ${done} vidéo(s) importée(s).`;
+    setImportProgress(summary, 100);
+    linkInput.value = '';
+  }catch(err){
+    console.error(err);
+    errorEl.textContent = err.message || "Erreur pendant l'importation.";
+    errorEl.style.display = 'block';
+    document.getElementById('import-progress').classList.remove('visible');
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Importer toutes les vidéos';
+  }
+});
 
 /* =========================================================
    Admin : modification des infos d'une vidéo (titre, auteur, description)
