@@ -886,6 +886,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
+// Chaînes YouTube importées, suivies pour la mise à jour automatique des
+// nouvelles vidéos (doc id = channelId YouTube)
+const trackedChannelsRef = db.collection('trackedChannels');
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 // Collection Firestore PARTAGÉE entre tous les sites Rijoul/ASSTTF/ONYX (même projet Firebase)
@@ -926,6 +929,8 @@ function compressImageToDataURL(file, maxDim = 256, quality = 0.82){
    ========================================================= */
 let isAdmin = false;
 let currentVideos = [];
+let videosLoaded = false; // true dès que le premier instantané Firestore est reçu
+let trackedChannelsCheckInterval = null;
 
 /* =========================================================
    Utilitaires
@@ -1334,6 +1339,7 @@ videosRef.orderBy('addedAt', 'desc').onSnapshot((snapshot)=>{
   // Tri par date de publication réelle sur la plateforme d'origine (la plus
   // récente en haut), avec repli sur la date d'ajout si elle est inconnue.
   currentVideos.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+  videosLoaded = true;
   renderGrid();
 }, (err)=>{
   document.getElementById('video-grid').innerHTML =
@@ -1443,6 +1449,87 @@ async function submitVideo(){
    Admin : import automatique de toutes les vidéos d'une chaîne YouTube
    Nécessite YOUTUBE_API_KEY (YouTube Data API v3) configurée plus haut.
    ========================================================= */
+
+/* =========================================================
+   Mise à jour automatique : vérifie les chaînes YouTube déjà
+   importées et ajoute toute seule les nouvelles vidéos publiées.
+
+   Fonctionnement : se déclenche automatiquement dès que le compte admin
+   se connecte (sur n'importe quel appareil), puis se répète toutes les
+   minutes tant que la page reste ouverte sur cet appareil. Les nouvelles
+   vidéos ajoutées sont dans la même base Firestore, donc immédiatement
+   visibles pour tous les visiteurs du site ensuite — seule la
+   *vérification* est réservée à l'admin, pas l'affichage du résultat.
+   ========================================================= */
+
+// Récupère seulement les vidéos les plus récentes d'une playlist (pas de
+// pagination complète ici, pour rester rapide et économe en quota API)
+async function fetchLatestUploads(playlistId, maxResults = 25){
+  const data = await ytApiGet('playlistItems', { part: 'snippet,contentDetails', playlistId, maxResults });
+  return (data.items || []).map(item=>{
+    const videoId = item.contentDetails && item.contentDetails.videoId;
+    if(!videoId) return null;
+    const publishedIso = (item.contentDetails && item.contentDetails.videoPublishedAt) || item.snippet.publishedAt;
+    return {
+      videoId,
+      title: item.snippet.title,
+      description: item.snippet.description || '',
+      publishedAt: publishedIso ? new Date(publishedIso) : null
+    };
+  }).filter(Boolean);
+}
+
+async function checkTrackedChannelsForNewVideos(){
+  if(!YOUTUBE_API_KEY) return;
+
+  // Attend que la liste des vidéos existantes soit chargée, pour ne pas
+  // ré-ajouter des vidéos déjà présentes par erreur.
+  for(let i = 0; i < 20 && !videosLoaded; i++){
+    await new Promise(r => setTimeout(r, 250));
+  }
+  if(!videosLoaded) return;
+
+  try{
+    const snap = await trackedChannelsRef.get();
+    if(snap.empty) return;
+
+    const existingIds = new Set(currentVideos.filter(v => v.platform === 'youtube').map(v => v.videoId));
+
+    for(const doc of snap.docs){
+      const ch = doc.data();
+      let latest;
+      try{
+        latest = await fetchLatestUploads(ch.uploadsPlaylistId, 25);
+      }catch(err){
+        console.warn(`Vérification impossible pour la chaîne "${ch.channelTitle}" :`, err);
+        continue;
+      }
+
+      const newOnes = latest.filter(v => !existingIds.has(v.videoId));
+      for(const v of newOnes){
+        const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
+        const payload = {
+          platform: 'youtube',
+          videoId: v.videoId,
+          title: v.title || 'Vidéo sans titre',
+          author: ch.channelTitle,
+          description: shortDesc,
+          addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if(v.publishedAt) payload.publishedAt = firebase.firestore.Timestamp.fromDate(v.publishedAt);
+        try{
+          await videosRef.add(payload);
+          existingIds.add(v.videoId);
+          console.log(`Nouvelle vidéo ajoutée automatiquement : ${v.title} (${ch.channelTitle})`);
+        }catch(err){
+          console.error("Impossible d'ajouter automatiquement la vidéo :", v.title, err);
+        }
+      }
+    }
+  }catch(err){
+    console.error("Erreur pendant la vérification automatique des chaînes :", err);
+  }
+}
 
 document.getElementById('open-import-channel').addEventListener('click', (e)=>{
   e.preventDefault();
@@ -1632,6 +1719,15 @@ document.getElementById('import-submit').addEventListener('click', async ()=>{
     if(!channel){
       throw new Error("Chaîne introuvable.");
     }
+
+    // Mémorise cette chaîne pour que ses futures nouvelles vidéos soient
+    // ajoutées automatiquement, sans avoir à relancer un import manuel.
+    await trackedChannelsRef.doc(channel.channelId).set({
+      channelId: channel.channelId,
+      channelTitle: channel.channelTitle,
+      uploadsPlaylistId: channel.uploadsPlaylistId,
+      addedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
     setImportProgress(`Chaîne trouvée : ${channel.channelTitle}. Liste des vidéos…`, 15);
     const uploads = await fetchAllUploads(channel.uploadsPlaylistId, (count)=>{
@@ -2000,9 +2096,22 @@ document.getElementById('forgot-link').addEventListener('click', async ()=>{
 /* Réagit à l'état de connexion : synchronise le profil partagé + statut admin (basé sur l'UID) */
 auth.onAuthStateChanged(async (user)=>{
   // Statut admin déterminé par l'UID Firebase connecté (pas de mot de passe)
+  const wasAdmin = isAdmin;
   isAdmin = !!(user && user.uid === ADMIN_UID);
   document.body.classList.toggle('admin-mode', isAdmin);
   renderGrid();
+
+  // Dès que le compte admin se connecte, vérifie automatiquement les
+  // chaînes YouTube suivies pour importer les nouvelles vidéos, puis
+  // répète la vérification toutes les minutes tant que la page reste ouverte.
+  if(isAdmin && !wasAdmin){
+    checkTrackedChannelsForNewVideos();
+    if(trackedChannelsCheckInterval) clearInterval(trackedChannelsCheckInterval);
+    trackedChannelsCheckInterval = setInterval(checkTrackedChannelsForNewVideos, 60 * 1000);
+  }else if(!isAdmin && trackedChannelsCheckInterval){
+    clearInterval(trackedChannelsCheckInterval);
+    trackedChannelsCheckInterval = null;
+  }
 
   if(user){
     accountBtn.style.display = 'none';
