@@ -539,6 +539,19 @@
     height:100%; width:0%; background: var(--red); border-radius:999px; transition: width .3s ease;
   }
 
+  .channel-row{
+    display:flex; align-items:center; justify-content:space-between; gap:0.8rem;
+    background:#fffaf1; border:2px solid var(--cream-2); border-radius:14px;
+    padding:0.7rem 0.9rem; margin-bottom:0.6rem;
+  }
+  .channel-row-name{ font-family:'Baloo 2'; font-weight:700; font-size:0.9rem; color: var(--dark-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .channel-row-untrack{
+    flex-shrink:0; background: var(--red); color: var(--cream); border:none; border-radius:999px;
+    font-family:'Fredoka'; font-weight:600; font-size:0.7rem; letter-spacing:0.02em; text-transform:uppercase;
+    padding:0.45rem 0.9rem; cursor:pointer;
+  }
+  .channel-row-untrack:hover{ background:#ff2d4d; }
+
   footer{
     position:relative; z-index:1; text-align:center; padding: 3rem 1rem 4rem;
     font-family:'Baloo 2', sans-serif; font-weight:600; color: var(--text); opacity:0.85; font-size:0.9rem;
@@ -667,6 +680,7 @@
     <h2>Ajouter une vidéo</h2>
 
     <div class="import-link-row"><a id="open-import-channel">Importer toutes les vidéos d'une chaîne YouTube →</a></div>
+    <div class="import-link-row"><a id="open-channels-list">Voir les chaînes déjà suivies →</a></div>
     <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos YouTube →</a></div>
     <div class="import-progress" id="refresh-progress"></div>
 
@@ -683,6 +697,21 @@
     <div class="modal-actions">
       <button class="btn" data-close="add-overlay">Annuler</button>
       <button class="btn primary" id="add-submit">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tracked channels modal -->
+<div class="overlay" id="channels-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="channels-overlay">&times;</button>
+    <h2>Chaînes suivies</h2>
+    <div class="modal-hint">Ces chaînes sont vérifiées automatiquement à chaque connexion admin pour importer leurs nouvelles vidéos. Retire une chaîne de cette liste pour arrêter son suivi (les vidéos déjà importées ne sont pas supprimées).</div>
+    <div id="channels-list-container">
+      <div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" data-close="channels-overlay">Fermer</button>
     </div>
   </div>
 </div>
@@ -1540,6 +1569,60 @@ document.getElementById('open-import-channel').addEventListener('click', (e)=>{
   document.getElementById('import-progress-bar').style.width = '0%';
   openOverlay('import-overlay');
 });
+
+/* =========================================================
+   Admin : voir la liste des chaînes YouTube déjà suivies
+   (celles vérifiées automatiquement pour de nouvelles vidéos)
+   ========================================================= */
+document.getElementById('open-channels-list').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  closeOverlay('add-overlay');
+  openOverlay('channels-overlay');
+  await renderChannelsList();
+});
+
+async function renderChannelsList(){
+  const container = document.getElementById('channels-list-container');
+  container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>`;
+  try{
+    const snap = await trackedChannelsRef.orderBy('channelTitle').get();
+    if(snap.empty){
+      container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Aucune chaîne suivie pour l'instant. Utilise « Importer toutes les vidéos d'une chaîne » pour en ajouter une.</div>`;
+      return;
+    }
+    container.innerHTML = snap.docs.map(doc=>{
+      const ch = doc.data();
+      return `
+        <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
+          <span class="channel-row-name">${escapeHtml(ch.channelTitle || 'Chaîne sans nom')}</span>
+          <button class="channel-row-untrack" data-untrack-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
+        </div>
+      `;
+    }).join('');
+    container.querySelectorAll('[data-untrack-id]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.untrackId;
+        const row = btn.closest('.channel-row');
+        const name = row.querySelector('.channel-row-name').textContent;
+        if(!confirm(`Arrêter de suivre « ${name} » ? (les vidéos déjà importées resteront sur le site)`)) return;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try{
+          await trackedChannelsRef.doc(id).delete();
+          row.remove();
+        }catch(err){
+          console.error(err);
+          alert("Impossible de retirer cette chaîne.");
+          btn.disabled = false;
+          btn.textContent = 'Ne plus suivre';
+        }
+      });
+    });
+  }catch(err){
+    console.error(err);
+    container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes.</div>`;
+  }
+}
 
 /* =========================================================
    Admin : rafraîchir la date de publication réelle des vidéos
