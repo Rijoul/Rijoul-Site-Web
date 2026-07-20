@@ -64,7 +64,7 @@
     background: var(--cream); box-shadow: 0 6px 16px -4px rgba(0,0,0,0.25); color: var(--dark-text);
     transition: all .25s ease; display:flex; align-items:center; gap:0.5rem;
   }
-  .account-btn:hover{ background:#fff; transform: translateY(-1px); }
+  .account-btn:hover{ background: #fff; transform: translateY(-1px); }
   .account-btn svg{ width:14px; height:14px; }
 
   .user-chip{
@@ -183,7 +183,13 @@
     color: var(--cream); -webkit-text-stroke: 1px rgba(255,255,255,0.4);
     margin: 0 0 1.2rem;
   }
+  .section-count-row{ display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap; }
   .section-count{ font-family:'Baloo 2', sans-serif; font-weight:600; color: var(--text); opacity:0.85; font-size:1rem; }
+  .refresh-link{
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.78rem; letter-spacing:0.02em;
+    color: var(--cream); text-decoration:underline; cursor:pointer; opacity:0.85;
+  }
+  .refresh-link:hover{ opacity:1; }
   .shorts-block{ margin-bottom: 3rem; }
   .shorts-block:last-child{ margin-bottom:0; }
 
@@ -679,11 +685,14 @@
 
 <main>
 
-  <!-- Section Accueil : affiche le même contenu que la section Vidéos -->
+  <!-- Section Accueil : affiche le même contenu que la section Vidéos (même source de données, aucune double lecture) -->
   <section class="page-section" id="section-home">
     <div class="section-head">
       <div class="section-title">Accueil</div>
-      <div class="section-count" id="video-count-home">chargement…</div>
+      <div class="section-count-row">
+        <div class="section-count" id="video-count-home">chargement…</div>
+        <a class="refresh-link" id="refresh-home-link">↻ Actualiser</a>
+      </div>
     </div>
     <div class="grid" id="video-grid-home">
       <div class="empty-state">Chargement des vidéos…</div>
@@ -697,7 +706,10 @@
   <section class="page-section" id="section-videos">
     <div class="section-head" id="gallery">
       <div class="section-title">Vidéothèque</div>
-      <div class="section-count" id="video-count">chargement…</div>
+      <div class="section-count-row">
+        <div class="section-count" id="video-count">chargement…</div>
+        <a class="refresh-link" id="refresh-videos-link">↻ Actualiser</a>
+      </div>
     </div>
     <div class="grid" id="video-grid">
       <div class="empty-state">Chargement des vidéos…</div>
@@ -711,7 +723,10 @@
   <section class="page-section" id="section-shorts">
     <div class="section-head">
       <div class="section-title">Shorts</div>
-      <div class="section-count" id="shorts-count">chargement…</div>
+      <div class="section-count-row">
+        <div class="section-count" id="shorts-count">chargement…</div>
+        <a class="refresh-link" id="refresh-shorts-link">↻ Actualiser</a>
+      </div>
     </div>
     <div class="grid shorts-grid" id="shorts-grid">
       <div class="empty-state">Chargement des shorts…</div>
@@ -721,7 +736,7 @@
     </div>
   </section>
 
-  <!-- Section Abonnements : chaînes suivies par l'utilisateur connecté + leurs vidéos -->
+  <!-- Section Abonnements : chaînes suivies par l'utilisateur connecté + leurs vidéos (déduites des vidéos déjà chargées, sans lecture supplémentaire) -->
   <section class="page-section" id="section-subs">
     <div class="section-head">
       <div class="section-title">Abonnements</div>
@@ -753,7 +768,9 @@
     <h2>Ajouter une vidéo</h2>
 
     <div class="import-link-row"><a id="open-channels-list">Gérer les chaînes suivies (ajouter / retirer) →</a></div>
-    <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos YouTube →</a></div>
+    <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos déjà chargées →</a></div>
+    <div class="import-link-row"><a id="check-now-link">Vérifier maintenant les nouvelles vidéos des chaînes suivies →</a></div>
+    <div class="import-link-row"><a id="migrate-sortdate-link">Migration ponctuelle : réparer le tri des anciennes vidéos →</a></div>
     <div class="import-progress" id="refresh-progress"></div>
 
     <label for="add-link">Lien de la vidéo</label>
@@ -972,14 +989,18 @@ const COLLECTION_NAME = "videos";
 
 // 5) Clé API YouTube Data v3 — nécessaire UNIQUEMENT pour la fonction
 //    "Importer toutes les vidéos d'une chaîne". À créer sur
-//    https://console.cloud.google.com/apis/credentials (active l'API
-//    "YouTube Data API v3" sur le projet, puis crée une clé API ; tu peux
-//    la restreindre par référent HTTP à ce site pour plus de sécurité).
+//    https://console.cloud.google.com/apis/credentials
 const YOUTUBE_API_KEY = "AIzaSyCHXby76C8CeuDyoSrg2dcfBcF4ghKQMKA";
 
-// 6) Pagination des galeries : nombre de vidéos affichées par défaut, et
-//    nombre de vidéos supplémentaires révélées à chaque clic sur "Afficher plus"
-const PAGE_SIZE = 50;
+// 6) Nombre de vidéos chargées par défaut, et par clic sur "Afficher plus"
+//    (réduit à 20 pour limiter fortement les lectures Firestore)
+const PAGE_SIZE = 20;
+
+// 7) Durée de vie du cache local (téléphone/navigateur) avant de revérifier
+//    Firestore. Tant que ce délai n'est pas écoulé, AUCUNE lecture réseau
+//    n'est faite pour les données concernées : tout vient du cache local.
+const CACHE_TTL_MS = 5 * 60 * 1000;          // 5 minutes : première page de vidéos
+const CHANNELS_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes : compteurs d'abonnés
 
 document.getElementById('subscribe-link').href = CHANNEL_URL;
 
@@ -990,38 +1011,39 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
-// Chaînes YouTube importées, suivies pour la mise à jour automatique des
-// nouvelles vidéos (doc id = channelId YouTube)
 const trackedChannelsRef = db.collection('trackedChannels');
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-// Collection Firestore PARTAGÉE entre tous les sites Rijoul/ASSTTF/ONYX (même projet Firebase)
-// Même chemin que ASSTTF : artifacts/onyx-pro-chat/public/data/profiles/{uid}
-// Doc id = uid Firebase Auth → { displayName, photoURL, email, createdAt, updatedAt }
 const ONYX_APP_ID = "onyx-pro-chat";
 const usersRef = db
   .collection("artifacts").doc(ONYX_APP_ID)
   .collection("public").doc("data")
   .collection("profiles");
-let profileUnsub = null; // désabonnement de l'écoute temps réel du profil courant
-let currentProfilePhoto = null; // base64 en attente de sauvegarde dans la modale profil
+let profileUnsub = null;
+let currentProfilePhoto = null;
 
-// Réactions (like/dislike) de chaque utilisateur : stockées dans UN SEUL
-// document par utilisateur (userReactions/{uid} → { reactions: { videoId: 'like'|'dislike' } }).
-// Ce choix évite d'avoir besoin d'un index composite Firestore (contrairement à
-// une collectionGroup sur des sous-collections), ce qui rend le système plus
-// simple à faire fonctionner du premier coup.
 const userReactionsRef = db.collection('userReactions');
-
-// Collection publique des "chaînes" (identifiées par channelId YouTube, ou à
-// défaut par le nom de l'auteur saisi manuellement) : stocke le nombre
-// d'abonnés, visible par tout le monde à côté du nom de la chaîne.
 const channelsRef = db.collection('channels');
-// Abonnements personnels de chaque utilisateur, pour qu'ils soient
-// retrouvés automatiquement à sa prochaine visite : userSubscriptions/{uid}/subs/{channelDocId}
 function userSubsCollection(uid){
   return db.collection('userSubscriptions').doc(uid).collection('subs');
 }
+
+/* =========================================================
+   Cache local (localStorage) — évite de relire Firestore à
+   chaque visite tant que les données ne sont pas jugées "périmées".
+   ========================================================= */
+const CACHE_PREFIX = 'rijoulYtCache_';
+function lsGet(key){
+  try{
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(value)); }
+  catch(e){ /* stockage plein ou indisponible : pas bloquant */ }
+}
+function lsRemove(key){ try{ localStorage.removeItem(CACHE_PREFIX + key); }catch(e){} }
 
 function compressImageToDataURL(file, maxDim = 256, quality = 0.82){
   return new Promise((resolve, reject)=>{
@@ -1049,29 +1071,26 @@ function compressImageToDataURL(file, maxDim = 256, quality = 0.82){
    État
    ========================================================= */
 let isAdmin = false;
-let isConnected = false; // vrai compte (email/mot de passe ou Google) — pas une session anonyme
-let currentVideos = [];
-let videosLoaded = false; // true dès que le premier instantané Firestore est reçu
+let isConnected = false;
 let trackedChannelsCheckInterval = null;
 
-// Réactions (like/dislike) de l'utilisateur courant : { videoId: 'like'|'dislike' }
-let userReactions = {};
-let userReactionsUnsub = null;
-let reactionInFlight = new Set(); // évite les doubles-clics pendant qu'une requête est en cours
+// Vidéos : deux sections indépendantes et paginées ("long" = vidéothèque/accueil,
+// "short" = shorts). Chacune ne lit Firestore qu'à sa première ouverture, puis
+// utilise le cache local tant qu'il est frais.
+const videoSections = {
+  long:  { docs: [], lastDocMillis: null, hasMore: true, loading: false, initialized: false },
+  short: { docs: [], lastDocMillis: null, hasMore: true, loading: false, initialized: false }
+};
 
-// Chaînes publiques (compteur d'abonnés) : { channelDocId: { name, subscriberCount } }
-let channelsData = {};
+let userReactions = {};              // { videoId: 'like'|'dislike' }
+let reactionInFlight = new Set();
 
-// Abonnements de l'utilisateur courant : Set des channelDocId suivis
-let userSubscribedKeys = new Set();
-let userSubsUnsub = null;
-let subscribeInFlight = new Set(); // évite les doubles-clics pendant qu'une requête est en cours
-
-// Nombre de vidéos actuellement affichées dans chaque section paginée
-let visibleCounts = { home: PAGE_SIZE, videos: PAGE_SIZE, shorts: PAGE_SIZE };
+let channelsCache = {};               // { channelDocId: { data, ts } } — en mémoire, recopié en localStorage
+let userSubscribedKeys = new Set();   // Set des channelDocId suivis par l'utilisateur courant
+let subscribeInFlight = new Set();
 
 /* =========================================================
-   Utilitaires
+   Utilitaires : détection de plateforme / format
    ========================================================= */
 function extractYouTubeId(url){
   if(!url) return null;
@@ -1087,23 +1106,18 @@ function extractYouTubeId(url){
     const m = url.match(re);
     if(m) return m[1];
   }
-  // Fallback: raw 11-char ID pasted directly
   if(/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
   return null;
 }
-
-// Détecte si un lien YouTube pointe vers un Short (format vertical 9:16)
 function isYouTubeShortUrl(url){
   if(!url) return false;
   return /youtube\.com\/shorts\//.test(url.trim());
 }
-
 function extractVimeoId(url){
   if(!url) return null;
   const m = url.trim().match(/vimeo\.com\/(?:video\/)?(\d+)/);
   return m ? m[1] : null;
 }
-
 function extractDailymotionId(url){
   if(!url) return null;
   const patterns = [
@@ -1116,7 +1130,6 @@ function extractDailymotionId(url){
   }
   return null;
 }
-
 function extractTwitchInfo(url){
   if(!url) return null;
   url = url.trim();
@@ -1126,66 +1139,43 @@ function extractTwitchInfo(url){
   if(m) return { type: 'clip', id: m[1] };
   return null;
 }
-
 function isDirectVideoFile(url){
   if(!url) return false;
   return /\.(mp4|webm|ogg)(\?.*)?$/i.test(url.trim());
 }
-
 function isValidHttpUrl(url){
   try{
     const u = new URL(url.trim());
     return u.protocol === 'http:' || u.protocol === 'https:';
-  }catch(e){
-    return false;
-  }
+  }catch(e){ return false; }
 }
-
 function hostnameOf(url){
   try{ return new URL(url.trim()).hostname.replace(/^www\./, ''); }
   catch(e){ return ''; }
 }
-
-// Détecte la plateforme et construit les infos nécessaires à l'intégration
 function detectVideo(url){
   if(!url) return null;
   url = url.trim();
-
   const ytId = extractYouTubeId(url);
   if(ytId) return { platform: 'youtube', id: ytId, isShort: isYouTubeShortUrl(url) };
-
   const vimeoId = extractVimeoId(url);
   if(vimeoId) return { platform: 'vimeo', id: vimeoId };
-
   const dmId = extractDailymotionId(url);
   if(dmId) return { platform: 'dailymotion', id: dmId };
-
   const twitch = extractTwitchInfo(url);
   if(twitch) return { platform: 'twitch', id: twitch.id, twitchType: twitch.type };
-
   if(isDirectVideoFile(url)) return { platform: 'direct', id: url };
-
-  // Repli générique : n'importe quel autre lien vidéo (n'importe quel site).
-  // On l'intègre tel quel dans une iframe ; si le site interdit l'iframe,
-  // un bouton "ouvrir le lien" est proposé dans le lecteur.
   if(isValidHttpUrl(url)) return { platform: 'generic', id: url };
-
   return null;
 }
-
 async function fetchYouTubeTitle(videoId){
   try{
     const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
     if(!res.ok) throw new Error('oEmbed failed');
     const data = await res.json();
     return data.title || null;
-  }catch(e){
-    return null;
-  }
+  }catch(e){ return null; }
 }
-
-// Date de publication réelle sur YouTube (nécessite YOUTUBE_API_KEY).
-// Retourne un objet Date, ou null si indisponible (pas de clé API, vidéo introuvable, etc.)
 async function fetchYouTubePublishedAt(videoId){
   if(!YOUTUBE_API_KEY) return null;
   try{
@@ -1198,37 +1188,40 @@ async function fetchYouTubePublishedAt(videoId){
   }
 }
 
-function formatDate(ts){
-  if(!ts) return '';
-  const d = ts.toDate ? ts.toDate() : new Date(ts);
-  return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
-}
-
-// Date utilisée pour le tri et l'affichage : la vraie date de publication
-// sur la plateforme d'origine si on la connaît, sinon la date d'ajout au site.
-function effectiveDate(v){
-  return v.publishedAt || v.addedAt;
-}
-function effectiveMillis(v){
-  const ts = effectiveDate(v);
+/* Gère indifféremment un Timestamp Firestore (objet réel ou recopié depuis
+   le cache localStorage sous forme {seconds,nanoseconds}), ou un nombre de
+   millisecondes brut. */
+function toMillisAny(ts){
   if(!ts) return 0;
-  return ts.toMillis ? ts.toMillis() : new Date(ts).getTime();
+  if(typeof ts === 'number') return ts;
+  if(typeof ts.toMillis === 'function') return ts.toMillis();
+  if(typeof ts.seconds === 'number') return ts.seconds * 1000 + Math.floor((ts.nanoseconds || 0) / 1e6);
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
 }
+function formatDate(ts){
+  const ms = toMillisAny(ts);
+  if(!ms) return '';
+  return new Date(ms).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
+}
+// Date utilisée pour le tri/affichage : la vraie date de publication si connue
+// (champ sortDate, aligné sur publishedAt), sinon la date d'ajout au site.
+function effectiveDate(v){ return v.publishedAt || v.sortDate || v.addedAt; }
+function effectiveMillis(v){ return toMillisAny(effectiveDate(v)); }
 
 function openOverlay(id){ document.getElementById(id).classList.add('open'); }
 function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
 
 document.querySelectorAll('[data-close]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    closeOverlay(btn.dataset.close);
-  });
+  btn.addEventListener('click', ()=>{ closeOverlay(btn.dataset.close); });
 });
 document.querySelectorAll('.overlay').forEach(ov=>{
   ov.addEventListener('click', (e)=>{ if(e.target === ov) ov.classList.remove('open'); });
 });
 
 /* =========================================================
-   Navigation entre sections (Accueil / Vidéos / Shorts / Abonnements)
+   Navigation entre sections — chaque section ne déclenche une
+   lecture Firestore que lors de sa toute première ouverture.
    ========================================================= */
 function showSection(id){
   document.querySelectorAll('.page-section').forEach(sec=>{
@@ -1238,6 +1231,15 @@ function showSection(id){
     btn.classList.toggle('active', btn.dataset.section === id);
   });
   if(history.replaceState) history.replaceState(null, '', '#' + id);
+
+  if(id === 'section-home' || id === 'section-videos'){
+    loadFirstPage('long');
+  }else if(id === 'section-shorts'){
+    loadFirstPage('short');
+  }else if(id === 'section-subs'){
+    // Réutilise les vidéos longues déjà chargées (ou les charge si jamais visitées)
+    loadFirstPage('long');
+  }
 }
 document.querySelectorAll('.site-nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> showSection(btn.dataset.section));
@@ -1246,25 +1248,117 @@ document.getElementById('hero-see-videos').addEventListener('click', (e)=>{
   e.preventDefault();
   showSection('section-videos');
 });
-(function initialSection(){
-  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-subs'];
-  const hash = (location.hash || '').replace('#','');
-  showSection(validIds.includes(hash) ? hash : 'section-home');
-})();
+
+/* =========================================================
+   Chargement paginé des vidéos (lecture Firestore MINIMALE) :
+   - 1ère page : lue depuis le cache local si encore fraîche, sinon 1 requête
+     Firestore limitée à PAGE_SIZE documents, mise en cache ensuite.
+   - Pages suivantes ("Afficher plus") : 1 requête par clic, limitée à
+     PAGE_SIZE nouveaux documents (jamais toute la collection).
+   ========================================================= */
+function sectionCacheKey(sectionKey){ return 'videos_' + sectionKey + '_page1'; }
+
+async function loadFirstPage(sectionKey, force){
+  const state = videoSections[sectionKey];
+  if(state.initialized && !force) return; // déjà chargé cette session
+
+  if(!force){
+    const cached = lsGet(sectionCacheKey(sectionKey));
+    if(cached && (Date.now() - cached.ts) < CACHE_TTL_MS){
+      state.docs = cached.docs || [];
+      state.lastDocMillis = cached.lastDocMillis || null;
+      state.hasMore = !!cached.hasMore;
+      state.initialized = true;
+      await ensureChannelsLoadedForDocs(state.docs);
+      renderAllSections();
+      return; // aucune lecture Firestore : tout vient du cache local du téléphone
+    }
+  }
+
+  if(state.loading) return;
+  state.loading = true;
+  try{
+    const isShort = sectionKey === 'short';
+    const snap = await videosRef.where('isShort', '==', isShort).orderBy('sortDate', 'desc').limit(PAGE_SIZE).get();
+    state.docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    state.lastDocMillis = state.docs.length ? effectiveMillis(state.docs[state.docs.length - 1]) : null;
+    state.hasMore = snap.docs.length === PAGE_SIZE;
+    state.initialized = true;
+    lsSet(sectionCacheKey(sectionKey), { ts: Date.now(), docs: state.docs, lastDocMillis: state.lastDocMillis, hasMore: state.hasMore });
+    await ensureChannelsLoadedForDocs(state.docs);
+  }catch(e){
+    console.error('Erreur chargement des vidéos :', e);
+    const gridIds = sectionKey === 'short' ? ['shorts-grid'] : ['video-grid', 'video-grid-home'];
+    gridIds.forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.innerHTML = `<div class="empty-state">Impossible de charger les vidéos.<br>Vérifie la configuration Firebase et l'index Firestore requis (isShort + sortDate) — un lien pour le créer apparaît dans la console du navigateur (F12) en cas d'erreur d'index.</div>`;
+    });
+  }finally{
+    state.loading = false;
+    renderAllSections();
+  }
+}
+
+async function loadMore(sectionKey){
+  const state = videoSections[sectionKey];
+  if(!state.hasMore || state.loading) return;
+  state.loading = true;
+  renderAllSections();
+  try{
+    const isShort = sectionKey === 'short';
+    let q = videosRef.where('isShort', '==', isShort).orderBy('sortDate', 'desc').limit(PAGE_SIZE);
+    if(state.lastDocMillis){
+      q = q.startAfter(firebase.firestore.Timestamp.fromMillis(state.lastDocMillis));
+    }
+    const snap = await q.get();
+    const newDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    state.docs = state.docs.concat(newDocs);
+    if(newDocs.length) state.lastDocMillis = effectiveMillis(newDocs[newDocs.length - 1]);
+    state.hasMore = snap.docs.length === PAGE_SIZE;
+    await ensureChannelsLoadedForDocs(newDocs);
+  }catch(e){
+    console.error('Erreur chargement de vidéos supplémentaires :', e);
+  }finally{
+    state.loading = false;
+    renderAllSections();
+  }
+}
+
+function persistSectionFirstPageCache(sectionKey){
+  const state = videoSections[sectionKey];
+  lsSet(sectionCacheKey(sectionKey), {
+    ts: Date.now(),
+    docs: state.docs.slice(0, PAGE_SIZE),
+    lastDocMillis: state.docs.length ? effectiveMillis(state.docs[Math.min(state.docs.length, PAGE_SIZE) - 1]) : null,
+    hasMore: state.hasMore
+  });
+}
+
+function findLoadedVideoById(id){
+  return videoSections.long.docs.find(v => v.id === id) || videoSections.short.docs.find(v => v.id === id);
+}
+function sectionKeyOfLoadedVideo(id){
+  if(videoSections.long.docs.some(v => v.id === id)) return 'long';
+  if(videoSections.short.docs.some(v => v.id === id)) return 'short';
+  return null;
+}
+
+document.getElementById('load-more-home').addEventListener('click', ()=> loadMore('long'));
+document.getElementById('load-more-videos').addEventListener('click', ()=> loadMore('long'));
+document.getElementById('load-more-shorts').addEventListener('click', ()=> loadMore('short'));
+
+document.getElementById('refresh-home-link').addEventListener('click', ()=> loadFirstPage('long', true));
+document.getElementById('refresh-videos-link').addEventListener('click', ()=> loadFirstPage('long', true));
+document.getElementById('refresh-shorts-link').addEventListener('click', ()=> loadFirstPage('short', true));
 
 /* =========================================================
    Réactions (like / dislike) et abonnements — identité de chaîne
    ========================================================= */
-
-// Identifiant unique d'une chaîne : le channelId YouTube s'il est connu
-// (vidéos importées via "Chaînes suivies"), sinon le nom de l'auteur saisi.
 function channelKeyOf(v){
   if(v.channelId) return v.channelId;
   if(v.author && v.author.trim()) return v.author.trim();
   return null;
 }
-// Convertit une clé de chaîne (qui peut contenir n'importe quel caractère)
-// en identifiant de document Firestore valide.
 function channelDocId(key){
   return encodeURIComponent(key).slice(0, 300);
 }
@@ -1275,22 +1369,34 @@ async function ensureAnyAuth(){
   return cred.user;
 }
 
-/* Écoute en temps réel le document de réactions de l'utilisateur courant.
-   Un seul document par utilisateur => pas besoin d'index composite. */
-function subscribeUserReactions(uid){
-  if(userReactionsUnsub){ userReactionsUnsub(); userReactionsUnsub = null; }
-  userReactionsUnsub = userReactionsRef.doc(uid).onSnapshot((snap)=>{
+/* Charge le document de réactions de l'utilisateur (1 seul doc) : lecture
+   depuis le cache local si frais, sinon 1 lecture Firestore, jamais de
+   listener temps réel permanent. */
+async function loadUserReactions(uid){
+  const cacheKey = 'reactions_' + uid;
+  const cached = lsGet(cacheKey);
+  if(cached){
+    userReactions = cached.data || {};
+    if((Date.now() - cached.ts) < CACHE_TTL_MS){
+      renderAllSections();
+      return; // cache encore valide : aucune lecture Firestore
+    }
+    renderAllSections(); // affichage immédiat, rafraîchi ensuite en tâche de fond
+  }
+  try{
+    const snap = await userReactionsRef.doc(uid).get();
     userReactions = (snap.exists && snap.data().reactions) || {};
-    renderGrid();
-  }, (err)=>{
-    console.warn("Impossible de charger les réactions de l'utilisateur :", err);
-  });
+    lsSet(cacheKey, { ts: Date.now(), data: userReactions });
+    renderAllSections();
+  }catch(e){
+    console.warn("Impossible de charger les réactions de l'utilisateur :", e);
+  }
 }
 
 async function toggleReaction(videoId, type){
-  if(reactionInFlight.has(videoId)) return; // évite le double-clic pendant l'écriture
+  if(reactionInFlight.has(videoId)) return;
   reactionInFlight.add(videoId);
-  renderGrid();
+  renderAllSections();
 
   let user;
   try{
@@ -1299,12 +1405,13 @@ async function toggleReaction(videoId, type){
     console.error('Connexion impossible pour réagir :', e);
     alert("Impossible de réagir pour le moment. Vérifie ta connexion internet et réessaie.");
     reactionInFlight.delete(videoId);
-    renderGrid();
+    renderAllSections();
     return;
   }
 
   const videoRef = videosRef.doc(videoId);
   const userRef = userReactionsRef.doc(user.uid);
+  const existingBefore = userReactions[videoId] || null;
 
   try{
     await db.runTransaction(async (tx)=>{
@@ -1315,7 +1422,6 @@ async function toggleReaction(videoId, type){
       const updates = {};
 
       if(existing === type){
-        // Même bouton recliqué : on retire la réaction
         delete newReactions[videoId];
         updates[type === 'like' ? 'likeCount' : 'dislikeCount'] = firebase.firestore.FieldValue.increment(-1);
       }else{
@@ -1329,30 +1435,100 @@ async function toggleReaction(videoId, type){
       tx.set(userRef, { reactions: newReactions, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
       tx.update(videoRef, updates);
     });
+
+    // Répercute localement le résultat connu de la transaction : pas besoin
+    // de relire Firestore pour rafraîchir l'affichage.
+    let likeDelta = 0, dislikeDelta = 0;
+    if(existingBefore === type){
+      delete userReactions[videoId];
+      if(type === 'like') likeDelta = -1; else dislikeDelta = -1;
+    }else{
+      userReactions[videoId] = type;
+      if(type === 'like') likeDelta = 1; else dislikeDelta = 1;
+      if(existingBefore){ if(existingBefore === 'like') likeDelta -= 1; else dislikeDelta -= 1; }
+    }
+    lsSet('reactions_' + user.uid, { ts: Date.now(), data: userReactions });
+
+    const vd = findLoadedVideoById(videoId);
+    if(vd){
+      vd.likeCount = Math.max(0, (vd.likeCount || 0) + likeDelta);
+      vd.dislikeCount = Math.max(0, (vd.dislikeCount || 0) + dislikeDelta);
+      const key = sectionKeyOfLoadedVideo(videoId);
+      if(key) persistSectionFirstPageCache(key);
+    }
   }catch(e){
     console.error('Erreur lors de la réaction :', e);
     alert("Impossible d'enregistrer ta réaction pour le moment. Réessaie dans un instant.");
   }finally{
     reactionInFlight.delete(videoId);
-    renderGrid();
+    renderAllSections();
   }
 }
 
-function subscribeChannelsData(){
-  channelsRef.onSnapshot((snap)=>{
-    const map = {};
-    snap.forEach(doc=>{ map[doc.id] = doc.data(); });
-    channelsData = map;
-    renderGrid();
-  }, (err)=> console.error('Erreur chargement des chaînes :', err));
+/* Charge uniquement les chaînes (compteurs d'abonnés) référencées par une
+   liste de vidéos donnée — jamais toute la collection "channels". */
+async function ensureChannelsLoadedForDocs(docs){
+  const keys = [...new Set(docs.map(v => channelKeyOf(v)).filter(Boolean).map(k => channelDocId(k)))];
+  await ensureChannelsLoaded(keys);
+}
+async function ensureChannelsLoaded(ids){
+  const now = Date.now();
+  const idsNeeded = [...new Set(ids)].filter(id=>{
+    const c = channelsCache[id];
+    return !c || (now - c.ts) > CHANNELS_CACHE_TTL_MS;
+  });
+  if(idsNeeded.length === 0) return;
+
+  const stillNeeded = [];
+  for(const id of idsNeeded){
+    const cached = lsGet('channel_' + id);
+    if(cached && (now - cached.ts) < CHANNELS_CACHE_TTL_MS){
+      channelsCache[id] = cached;
+    }else{
+      stillNeeded.push(id);
+    }
+  }
+  if(stillNeeded.length === 0) return;
+
+  for(let i = 0; i < stillNeeded.length; i += 10){
+    const chunk = stillNeeded.slice(i, i + 10);
+    try{
+      const snap = await channelsRef.where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
+      const found = new Set();
+      snap.forEach(doc=>{
+        const entry = { data: doc.data(), ts: now };
+        channelsCache[doc.id] = entry;
+        lsSet('channel_' + doc.id, entry);
+        found.add(doc.id);
+      });
+      for(const id of chunk){
+        if(!found.has(id)){
+          const entry = { data: null, ts: now };
+          channelsCache[id] = entry;
+          lsSet('channel_' + id, entry);
+        }
+      }
+    }catch(e){ console.error('Erreur chargement des chaînes :', e); }
+  }
 }
 
-function subscribeToUserSubs(uid){
-  if(userSubsUnsub){ userSubsUnsub(); userSubsUnsub = null; }
-  userSubsUnsub = userSubsCollection(uid).onSnapshot((snap)=>{
+async function loadUserSubs(uid){
+  const cacheKey = 'subs_' + uid;
+  const cached = lsGet(cacheKey);
+  if(cached){
+    userSubscribedKeys = new Set(cached.data || []);
+    if((Date.now() - cached.ts) < CACHE_TTL_MS){
+      renderAllSections();
+      return; // cache encore valide : aucune lecture Firestore
+    }
+    renderAllSections();
+  }
+  try{
+    const snap = await userSubsCollection(uid).get();
     userSubscribedKeys = new Set(snap.docs.map(d => d.id));
-    renderGrid();
-  }, (err)=> console.error('Erreur chargement des abonnements :', err));
+    lsSet(cacheKey, { ts: Date.now(), data: [...userSubscribedKeys] });
+    renderAllSections();
+  }catch(e){ console.error('Abonnements indisponibles :', e); }
 }
 
 async function toggleSubscription(v){
@@ -1364,15 +1540,16 @@ async function toggleSubscription(v){
   const key = channelKeyOf(v);
   if(!key) return;
   const cdId = channelDocId(key);
-
-  if(subscribeInFlight.has(cdId)) return; // évite le double-clic pendant l'écriture
+  if(subscribeInFlight.has(cdId)) return;
   subscribeInFlight.add(cdId);
-  renderGrid();
+  renderAllSections();
 
   const uid = auth.currentUser.uid;
   const channelRef = channelsRef.doc(cdId);
   const subRef = userSubsCollection(uid).doc(cdId);
   const channelName = v.author || key;
+  const wasSubscribed = userSubscribedKeys.has(cdId);
+
   try{
     await db.runTransaction(async (tx)=>{
       const subSnap = await tx.get(subRef);
@@ -1384,12 +1561,21 @@ async function toggleSubscription(v){
         tx.set(channelRef, { name: channelName, subscriberCount: firebase.firestore.FieldValue.increment(1) }, { merge: true });
       }
     });
+
+    if(wasSubscribed){ userSubscribedKeys.delete(cdId); } else { userSubscribedKeys.add(cdId); }
+    lsSet('subs_' + uid, { ts: Date.now(), data: [...userSubscribedKeys] });
+
+    const prev = (channelsCache[cdId] && channelsCache[cdId].data) || { name: channelName, subscriberCount: 0 };
+    const newCount = Math.max(0, (prev.subscriberCount || 0) + (wasSubscribed ? -1 : 1));
+    const entry = { data: { name: channelName, subscriberCount: newCount }, ts: Date.now() };
+    channelsCache[cdId] = entry;
+    lsSet('channel_' + cdId, entry);
   }catch(e){
     console.error("Erreur lors de l'abonnement :", e);
     alert("Impossible de modifier ton abonnement pour le moment. Réessaie dans un instant.");
   }finally{
     subscribeInFlight.delete(cdId);
-    renderGrid();
+    renderAllSections();
   }
 }
 
@@ -1407,12 +1593,18 @@ async function unsubscribeChannel(cdId){
       tx.delete(subRef);
       tx.set(channelRef, { subscriberCount: firebase.firestore.FieldValue.increment(-1) }, { merge: true });
     });
+    userSubscribedKeys.delete(cdId);
+    lsSet('subs_' + uid, { ts: Date.now(), data: [...userSubscribedKeys] });
+    const prev = (channelsCache[cdId] && channelsCache[cdId].data) || { subscriberCount: 0 };
+    const entry = { data: { ...prev, subscriberCount: Math.max(0, (prev.subscriberCount || 0) - 1) }, ts: Date.now() };
+    channelsCache[cdId] = entry;
+    lsSet('channel_' + cdId, entry);
   }catch(e){
     console.error("Erreur lors du désabonnement :", e);
     alert("Impossible de te désabonner pour le moment. Réessaie dans un instant.");
   }finally{
     subscribeInFlight.delete(cdId);
-    renderGrid();
+    renderAllSections();
   }
 }
 
@@ -1421,15 +1613,13 @@ async function unsubscribeChannel(cdId){
    ========================================================= */
 function thumbForVideo(v){
   if(v.platform === 'youtube') return `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`;
-  return null; // pas de vignette fiable pour les autres plateformes sans appel API supplémentaire
+  return null;
 }
-
 function platformLabel(v){
   if(v.platform === 'generic') return hostnameOf(v.videoId) || 'LIEN';
   const labels = { vimeo: 'VIMEO', dailymotion: 'DAILYMOTION', twitch: 'TWITCH', direct: 'VIDÉO' };
   return labels[v.platform] || '';
 }
-
 function reactionButtonsHtml(v){
   const myReaction = userReactions[v.id] || null;
   const likeCount = v.likeCount || 0;
@@ -1444,7 +1634,6 @@ function reactionButtonsHtml(v){
     </button>
   `;
 }
-
 function subscribeButtonHtml(v){
   const key = channelKeyOf(v);
   if(!key) return '';
@@ -1454,16 +1643,15 @@ function subscribeButtonHtml(v){
   const title = isConnected ? '' : "Connecte-toi pour t'abonner";
   return `<button class="subscribe-card-btn ${subscribed ? 'subscribed' : ''}" data-subscribe-video="${v.id}" title="${title}" ${busy ? 'disabled' : ''}>${subscribed ? 'Abonné ✓' : "S'abonner"}</button>`;
 }
-
 function subsCountHtml(v){
   const key = channelKeyOf(v);
   if(!key) return '';
   const cdId = channelDocId(key);
-  const data = channelsData[cdId];
+  const entry = channelsCache[cdId];
+  const data = entry && entry.data;
   const count = data ? (data.subscriberCount || 0) : 0;
   return ` <span class="subs-count">· ${count} abonné${count > 1 ? 's' : ''}</span>`;
 }
-
 function cardHtml(v, i){
   const thumb = thumbForVideo(v);
   return `
@@ -1491,7 +1679,6 @@ function cardHtml(v, i){
     </div>
   `;
 }
-
 function bindCardEvents(grid, list){
   grid.querySelectorAll('.card').forEach(card=>{
     card.addEventListener('click', (e)=>{
@@ -1501,22 +1688,13 @@ function bindCardEvents(grid, list){
     });
   });
   grid.querySelectorAll('.delete-btn').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      deleteVideo(btn.dataset.deleteId);
-    });
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteVideo(btn.dataset.deleteId); });
   });
   grid.querySelectorAll('.edit-btn').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      openEditVideo(btn.dataset.editId);
-    });
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); openEditVideo(btn.dataset.editId); });
   });
   grid.querySelectorAll('[data-reaction-video]').forEach(btn=>{
-    btn.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      toggleReaction(btn.dataset.reactionVideo, btn.dataset.reactionType);
-    });
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggleReaction(btn.dataset.reactionVideo, btn.dataset.reactionType); });
   });
   grid.querySelectorAll('[data-subscribe-video]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
@@ -1527,13 +1705,10 @@ function bindCardEvents(grid, list){
   });
 }
 
-// Rend une liste de vidéos dans un grid donné, avec compteur associé.
-// Si sectionKey est fourni, la liste est paginée (limitée à visibleCounts[sectionKey])
-// et le bouton "Afficher plus" (moreBtnId) est affiché/masqué en conséquence.
-function renderVideoGrid(gridId, countId, list, emptyMessage, moreBtnId, sectionKey){
+function renderVideoGrid(gridId, countId, list, emptyMessage, moreBtnId, hasMore){
   const grid = document.getElementById(gridId);
   const count = document.getElementById(countId);
-  if(count) count.textContent = list.length + (list.length > 1 ? ' vidéos' : ' vidéo');
+  if(count) count.textContent = list.length + (list.length > 1 ? ' vidéos chargées' : ' vidéo chargée');
 
   const moreBtn = moreBtnId ? document.getElementById(moreBtnId) : null;
 
@@ -1543,57 +1718,26 @@ function renderVideoGrid(gridId, countId, list, emptyMessage, moreBtnId, section
     return;
   }
 
-  const limit = sectionKey ? (visibleCounts[sectionKey] || PAGE_SIZE) : list.length;
-  const visibleList = list.slice(0, limit);
-
-  grid.innerHTML = visibleList.map((v, i) => cardHtml(v, i)).join('');
-  bindCardEvents(grid, visibleList);
-
-  if(moreBtn){
-    moreBtn.classList.toggle('visible', list.length > limit);
-  }
+  grid.innerHTML = list.map((v, i) => cardHtml(v, i)).join('');
+  bindCardEvents(grid, list);
+  if(moreBtn) moreBtn.classList.toggle('visible', !!hasMore);
 }
 
-function getLongVideos(){ return currentVideos.filter(v => !v.isShort); }
-function getShortVideos(){ return currentVideos.filter(v => v.isShort); }
+function renderAllSections(){
+  const longState = videoSections.long;
+  const shortState = videoSections.short;
 
-function renderGrid(){
-  const longVideos = getLongVideos();
-  const shortVideos = getShortVideos();
-
-  // Accueil : affiche la même chose que la section Vidéos, paginé (50 par défaut)
-  renderVideoGrid('video-grid-home', 'video-count-home', longVideos,
-    isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.",
-    'load-more-home', 'home');
-
-  // Vidéos (longues, 16:9), paginé (50 par défaut)
-  renderVideoGrid('video-grid', 'video-count', longVideos,
-    isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.",
-    'load-more-videos', 'videos');
-
-  // Shorts (courtes, 9:16), paginé (50 par défaut)
-  renderVideoGrid('shorts-grid', 'shorts-count', shortVideos,
-    isAdmin ? "Aucun short pour l'instant. Ajoute une vidéo et coche « Vidéo courte »." : "Aucun short pour l'instant. Revenez bientôt.",
-    'load-more-shorts', 'shorts');
-
+  if(longState.initialized){
+    const emptyMsg = isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.";
+    renderVideoGrid('video-grid-home', 'video-count-home', longState.docs, emptyMsg, 'load-more-home', longState.hasMore);
+    renderVideoGrid('video-grid', 'video-count', longState.docs, emptyMsg, 'load-more-videos', longState.hasMore);
+  }
+  if(shortState.initialized){
+    const emptyMsg = isAdmin ? "Aucun short pour l'instant. Ajoute une vidéo et coche « Vidéo courte »." : "Aucun short pour l'instant. Revenez bientôt.";
+    renderVideoGrid('shorts-grid', 'shorts-count', shortState.docs, emptyMsg, 'load-more-shorts', shortState.hasMore);
+  }
   renderSubsSection();
 }
-
-// Boutons "Afficher plus" : révèlent 50 vidéos de plus dans leur section,
-// et se cachent automatiquement une fois qu'il n'y a plus rien à charger
-// (géré directement dans renderVideoGrid à chaque rendu).
-document.getElementById('load-more-home').addEventListener('click', ()=>{
-  visibleCounts.home += PAGE_SIZE;
-  renderGrid();
-});
-document.getElementById('load-more-videos').addEventListener('click', ()=>{
-  visibleCounts.videos += PAGE_SIZE;
-  renderGrid();
-});
-document.getElementById('load-more-shorts').addEventListener('click', ()=>{
-  visibleCounts.shorts += PAGE_SIZE;
-  renderGrid();
-});
 
 function renderSubsSection(){
   const intro = document.getElementById('subs-intro');
@@ -1602,12 +1746,13 @@ function renderSubsSection(){
   if(!isConnected){
     intro.textContent = "Connecte-toi pour voir et gérer tes abonnements.";
     channelsListEl.innerHTML = '';
-    renderVideoGrid('subs-videos-grid', 'subs-videos-count', [], "Connecte-toi pour voir les vidéos de tes chaînes abonnées.");
+    renderVideoGrid('subs-videos-grid', 'subs-videos-count', [], "Connecte-toi pour voir les vidéos de tes chaînes abonnées.", null, false);
     return;
   }
 
   const subscribedList = [...userSubscribedKeys].map(cdId=>{
-    const data = channelsData[cdId] || {};
+    const entry = channelsCache[cdId];
+    const data = (entry && entry.data) || {};
     return { cdId, name: data.name || 'Chaîne', count: data.subscriberCount || 0 };
   }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1627,11 +1772,15 @@ function renderSubsSection(){
     });
   }
 
-  const subVideos = currentVideos.filter(v=>{
+  // Déduit les vidéos des chaînes abonnées à partir des vidéos DÉJÀ CHARGÉES
+  // (aucune lecture Firestore supplémentaire). Charge plus haut / "Afficher
+  // plus" dans les autres sections pour en révéler davantage ici aussi.
+  const pool = videoSections.long.docs.concat(videoSections.short.docs);
+  const subVideos = pool.filter(v=>{
     const key = channelKeyOf(v);
     return key && userSubscribedKeys.has(channelDocId(key));
   });
-  renderVideoGrid('subs-videos-grid', 'subs-videos-count', subVideos, "Aucune vidéo de tes chaînes abonnées pour l'instant.");
+  renderVideoGrid('subs-videos-grid', 'subs-videos-count', subVideos, "Aucune vidéo de tes chaînes abonnées parmi celles déjà chargées. Ouvre les sections Vidéos/Shorts et clique sur « Afficher plus » pour en voir davantage.", null, false);
 }
 
 function escapeHtml(str){
@@ -1639,7 +1788,6 @@ function escapeHtml(str){
   d.textContent = str || '';
   return d.innerHTML;
 }
-
 function formatSeconds(s){
   if(!isFinite(s) || s < 0) s = 0;
   const m = Math.floor(s / 60);
@@ -1647,21 +1795,18 @@ function formatSeconds(s){
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-/* Réinitialise le bloc description (relance le clamp + bouton "Voir plus") */
 function resetDescToggle(){
   const descEl = document.getElementById('player-info-desc');
   const toggleBtn = document.getElementById('desc-toggle');
   descEl.classList.remove('expanded');
   toggleBtn.textContent = 'Voir plus';
   toggleBtn.classList.remove('visible');
-  // Attend le prochain frame pour que le texte soit rendu avant de mesurer l'overflow
   requestAnimationFrame(()=>{
     if(descEl.textContent.trim() && descEl.scrollHeight > descEl.clientHeight + 1){
       toggleBtn.classList.add('visible');
     }
   });
 }
-
 document.getElementById('desc-toggle').addEventListener('click', ()=>{
   const descEl = document.getElementById('player-info-desc');
   const toggleBtn = document.getElementById('desc-toggle');
@@ -1675,16 +1820,12 @@ function playVideo(v){
   const wrapper = iframe.parentElement;
   const customControls = document.getElementById('custom-controls');
 
-  // Nettoie tout lecteur / bouton de repli laissé par une lecture précédente
   const existingVideoTag = wrapper.querySelector('video');
   if(existingVideoTag) existingVideoTag.remove();
   const existingFallback = wrapper.querySelector('.generic-fallback');
   if(existingFallback) existingFallback.remove();
   customControls.style.display = 'none';
 
-  // Panneau d'informations (verre) — toujours affiché, quelle que soit la
-  // plateforme, pour que le titre, l'auteur et la description soient
-  // toujours visibles sous le lecteur.
   const infoBar = document.getElementById('player-info-bar');
   const infoDesc = document.getElementById('player-info-desc');
   infoBar.style.display = 'flex';
@@ -1695,7 +1836,6 @@ function playVideo(v){
   const avatar = document.getElementById('player-info-avatar');
   avatar.textContent = (author || title || '?').trim().charAt(0).toUpperCase();
 
-  // Halo sombre bas réservé au mode "fichier direct" (contrôles personnalisés)
   const playerMedia = document.getElementById('player-media');
   playerMedia.classList.toggle('direct-mode', platform === 'direct');
   playerMedia.classList.toggle('short-media', !!isShort);
@@ -1718,7 +1858,6 @@ function playVideo(v){
   }else if(platform === 'generic'){
     iframe.style.display = 'block';
     iframe.src = videoId;
-    // Si le site refuse d'être affiché en iframe, propose un lien d'ouverture directe
     const fallback = document.createElement('div');
     fallback.className = 'generic-fallback';
     fallback.innerHTML = `Si la vidéo ne s'affiche pas ci-dessus (certains sites bloquent l'intégration), <a href="${videoId}" target="_blank" rel="noopener">ouvre le lien directement</a>.`;
@@ -1737,14 +1876,12 @@ function playVideo(v){
         iframe.src = `https://player.twitch.tv/?video=${videoId}&parent=${parent}&autoplay=true`;
       }
     }else{
-      // youtube par défaut
       iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
     }
   }
   openOverlay('player-overlay');
 }
 
-/* Contrôles personnalisés (verre, style Apple) pour les fichiers vidéo directs */
 function setupCustomControls(videoTag){
   const playBtn = document.getElementById('cc-playpause');
   const playIcon = document.getElementById('cc-play-icon');
@@ -1769,9 +1906,7 @@ function setupCustomControls(videoTag){
   videoTag.addEventListener('pause', updatePlayIcon);
   updatePlayIcon();
 
-  videoTag.addEventListener('loadedmetadata', ()=>{
-    durEl.textContent = formatSeconds(videoTag.duration);
-  });
+  videoTag.addEventListener('loadedmetadata', ()=>{ durEl.textContent = formatSeconds(videoTag.duration); });
   videoTag.addEventListener('timeupdate', ()=>{
     if(seeking) return;
     curEl.textContent = formatSeconds(videoTag.currentTime);
@@ -1815,31 +1950,18 @@ document.querySelector('[data-close="player-overlay"]').addEventListener('click'
   document.getElementById('player-media').classList.remove('short-media');
 });
 
-/* =========================================================
-   Firestore : écoute en temps réel
-   ========================================================= */
-videosRef.orderBy('addedAt', 'desc').onSnapshot((snapshot)=>{
-  currentVideos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  // Tri par date de publication réelle sur la plateforme d'origine (la plus
-  // récente en haut), avec repli sur la date d'ajout si elle est inconnue.
-  currentVideos.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
-  videosLoaded = true;
-  renderGrid();
-}, (err)=>{
-  ['video-grid', 'video-grid-home', 'shorts-grid'].forEach(id=>{
-    document.getElementById(id).innerHTML =
-      `<div class="empty-state">Impossible de charger les vidéos.<br>Vérifie la configuration Firebase dans le code de la page.</div>`;
-  });
-  console.error(err);
-});
-
-// Compteurs d'abonnés (publics), chargés dès l'ouverture du site pour tout le monde
-subscribeChannelsData();
-
 async function deleteVideo(id){
   if(!confirm('Supprimer cette vidéo ?')) return;
   try{
     await videosRef.doc(id).delete();
+    for(const key of ['long', 'short']){
+      const idx = videoSections[key].docs.findIndex(v => v.id === id);
+      if(idx !== -1){
+        videoSections[key].docs.splice(idx, 1);
+        persistSectionFirstPageCache(key);
+      }
+    }
+    renderAllSections();
   }catch(e){
     alert("Erreur lors de la suppression.");
     console.error(e);
@@ -1847,44 +1969,30 @@ async function deleteVideo(id){
 }
 
 /* =========================================================
-   Admin : connexion (mot de passe simple, gère l'ajout de vidéos)
+   Admin : connexion / bouton flottant
    ========================================================= */
 document.getElementById('fab-add').addEventListener('click', ()=>{
   if(isAdmin){
     openOverlay('add-overlay');
   }else{
-    // Pas admin (ou pas connecté) : on ouvre la connexion au compte
     clearAuthErrors();
     openOverlay('account-overlay');
   }
 });
-
-// Le bouton "quitter" du badge admin déconnecte simplement le compte
-document.getElementById('admin-logout').addEventListener('click', ()=>{
-  auth.signOut();
-});
+document.getElementById('admin-logout').addEventListener('click', ()=>{ auth.signOut(); });
 
 /* =========================================================
    Admin : ajout de vidéo
    ========================================================= */
 document.getElementById('add-submit').addEventListener('click', submitVideo);
-document.getElementById('add-link').addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') submitVideo();
-});
+document.getElementById('add-link').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') submitVideo(); });
 
-/* =========================================================
-   Détection automatique du format (16:9 vs 9:16) à partir du lien
-   ========================================================= */
-let addLinkDetectToken = 0; // évite qu'une détection en retard écrase une saisie plus récente
-let addIsShortManuallySet = false; // devient true dès que l'admin touche la case lui-même
-
+let addLinkDetectToken = 0;
+let addIsShortManuallySet = false;
 const addIsShortCheckbox = document.getElementById('add-is-short');
 const addIsShortLabel = document.getElementById('add-is-short-label');
 addIsShortCheckbox.addEventListener('change', ()=>{ addIsShortManuallySet = true; });
-
-function setAddIsShortLabel(text){
-  addIsShortLabel.textContent = text;
-}
+function setAddIsShortLabel(text){ addIsShortLabel.textContent = text; }
 
 async function fetchOEmbedRatio(oembedUrl){
   const res = await fetch(oembedUrl);
@@ -1893,9 +2001,6 @@ async function fetchOEmbedRatio(oembedUrl){
   if(data.width && data.height) return data.width / data.height;
   return null;
 }
-
-// Charge juste les métadonnées d'un fichier vidéo direct (sans le télécharger
-// en entier) pour connaître ses dimensions réelles
 function fetchDirectVideoRatio(url){
   return new Promise((resolve)=>{
     const probe = document.createElement('video');
@@ -1909,21 +2014,16 @@ function fetchDirectVideoRatio(url){
       resolve(ratio);
     });
     probe.addEventListener('error', ()=>{ cleanup(); resolve(null); });
-    setTimeout(()=>{ cleanup(); resolve(null); }, 8000); // sécurité si ça ne charge jamais
+    setTimeout(()=>{ cleanup(); resolve(null); }, 8000);
     document.body.appendChild(probe);
     probe.src = url;
   });
 }
-
-// Tente de deviner automatiquement le format (portrait/paysage) du lien
-// collé et pré-coche la case en conséquence. L'admin garde toujours la
-// main : dès qu'il modifie la case lui-même, on arrête d'y toucher.
 async function autoDetectShortFormat(url){
   const myToken = ++addLinkDetectToken;
   const detected = detectVideo(url);
   if(!detected) return;
 
-  // Cas déjà connu instantanément : URL Shorts YouTube
   if(detected.platform === 'youtube' && detected.isShort){
     if(!addIsShortManuallySet) addIsShortCheckbox.checked = true;
     setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement');
@@ -1947,9 +2047,7 @@ async function autoDetectShortFormat(url){
       setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — analyse du fichier…');
       ratio = await fetchDirectVideoRatio(detected.id);
     }
-
-    if(myToken !== addLinkDetectToken) return; // le lien a changé entre-temps, on jette ce résultat
-
+    if(myToken !== addLinkDetectToken) return;
     if(ratio){
       if(!addIsShortManuallySet) addIsShortCheckbox.checked = ratio < 1;
       setAddIsShortLabel(`Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement : ${ratio < 1 ? 'format vertical' : 'format horizontal'}`);
@@ -1962,33 +2060,43 @@ async function autoDetectShortFormat(url){
     setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
   }
 }
-
-// Se déclenche quand l'admin colle un lien ou quitte le champ, pas à chaque
-// frappe (pour éviter de spammer les API pendant la saisie)
 document.getElementById('add-link').addEventListener('input', (e)=>{
-  // Reset immédiat pour un nouveau lien : on ne veut plus l'ancien état "manuel"
   addIsShortManuallySet = false;
   setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
-  // Cas synchrone : URL Shorts YouTube reconnaissable tout de suite
-  if(isYouTubeShortUrl(e.target.value)){
-    addIsShortCheckbox.checked = true;
-  }
+  if(isYouTubeShortUrl(e.target.value)) addIsShortCheckbox.checked = true;
 });
 document.getElementById('add-link').addEventListener('blur', (e)=>{
   const url = e.target.value.trim();
   if(url) autoDetectShortFormat(url);
 });
 document.getElementById('add-link').addEventListener('paste', ()=>{
-  // Laisse le temps au champ de recevoir la valeur collée avant de la lire
   setTimeout(()=>{
     const url = document.getElementById('add-link').value.trim();
     if(url) autoDetectShortFormat(url);
   }, 0);
 });
 
-/* Ajoute un document vidéo dans Firestore et réinitialise la modale */
+/* Ajoute un document vidéo dans Firestore ET répercute le résultat
+   localement (mise à jour de l'état + du cache), sans relire Firestore. */
 async function addVideoDoc(payload){
-  await videosRef.add({ ...payload, addedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  const nowTs = firebase.firestore.Timestamp.now();
+  const finalSortDate = payload.sortDate || nowTs;
+  const docRef = await videosRef.add({
+    ...payload,
+    addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    sortDate: finalSortDate
+  });
+
+  const localDoc = { id: docRef.id, ...payload, addedAt: nowTs, sortDate: finalSortDate };
+  const sectionKey = payload.isShort ? 'short' : 'long';
+  const state = videoSections[sectionKey];
+  if(state.initialized){
+    state.docs.unshift(localDoc);
+    state.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    persistSectionFirstPageCache(sectionKey);
+    await ensureChannelsLoadedForDocs([localDoc]);
+  }
+
   document.getElementById('add-link').value = '';
   document.getElementById('add-title').value = '';
   document.getElementById('add-author').value = '';
@@ -1997,6 +2105,7 @@ async function addVideoDoc(payload){
   addIsShortManuallySet = false;
   setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts)');
   closeOverlay('add-overlay');
+  renderAllSections();
 }
 
 async function submitVideo(){
@@ -2019,9 +2128,6 @@ async function submitVideo(){
   submitBtn.textContent = 'Ajout…';
   submitBtn.disabled = true;
 
-  // S'assure que la détection automatique du format a eu le temps de
-  // s'exécuter au moins une fois avant l'ajout (au cas où l'admin valide
-  // très vite après avoir collé le lien, sans quitter le champ)
   if(!addIsShortManuallySet){
     await autoDetectShortFormat(linkInput.value.trim());
   }
@@ -2051,7 +2157,10 @@ async function submitVideo(){
       dislikeCount: 0
     };
     if(detected.twitchType) payload.twitchType = detected.twitchType;
-    if(publishedAtDate) payload.publishedAt = firebase.firestore.Timestamp.fromDate(publishedAtDate);
+    if(publishedAtDate){
+      payload.publishedAt = firebase.firestore.Timestamp.fromDate(publishedAtDate);
+      payload.sortDate = payload.publishedAt;
+    }
     await addVideoDoc(payload);
   }catch(e){
     alert("Erreur lors de l'ajout de la vidéo.");
@@ -2063,19 +2172,29 @@ async function submitVideo(){
 }
 
 /* =========================================================
-   Mise à jour automatique : vérifie les chaînes YouTube déjà
-   importées et ajoute toute seule les nouvelles vidéos publiées.
-
-   Fonctionnement : se déclenche automatiquement dès que le compte admin
-   se connecte (sur n'importe quel appareil), puis se répète toutes les
-   minutes tant que la page reste ouverte sur cet appareil. Les nouvelles
-   vidéos ajoutées sont dans la même base Firestore, donc immédiatement
-   visibles pour tous les visiteurs du site ensuite — seule la
-   *vérification* est réservée à l'admin, pas l'affichage du résultat.
+   Recherche de doublons SANS lire toute la collection : on
+   interroge Firestore uniquement par lots de 10 videoId ('in'),
+   ce qui ne coûte que le nombre de documents réellement trouvés.
    ========================================================= */
+async function findExistingVideoIds(videoIds){
+  const existing = new Set();
+  const unique = [...new Set(videoIds)];
+  for(let i = 0; i < unique.length; i += 10){
+    const chunk = unique.slice(i, i + 10);
+    if(chunk.length === 0) continue;
+    try{
+      const snap = await videosRef.where('videoId', 'in', chunk).get();
+      snap.forEach(doc => existing.add(doc.data().videoId));
+    }catch(e){ console.error('Vérification des doublons impossible :', e); }
+  }
+  return existing;
+}
 
-// Récupère seulement les vidéos les plus récentes d'une playlist (pas de
-// pagination complète ici, pour rester rapide et économe en quota API)
+/* =========================================================
+   Mise à jour automatique des chaînes suivies : ne se déclenche
+   que pour l'admin, à intervalle espacé (15 min) et seulement si
+   l'onglet est visible, pour limiter drastiquement les appels.
+   ========================================================= */
 async function fetchLatestUploads(playlistId, maxResults = 25){
   const data = await ytApiGet('playlistItems', { part: 'snippet,contentDetails', playlistId, maxResults });
   return (data.items || []).map(item=>{
@@ -2093,19 +2212,9 @@ async function fetchLatestUploads(playlistId, maxResults = 25){
 
 async function checkTrackedChannelsForNewVideos(){
   if(!YOUTUBE_API_KEY) return;
-
-  // Attend que la liste des vidéos existantes soit chargée, pour ne pas
-  // ré-ajouter des vidéos déjà présentes par erreur.
-  for(let i = 0; i < 20 && !videosLoaded; i++){
-    await new Promise(r => setTimeout(r, 250));
-  }
-  if(!videosLoaded) return;
-
   try{
     const snap = await trackedChannelsRef.get();
     if(snap.empty) return;
-
-    const existingIds = new Set(currentVideos.filter(v => v.platform === 'youtube').map(v => v.videoId));
 
     for(const doc of snap.docs){
       const ch = doc.data();
@@ -2117,9 +2226,12 @@ async function checkTrackedChannelsForNewVideos(){
         continue;
       }
 
+      const existingIds = await findExistingVideoIds(latest.map(v => v.videoId));
       const newOnes = latest.filter(v => !existingIds.has(v.videoId));
+
       for(const v of newOnes){
         const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
+        const sortDate = v.publishedAt ? firebase.firestore.Timestamp.fromDate(v.publishedAt) : firebase.firestore.Timestamp.now();
         const payload = {
           platform: 'youtube',
           videoId: v.videoId,
@@ -2129,27 +2241,43 @@ async function checkTrackedChannelsForNewVideos(){
           description: shortDesc,
           isShort: false,
           likeCount: 0,
-          dislikeCount: 0,
-          addedAt: firebase.firestore.FieldValue.serverTimestamp()
+          dislikeCount: 0
         };
-        if(v.publishedAt) payload.publishedAt = firebase.firestore.Timestamp.fromDate(v.publishedAt);
         try{
-          await videosRef.add(payload);
-          existingIds.add(v.videoId);
+          const docRef = await videosRef.add({
+            ...payload,
+            addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            sortDate,
+            ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {})
+          });
+          if(videoSections.long.initialized){
+            const localDoc = { id: docRef.id, ...payload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {}) };
+            videoSections.long.docs.unshift(localDoc);
+            videoSections.long.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+            persistSectionFirstPageCache('long');
+          }
           console.log(`Nouvelle vidéo ajoutée automatiquement : ${v.title} (${ch.channelTitle})`);
         }catch(err){
           console.error("Impossible d'ajouter automatiquement la vidéo :", v.title, err);
         }
       }
     }
+    renderAllSections();
   }catch(err){
     console.error("Erreur pendant la vérification automatique des chaînes :", err);
   }
 }
+document.getElementById('check-now-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  const original = link.textContent;
+  link.textContent = 'Vérification en cours…';
+  await checkTrackedChannelsForNewVideos();
+  link.textContent = original;
+});
 
 /* =========================================================
    Admin : voir / gérer la liste des chaînes YouTube suivies
-   (ajout direct + retrait, dans la même modale)
    ========================================================= */
 document.getElementById('open-channels-list').addEventListener('click', async (e)=>{
   e.preventDefault();
@@ -2205,8 +2333,9 @@ async function renderChannelsList(){
 
 /* =========================================================
    Admin : rafraîchir la date de publication réelle des vidéos
-   YouTube existantes qui ne l'ont pas encore (importées/ajoutées
-   avant la mise en place de ce champ). Nécessite YOUTUBE_API_KEY.
+   YouTube déjà chargées qui ne l'ont pas encore. Nécessite
+   YOUTUBE_API_KEY. Ne traite que les vidéos actuellement en
+   mémoire (pas toute la collection) pour limiter les lectures.
    ========================================================= */
 document.getElementById('refresh-dates-link').addEventListener('click', async (e)=>{
   e.preventDefault();
@@ -2219,14 +2348,15 @@ document.getElementById('refresh-dates-link').addEventListener('click', async (e
     return;
   }
 
-  const toRefresh = currentVideos.filter(v => v.platform === 'youtube' && !v.publishedAt);
+  const pool = videoSections.long.docs.concat(videoSections.short.docs);
+  const toRefresh = pool.filter(v => v.platform === 'youtube' && !v.publishedAt);
   if(toRefresh.length === 0){
     progressEl.classList.add('visible');
-    progressEl.textContent = "Toutes les vidéos YouTube ont déjà leur date de publication réelle.";
+    progressEl.textContent = "Toutes les vidéos YouTube actuellement chargées ont déjà leur date de publication réelle.";
     return;
   }
 
-  if(!confirm(`${toRefresh.length} vidéo(s) YouTube n'ont pas encore leur date de publication réelle. Lancer la mise à jour maintenant ?`)) return;
+  if(!confirm(`${toRefresh.length} vidéo(s) YouTube chargée(s) n'ont pas encore leur date de publication réelle. Lancer la mise à jour maintenant ?`)) return;
 
   link.style.pointerEvents = 'none';
   link.style.opacity = '0.6';
@@ -2238,7 +2368,10 @@ document.getElementById('refresh-dates-link').addEventListener('click', async (e
     try{
       const publishedAtDate = await fetchYouTubePublishedAt(v.videoId);
       if(publishedAtDate){
-        await videosRef.doc(v.id).update({ publishedAt: firebase.firestore.Timestamp.fromDate(publishedAtDate) });
+        const ts = firebase.firestore.Timestamp.fromDate(publishedAtDate);
+        await videosRef.doc(v.id).update({ publishedAt: ts, sortDate: ts });
+        v.publishedAt = ts;
+        v.sortDate = ts;
         updated++;
       }else{
         failed++;
@@ -2250,9 +2383,59 @@ document.getElementById('refresh-dates-link').addEventListener('click', async (e
     done++;
   }
 
+  for(const key of ['long', 'short']){
+    videoSections[key].docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    persistSectionFirstPageCache(key);
+  }
+  renderAllSections();
+
   progressEl.innerHTML = `Terminé : ${updated} date(s) mise(s) à jour${failed ? `, ${failed} échec(s)` : ''}.`;
   link.style.pointerEvents = '';
   link.style.opacity = '';
+});
+
+/* =========================================================
+   Admin : migration ponctuelle — ajoute le champ "sortDate" aux
+   vidéos plus anciennes qui ne l'ont pas encore (créées avant la
+   mise en place de la pagination optimisée). Action MANUELLE et
+   UNIQUE : elle lit toute la collection une seule fois (coût
+   ponctuel accepté), puis n'a plus jamais besoin d'être relancée.
+   ========================================================= */
+document.getElementById('migrate-sortdate-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  if(!confirm("Cette opération ponctuelle lit une seule fois toutes les vidéos pour ajouter le champ de tri manquant (sortDate) à celles créées avant cette mise à jour. À ne faire qu'une seule fois. Continuer ?")) return;
+
+  link.style.pointerEvents = 'none';
+  const original = link.textContent;
+  link.textContent = 'Migration en cours…';
+  try{
+    const snap = await videosRef.get(); // lecture complète unique et volontaire
+    const toFix = snap.docs.filter(d => !d.data().sortDate);
+    if(toFix.length === 0){
+      alert('Toutes les vidéos ont déjà un champ de tri à jour. Rien à faire.');
+      return;
+    }
+    let batch = db.batch();
+    let count = 0;
+    for(const d of toFix){
+      const data = d.data();
+      const fallback = data.publishedAt || data.addedAt || firebase.firestore.Timestamp.now();
+      batch.update(d.ref, { sortDate: fallback });
+      count++;
+      if(count % 400 === 0){ await batch.commit(); batch = db.batch(); }
+    }
+    await batch.commit();
+    alert(`Migration terminée : ${toFix.length} vidéo(s) mise(s) à jour. Tu peux maintenant actualiser les sections.`);
+    loadFirstPage('long', true);
+    loadFirstPage('short', true);
+  }catch(err){
+    console.error(err);
+    alert("Erreur pendant la migration : " + (err.message || err));
+  }finally{
+    link.style.pointerEvents = '';
+    link.textContent = original;
+  }
 });
 
 // Reconnaît /channel/UC..., /@handle, /c/NomPerso et /user/NomLegacy
@@ -2261,24 +2444,16 @@ function parseChannelRef(url){
   url = url.trim();
   let m = url.match(/youtube\.com\/channel\/(UC[a-zA-Z0-9_-]{22})/);
   if(m) return { type: 'id', value: m[1] };
-
   m = url.match(/youtube\.com\/@([a-zA-Z0-9._-]+)/);
   if(m) return { type: 'handle', value: '@' + m[1] };
-
   m = url.match(/youtube\.com\/c\/([a-zA-Z0-9._-]+)/);
   if(m) return { type: 'custom', value: m[1] };
-
   m = url.match(/youtube\.com\/user\/([a-zA-Z0-9._-]+)/);
   if(m) return { type: 'user', value: m[1] };
-
-  // Lien collé sans domaine complet, ex: "@nomdelachaine"
   if(/^@[a-zA-Z0-9._-]+$/.test(url)) return { type: 'handle', value: url };
-  // ID de chaîne brut
   if(/^UC[a-zA-Z0-9_-]{22}$/.test(url)) return { type: 'id', value: url };
-
   return null;
 }
-
 async function ytApiGet(endpoint, params){
   const usp = new URLSearchParams({ ...params, key: YOUTUBE_API_KEY });
   const res = await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${usp.toString()}`);
@@ -2289,9 +2464,6 @@ async function ytApiGet(endpoint, params){
   }
   return data;
 }
-
-// Résout un identifiant de chaîne (id/handle/custom/user) vers son
-// channelId, sa playlist "uploads" et son nom affiché.
 async function resolveChannel(ref){
   let data;
   if(ref.type === 'id'){
@@ -2301,13 +2473,11 @@ async function resolveChannel(ref){
   }else if(ref.type === 'user'){
     data = await ytApiGet('channels', { part: 'snippet,contentDetails', forUsername: ref.value });
   }else{
-    // "custom" (/c/Nom) n'est pas résoluble directement par l'API : on passe par une recherche
     data = await ytApiGet('search', { part: 'snippet', type: 'channel', q: ref.value, maxResults: 1 });
     const first = data.items && data.items[0];
     if(!first) return null;
     return resolveChannel({ type: 'id', value: first.snippet.channelId });
   }
-
   const channel = data.items && data.items[0];
   if(!channel) return null;
   return {
@@ -2316,23 +2486,14 @@ async function resolveChannel(ref){
     uploadsPlaylistId: channel.contentDetails.relatedPlaylists.uploads
   };
 }
-
-// Récupère tous les items (vidéoId, titre, description) de la playlist "uploads", avec pagination
 async function fetchAllUploads(playlistId, onProgress){
   const items = [];
   let pageToken = '';
   do{
-    const data = await ytApiGet('playlistItems', {
-      part: 'snippet,contentDetails',
-      playlistId,
-      maxResults: 50,
-      pageToken
-    });
+    const data = await ytApiGet('playlistItems', { part: 'snippet,contentDetails', playlistId, maxResults: 50, pageToken });
     for(const item of (data.items || [])){
       const videoId = item.contentDetails && item.contentDetails.videoId;
       if(!videoId) continue;
-      // videoPublishedAt = date de mise en ligne réelle de la vidéo (plus fiable
-      // que snippet.publishedAt, qui est la date d'ajout à la playlist "uploads")
       const publishedIso = (item.contentDetails && item.contentDetails.videoPublishedAt) || item.snippet.publishedAt;
       items.push({
         videoId,
@@ -2346,16 +2507,12 @@ async function fetchAllUploads(playlistId, onProgress){
   }while(pageToken);
   return items;
 }
-
 function setAddChannelProgress(text, pct){
   document.getElementById('add-channel-progress').classList.add('visible');
   document.getElementById('add-channel-progress-text').textContent = text;
   document.getElementById('add-channel-progress-bar').style.width = Math.max(0, Math.min(100, pct)) + '%';
 }
 
-/* Ajoute directement une chaîne YouTube depuis la modale "Chaînes suivies" :
-   résout la chaîne, la suit pour les mises à jour automatiques, puis importe
-   toutes ses vidéos existantes (dédoublonnées par videoId). */
 document.getElementById('add-channel-submit').addEventListener('click', async ()=>{
   const linkInput = document.getElementById('add-channel-link');
   const errorEl = document.getElementById('add-channel-error');
@@ -2367,7 +2524,6 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
     errorEl.style.display = 'block';
     return;
   }
-
   const ref = parseChannelRef(linkInput.value);
   if(!ref){
     errorEl.textContent = "Lien de chaîne non reconnu. Utilise un lien du type /channel/UC…, /@nom, /c/nom ou /user/nom.";
@@ -2381,12 +2537,8 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
 
   try{
     const channel = await resolveChannel(ref);
-    if(!channel){
-      throw new Error("Chaîne introuvable.");
-    }
+    if(!channel) throw new Error("Chaîne introuvable.");
 
-    // Mémorise cette chaîne pour que ses futures nouvelles vidéos soient
-    // ajoutées automatiquement, sans avoir à relancer un import manuel.
     await trackedChannelsRef.doc(channel.channelId).set({
       channelId: channel.channelId,
       channelTitle: channel.channelTitle,
@@ -2394,7 +2546,6 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
       addedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    // Rafraîchit la liste tout de suite pour montrer la chaîne comme suivie
     await renderChannelsList();
 
     setAddChannelProgress(`Chaîne trouvée : ${channel.channelTitle}. Liste des vidéos…`, 15);
@@ -2408,16 +2559,15 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
       return;
     }
 
-    // Ignore les vidéos YouTube déjà présentes dans la galerie (dédoublonnage par videoId)
-    const existingIds = new Set(
-      currentVideos.filter(v => v.platform === 'youtube').map(v => v.videoId)
-    );
+    // Dédoublonnage par lots (pas de lecture de toute la collection)
+    const existingIds = await findExistingVideoIds(uploads.map(u => u.videoId));
     const toImport = uploads.filter(u => !existingIds.has(u.videoId));
     const skipped = uploads.length - toImport.length;
 
     let done = 0;
     for(const u of toImport){
       const shortDesc = (u.description || '').split('\n')[0].slice(0, 200) || null;
+      const sortDate = u.publishedAt ? firebase.firestore.Timestamp.fromDate(u.publishedAt) : firebase.firestore.Timestamp.now();
       const docPayload = {
         platform: 'youtube',
         videoId: u.videoId,
@@ -2427,14 +2577,26 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
         description: shortDesc,
         isShort: false,
         likeCount: 0,
-        dislikeCount: 0,
-        addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        dislikeCount: 0
       };
-      if(u.publishedAt) docPayload.publishedAt = firebase.firestore.Timestamp.fromDate(u.publishedAt);
-      await videosRef.add(docPayload);
+      const docRef = await videosRef.add({
+        ...docPayload,
+        addedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        sortDate,
+        ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {})
+      });
+      if(videoSections.long.initialized){
+        const localDoc = { id: docRef.id, ...docPayload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {}) };
+        videoSections.long.docs.push(localDoc);
+      }
       done++;
       const pct = 40 + Math.round((done / Math.max(1, toImport.length)) * 60);
       setAddChannelProgress(`Importation… ${done}/${toImport.length} vidéo(s) ajoutée(s)`, pct);
+    }
+    if(videoSections.long.initialized){
+      videoSections.long.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+      persistSectionFirstPageCache('long');
+      renderAllSections();
     }
 
     const summary = skipped > 0
@@ -2454,10 +2616,10 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
 });
 
 /* =========================================================
-   Admin : modification des infos d'une vidéo (titre, auteur, description, format)
+   Admin : modification des infos d'une vidéo
    ========================================================= */
 function openEditVideo(id){
-  const v = currentVideos.find(x => x.id === id);
+  const v = findLoadedVideoById(id);
   if(!v) return;
   document.getElementById('edit-id').value = v.id;
   document.getElementById('edit-title').value = v.title || '';
@@ -2467,7 +2629,6 @@ function openEditVideo(id){
   document.getElementById('edit-error').style.display = 'none';
   openOverlay('edit-overlay');
 }
-
 document.getElementById('edit-submit').addEventListener('click', async ()=>{
   const id = document.getElementById('edit-id').value;
   const errorEl = document.getElementById('edit-error');
@@ -2488,11 +2649,25 @@ document.getElementById('edit-submit').addEventListener('click', async ()=>{
   btn.disabled = true; btn.textContent = 'Enregistrement…';
   try{
     await videosRef.doc(id).update({
-      title,
-      author: author || null,
-      description: description || null,
-      isShort: !!isShort
+      title, author: author || null, description: description || null, isShort: !!isShort
     });
+
+    const oldKey = sectionKeyOfLoadedVideo(id);
+    if(oldKey){
+      const idx = videoSections[oldKey].docs.findIndex(v => v.id === id);
+      if(idx !== -1){
+        const [doc] = videoSections[oldKey].docs.splice(idx, 1);
+        doc.title = title; doc.author = author || null; doc.description = description || null; doc.isShort = !!isShort;
+        const newKey = isShort ? 'short' : 'long';
+        if(videoSections[newKey].initialized || newKey === oldKey){
+          videoSections[newKey].docs.push(doc);
+          videoSections[newKey].docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+        }
+        persistSectionFirstPageCache(oldKey);
+        if(newKey !== oldKey) persistSectionFirstPageCache(newKey);
+      }
+    }
+    renderAllSections();
     closeOverlay('edit-overlay');
   }catch(e){
     errorEl.textContent = "Erreur lors de l'enregistrement.";
@@ -2505,35 +2680,27 @@ document.getElementById('edit-submit').addEventListener('click', async ()=>{
 
 /* =========================================================
    COMPTE — Firebase Authentication + profil partagé Firestore
-   Le profil (nom, photo) est stocké dans la même collection que
-   les autres sites RIJOUL/ASSTTF/ONYX pour être synchronisé partout.
+   (le profil reste en écoute temps réel : un seul petit document,
+   utile pour la synchronisation instantanée entre les sites RIJOUL/
+   ASSTTF/ONYX ; coût négligeable comparé à la collection de vidéos)
    ========================================================= */
-
 const accountBtn = document.getElementById('account-btn');
 const userChip = document.getElementById('user-chip');
 const userAvatar = document.getElementById('user-avatar');
 const userNameLabel = document.getElementById('user-name-label');
 const userEmailLabel = document.getElementById('user-email-label');
 
-accountBtn.addEventListener('click', ()=>{
-  clearAuthErrors();
-  openOverlay('account-overlay');
-});
-
+accountBtn.addEventListener('click', ()=>{ clearAuthErrors(); openOverlay('account-overlay'); });
 userChip.addEventListener('click', (e)=>{
   if(e.target.closest('#dd-logout') || e.target.closest('#dd-edit-profile')) return;
   userChip.classList.toggle('open');
 });
-document.addEventListener('click', (e)=>{
-  if(!userChip.contains(e.target)) userChip.classList.remove('open');
-});
-
+document.addEventListener('click', (e)=>{ if(!userChip.contains(e.target)) userChip.classList.remove('open'); });
 document.getElementById('dd-logout').addEventListener('click', async ()=>{
   await auth.signOut();
   userChip.classList.remove('open');
 });
 
-/* Rendu de l'avatar/nom à partir du profil partagé (Firestore) */
 function renderAccountUI(label, photoURL){
   userNameLabel.textContent = label;
   if(photoURL){
@@ -2543,9 +2710,6 @@ function renderAccountUI(label, photoURL){
     userAvatar.innerHTML = userAvatar.textContent;
   }
 }
-
-/* S'assure que le document profils/{uid} existe ; ne l'écrase pas s'il existe déjà
-   (pour ne pas effacer un nom/photo déjà défini depuis un autre site) */
 async function ensureUserProfile(user){
   const ref = usersRef.doc(user.uid);
   const snap = await ref.get();
@@ -2559,9 +2723,6 @@ async function ensureUserProfile(user){
     });
   }
 }
-
-/* Écoute en temps réel du profil courant : si modifié depuis un autre site
-   (ASSTTF, ONYX CHAT…), l'avatar/nom se met à jour ici instantanément */
 function subscribeToProfile(uid){
   if(profileUnsub) profileUnsub();
   profileUnsub = usersRef.doc(uid).onSnapshot((snap)=>{
@@ -2570,13 +2731,11 @@ function subscribeToProfile(uid){
     const label = data.displayName || 'Compte';
     renderAccountUI(label, data.photoURL || null);
     userEmailLabel.textContent = data.email || '';
-    // pré-remplit la modale profil si elle est ouverte / au prochain ouverture
     document.getElementById('profile-name').value = label;
     currentProfilePhoto = data.photoURL || null;
     updateProfilePreview(label, data.photoURL || null);
   });
 }
-
 function updateProfilePreview(label, photoURL){
   const preview = document.getElementById('profile-photo-preview');
   if(photoURL){
@@ -2585,18 +2744,14 @@ function updateProfilePreview(label, photoURL){
     preview.textContent = (label || '?').charAt(0).toUpperCase();
   }
 }
-
-/* Ouverture de la modale profil */
 document.getElementById('dd-edit-profile').addEventListener('click', ()=>{
   userChip.classList.remove('open');
   document.getElementById('profile-error').style.display = 'none';
   openOverlay('profile-overlay');
 });
-
 document.getElementById('profile-photo-choose').addEventListener('click', ()=>{
   document.getElementById('profile-photo-input').click();
 });
-
 document.getElementById('profile-photo-input').addEventListener('change', async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
@@ -2610,12 +2765,10 @@ document.getElementById('profile-photo-input').addEventListener('change', async 
     document.getElementById('profile-error').style.display = 'block';
   }
 });
-
 document.getElementById('profile-photo-remove').addEventListener('click', ()=>{
   currentProfilePhoto = null;
   updateProfilePreview(document.getElementById('profile-name').value, null);
 });
-
 document.getElementById('profile-save').addEventListener('click', async ()=>{
   const user = auth.currentUser;
   if(!user) return;
@@ -2630,8 +2783,6 @@ document.getElementById('profile-save').addEventListener('click', async ()=>{
   const btn = document.getElementById('profile-save');
   btn.disabled = true; btn.textContent = 'Enregistrement…';
   try{
-    // Écrit dans la collection de profils partagée : visible immédiatement sur
-    // tous les sites (ASSTTF, ONYX CHAT, ONYX REEL…) connectés au même projet Firebase.
     await usersRef.doc(user.uid).set({
       displayName: name,
       photoURL: currentProfilePhoto,
@@ -2648,13 +2799,8 @@ document.getElementById('profile-save').addEventListener('click', async ()=>{
   }
 });
 
-/* Tabs Connexion / Inscription */
-document.querySelectorAll('.auth-tab').forEach(tab=>{
-  tab.addEventListener('click', ()=> switchAuthTab(tab.dataset.tab));
-});
-document.querySelectorAll('[data-switch]').forEach(link=>{
-  link.addEventListener('click', ()=> switchAuthTab(link.dataset.switch));
-});
+document.querySelectorAll('.auth-tab').forEach(tab=>{ tab.addEventListener('click', ()=> switchAuthTab(tab.dataset.tab)); });
+document.querySelectorAll('[data-switch]').forEach(link=>{ link.addEventListener('click', ()=> switchAuthTab(link.dataset.switch)); });
 function switchAuthTab(name){
   document.querySelectorAll('.auth-tab').forEach(t=> t.classList.toggle('active', t.dataset.tab === name));
   document.getElementById('panel-login').classList.toggle('active', name === 'login');
@@ -2670,7 +2816,6 @@ function showAuthError(id, message){
   el.textContent = message;
   el.style.display = 'block';
 }
-
 function friendlyAuthError(err){
   const map = {
     'auth/invalid-email': "Adresse e-mail invalide.",
@@ -2684,61 +2829,40 @@ function friendlyAuthError(err){
   };
   return map[err.code] || "Une erreur est survenue. Réessaie.";
 }
-
-/* Connexion e-mail / mot de passe */
 document.getElementById('login-submit').addEventListener('click', async ()=>{
   clearAuthErrors();
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
-  if(!email || !password){
-    showAuthError('login-error', "Merci de remplir tous les champs.");
-    return;
-  }
+  if(!email || !password){ showAuthError('login-error', "Merci de remplir tous les champs."); return; }
   const btn = document.getElementById('login-submit');
   btn.disabled = true; btn.textContent = 'Connexion…';
   try{
     await auth.signInWithEmailAndPassword(email, password);
     closeOverlay('account-overlay');
-  }catch(err){
-    showAuthError('login-error', friendlyAuthError(err));
-  }finally{
-    btn.disabled = false; btn.textContent = 'Se connecter';
-  }
+  }catch(err){ showAuthError('login-error', friendlyAuthError(err)); }
+  finally{ btn.disabled = false; btn.textContent = 'Se connecter'; }
 });
-
-/* Création de compte e-mail / mot de passe */
 document.getElementById('signup-submit').addEventListener('click', async ()=>{
   clearAuthErrors();
   const name = document.getElementById('signup-name').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
-  if(!email || !password){
-    showAuthError('signup-error', "Merci de remplir tous les champs.");
-    return;
-  }
+  if(!email || !password){ showAuthError('signup-error', "Merci de remplir tous les champs."); return; }
   const btn = document.getElementById('signup-submit');
   btn.disabled = true; btn.textContent = 'Création…';
   try{
     const cred = await auth.createUserWithEmailAndPassword(email, password);
     const finalName = name || email.split('@')[0];
     await cred.user.updateProfile({ displayName: finalName });
-    // Écrit directement le profil partagé pour éviter un nom de repli temporaire
     await usersRef.doc(cred.user.uid).set({
-      displayName: finalName,
-      photoURL: null,
-      email: cred.user.email || null,
+      displayName: finalName, photoURL: null, email: cred.user.email || null,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
     closeOverlay('account-overlay');
-  }catch(err){
-    showAuthError('signup-error', friendlyAuthError(err));
-  }finally{
-    btn.disabled = false; btn.textContent = 'Créer mon compte';
-  }
+  }catch(err){ showAuthError('signup-error', friendlyAuthError(err)); }
+  finally{ btn.disabled = false; btn.textContent = 'Créer mon compte'; }
 });
-
-/* Connexion / inscription Google (popup) */
 async function googleAuth(){
   clearAuthErrors();
   try{
@@ -2751,14 +2875,9 @@ async function googleAuth(){
 }
 document.getElementById('google-login-btn').addEventListener('click', googleAuth);
 document.getElementById('google-signup-btn').addEventListener('click', googleAuth);
-
-/* Mot de passe oublié */
 document.getElementById('forgot-link').addEventListener('click', async ()=>{
   const email = document.getElementById('login-email').value.trim();
-  if(!email){
-    showAuthError('login-error', "Entre ton adresse e-mail ci-dessus, puis clique à nouveau sur ce lien.");
-    return;
-  }
+  if(!email){ showAuthError('login-error', "Entre ton adresse e-mail ci-dessus, puis clique à nouveau sur ce lien."); return; }
   try{
     await auth.sendPasswordResetEmail(email);
     showAuthError('login-error', "E-mail de réinitialisation envoyé.");
@@ -2769,24 +2888,20 @@ document.getElementById('forgot-link').addEventListener('click', async ()=>{
   }
 });
 
-/* Réagit à l'état de connexion : synchronise le profil partagé + statut admin (basé sur l'UID) */
+/* Réagit à l'état de connexion : profil partagé + statut admin + réactions/abonnements (chargés une fois, pas en écoute permanente) */
 auth.onAuthStateChanged(async (user)=>{
-  // Statut admin déterminé par l'UID Firebase connecté (pas de mot de passe).
-  // Une session anonyme (utilisée pour permettre les likes/dislikes sans
-  // compte) ne compte jamais comme "connecté" ni comme admin.
   const wasAdmin = isAdmin;
   const realUser = user && !user.isAnonymous ? user : null;
   isAdmin = !!(realUser && realUser.uid === ADMIN_UID);
   isConnected = !!realUser;
   document.body.classList.toggle('admin-mode', isAdmin);
 
-  // Dès que le compte admin se connecte, vérifie automatiquement les
-  // chaînes YouTube suivies pour importer les nouvelles vidéos, puis
-  // répète la vérification toutes les minutes tant que la page reste ouverte.
   if(isAdmin && !wasAdmin){
     checkTrackedChannelsForNewVideos();
     if(trackedChannelsCheckInterval) clearInterval(trackedChannelsCheckInterval);
-    trackedChannelsCheckInterval = setInterval(checkTrackedChannelsForNewVideos, 60 * 1000);
+    trackedChannelsCheckInterval = setInterval(()=>{
+      if(document.visibilityState === 'visible') checkTrackedChannelsForNewVideos();
+    }, 15 * 60 * 1000); // toutes les 15 minutes au lieu de chaque minute
   }else if(!isAdmin && trackedChannelsCheckInterval){
     clearInterval(trackedChannelsCheckInterval);
     trackedChannelsCheckInterval = null;
@@ -2796,14 +2911,11 @@ auth.onAuthStateChanged(async (user)=>{
     accountBtn.style.display = 'none';
     userChip.classList.add('visible');
     userEmailLabel.textContent = realUser.email || '';
-    // Affichage immédiat depuis Auth (évite un flash vide le temps que Firestore réponde)
     renderAccountUI(realUser.displayName || (realUser.email ? realUser.email.split('@')[0] : 'Compte'), realUser.photoURL || null);
     try{
       await ensureUserProfile(realUser);
       subscribeToProfile(realUser.uid);
-    }catch(err){
-      console.error("Profil partagé indisponible :", err);
-    }
+    }catch(err){ console.error("Profil partagé indisponible :", err); }
   }else{
     accountBtn.style.display = 'flex';
     userChip.classList.remove('visible');
@@ -2811,34 +2923,34 @@ auth.onAuthStateChanged(async (user)=>{
     if(profileUnsub){ profileUnsub(); profileUnsub = null; }
   }
 
-  // Réactions (like/dislike) : suivies pour tout utilisateur (anonyme ou non)
   if(user){
-    subscribeUserReactions(user.uid);
-  }else if(userReactionsUnsub){
-    userReactionsUnsub();
-    userReactionsUnsub = null;
+    loadUserReactions(user.uid);
+  }else{
     userReactions = {};
   }
 
-  // Abonnements aux chaînes : uniquement pour un vrai compte connecté,
-  // stockés par uid afin d'être retrouvés à chaque retour sur le site.
   if(realUser){
-    subscribeToUserSubs(realUser.uid);
-  }else if(userSubsUnsub){
-    userSubsUnsub();
-    userSubsUnsub = null;
+    loadUserSubs(realUser.uid);
+  }else{
     userSubscribedKeys = new Set();
   }
 
-  renderGrid();
+  renderAllSections();
 
-  // Si personne n'est connecté du tout (ni avec un compte, ni anonymement),
-  // on ouvre une session anonyme en arrière-plan pour permettre les
-  // likes/dislikes sans obliger à créer un compte.
   if(!user){
     try{ await auth.signInAnonymously(); }catch(e){ console.warn('Connexion anonyme impossible :', e); }
   }
 });
+
+/* =========================================================
+   Section initiale : Accueil (déclenche automatiquement le
+   chargement paresseux de la première page de vidéos longues)
+   ========================================================= */
+(function initialSection(){
+  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-subs'];
+  const hash = (location.hash || '').replace('#','');
+  showSection(validIds.includes(hash) ? hash : 'section-home');
+})();
 </script>
 </body>
 </html>
