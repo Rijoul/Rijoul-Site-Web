@@ -1084,6 +1084,7 @@ let reactionInFlight = new Set();
 let channelsCache = {};               // { channelDocId: { data, ts } } — en mémoire, recopié en localStorage
 let userSubscribedKeys = new Set();   // Set des channelDocId suivis par l'utilisateur courant
 let subscribeInFlight = new Set();
+let selectedSubChannelCdId = null;    // Chaîne actuellement sélectionnée dans "Abonnements" (aucune vidéo tant que rien n'est sélectionné)
 
 /* =========================================================
    Utilitaires : détection de plateforme / format
@@ -1597,6 +1598,7 @@ async function unsubscribeChannel(cdId){
     });
     userSubscribedKeys.delete(cdId);
     lsSet('subs_' + uid, { ts: Date.now(), data: [...userSubscribedKeys] });
+    if(selectedSubChannelCdId === cdId) selectedSubChannelCdId = null;
     const prev = (channelsCache[cdId] && channelsCache[cdId].data) || { subscriberCount: 0 };
     const entry = { data: { ...prev, subscriberCount: Math.max(0, (prev.subscriberCount || 0) - 1) }, ts: Date.now() };
     channelsCache[cdId] = entry;
@@ -1756,33 +1758,57 @@ function renderSubsSection(){
     const entry = channelsCache[cdId];
     const data = (entry && entry.data) || {};
     return { cdId, name: data.name || 'Chaîne', count: data.subscriberCount || 0 };
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  }).sort((a, b) => (b.count - a.count) || a.name.localeCompare(b.name));
 
   if(subscribedList.length === 0){
-    intro.textContent = "Tu n'es abonné à aucune chaîne pour l'instant. Abonne-toi depuis une vidéo pour la retrouver ici.";
+    intro.textContent = "Tu n'es abonné à aucune chaîne pour l'instant. Abonne-toi depuis une vidéo pour la retrouver ici, profiter de ses nouveautés en un clin d'œil et ne jamais rien manquer !";
     channelsListEl.innerHTML = '';
+    selectedSubChannelCdId = null;
   }else{
-    intro.textContent = `Tu es abonné à ${subscribedList.length} chaîne${subscribedList.length > 1 ? 's' : ''}.`;
-    channelsListEl.innerHTML = subscribedList.map(ch => `
-      <div class="channel-row">
-        <span class="channel-row-name">${escapeHtml(ch.name)} <span class="subs-count">· ${ch.count} abonné${ch.count > 1 ? 's' : ''}</span></span>
-        <button class="channel-row-untrack" data-unsubscribe-cdid="${ch.cdId}">Se désabonner</button>
-      </div>
-    `).join('');
+    intro.textContent = `Tu es abonné à ${subscribedList.length} chaîne${subscribedList.length > 1 ? 's' : ''}. Clique sur une chaîne pour découvrir ses vidéos.`;
+    channelsListEl.innerHTML = subscribedList.map(ch=>{
+      const initial = (ch.name || '?').trim().charAt(0).toUpperCase();
+      const isSelected = ch.cdId === selectedSubChannelCdId;
+      return `
+        <div class="sub-channel-card ${isSelected ? 'selected' : ''}" data-channel-cdid="${ch.cdId}">
+          <button class="sub-channel-untrack" data-unsubscribe-cdid="${ch.cdId}" title="Se désabonner">✕</button>
+          <div class="sub-channel-avatar">${escapeHtml(initial)}</div>
+          <div class="sub-channel-name">${escapeHtml(ch.name)}</div>
+          <div class="sub-channel-meta">${ch.count} abonné${ch.count > 1 ? 's' : ''}</div>
+          <div class="sub-channel-hint">${isSelected ? 'Vidéos affichées ↓' : 'Voir les vidéos →'}</div>
+        </div>
+      `;
+    }).join('');
+
     channelsListEl.querySelectorAll('[data-unsubscribe-cdid]').forEach(btn=>{
-      btn.addEventListener('click', ()=> unsubscribeChannel(btn.dataset.unsubscribeCdid));
+      btn.addEventListener('click', (e)=>{ e.stopPropagation(); unsubscribeChannel(btn.dataset.unsubscribeCdid); });
+    });
+    channelsListEl.querySelectorAll('.sub-channel-card').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        const cdId = card.dataset.channelCdid;
+        selectedSubChannelCdId = (selectedSubChannelCdId === cdId) ? null : cdId;
+        renderAllSections();
+      });
     });
   }
 
-  // Déduit les vidéos des chaînes abonnées à partir des vidéos DÉJÀ CHARGÉES
-  // (aucune lecture Firestore supplémentaire). Charge plus haut / "Afficher
-  // plus" dans les autres sections pour en révéler davantage ici aussi.
+  const subtitleEl = document.getElementById('subs-videos-subtitle');
+  if(!selectedSubChannelCdId){
+    if(subtitleEl) subtitleEl.textContent = 'Vidéos de tes chaînes abonnées';
+    renderVideoGrid('subs-videos-grid', 'subs-videos-count', [], "Sélectionne une chaîne ci-dessus pour afficher ses vidéos.", null, false);
+    return;
+  }
+
+  const selectedEntry = channelsCache[selectedSubChannelCdId];
+  const selectedName = (selectedEntry && selectedEntry.data && selectedEntry.data.name) || 'cette chaîne';
+  if(subtitleEl) subtitleEl.textContent = `Vidéos de ${selectedName}`;
+
   const pool = videoSections.long.docs.concat(videoSections.short.docs);
   const subVideos = pool.filter(v=>{
     const key = channelKeyOf(v);
-    return key && userSubscribedKeys.has(channelDocId(key));
+    return key && channelDocId(key) === selectedSubChannelCdId;
   });
-  renderVideoGrid('subs-videos-grid', 'subs-videos-count', subVideos, "Aucune vidéo de tes chaînes abonnées parmi celles déjà chargées. Ouvre les sections Vidéos/Shorts et clique sur « Afficher plus » pour en voir davantage.", null, false);
+  renderVideoGrid('subs-videos-grid', 'subs-videos-count', subVideos, "Aucune vidéo de cette chaîne parmi celles déjà chargées. Ouvre les sections Vidéos/Shorts et clique sur « Afficher plus » pour en voir davantage.", null, false);
 }
 
 function escapeHtml(str){
