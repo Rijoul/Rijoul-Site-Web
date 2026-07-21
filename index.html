@@ -695,16 +695,24 @@
     box-shadow: 0 10px 24px -10px rgba(0,0,0,0.5);
     position:relative; z-index:1;
   }
-  /* Anneau lumineux animé autour de la barre de recherche : un dégradé
-     conique qui tourne en continu derrière la pilule, révélé uniquement
-     sur son contour grâce au masquage (mask-composite). */
+  /* Anneau lumineux animé autour de la barre de recherche : le contour
+     lui-même reste parfaitement fixe (aucune rotation de l'élément), seul
+     le dégradé de couleurs qui le compose se déplace en boucle le long du
+     contour (haut → droite → bas → gauche → haut), grâce à l'animation de
+     l'angle de départ du conic-gradient (variable enregistrée via
+     @property pour permettre une interpolation fluide). */
+  @property --search-ring-angle{
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
   .top-search-inner::before{
     content:'';
     position:absolute;
     inset:-3px;
     border-radius:999px;
     padding:3px;
-    background: conic-gradient(from 0deg, var(--red), var(--title-top), var(--title-bottom), var(--cream), var(--red));
+    background: conic-gradient(from var(--search-ring-angle), var(--red), var(--title-top), var(--title-bottom), var(--cream), var(--red));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -714,7 +722,7 @@
     pointer-events:none;
   }
   @keyframes searchRingSpin{
-    to{ transform: rotate(360deg); }
+    to{ --search-ring-angle: 360deg; }
   }
   .top-search-inner svg.search-icon{ width:16px; height:16px; flex-shrink:0; color:#a3856f; }
   .top-search-inner input{
@@ -872,6 +880,8 @@
         <div class="section-subtitle" id="search-query-label" style="margin:0.4rem 0 0; font-size:0.85rem;"></div>
       </div>
     </div>
+    <div class="section-subtitle" id="search-channels-subtitle" style="display:none;">Chaînes</div>
+    <div class="subs-channels-list" id="search-channels-grid" style="display:none;"></div>
     <div class="section-subtitle">Vidéos</div>
     <div class="grid" id="search-video-grid"></div>
     <div class="section-subtitle" style="margin-top:2.4rem;">Shorts</div>
@@ -3359,8 +3369,9 @@ document.getElementById('edit-submit').addEventListener('click', async ()=>{
 
 /* =========================================================
    RECHERCHE — barre de recherche vidéo tout en haut du site.
-   Recherche (titre / auteur / description) uniquement parmi les
-   vidéos et shorts déjà chargés localement, sans lecture Firestore
+   Recherche (titre / auteur / description / chaînes) en direct,
+   au fur et à mesure de la frappe, uniquement parmi les vidéos et
+   shorts déjà chargés localement, sans lecture Firestore
    supplémentaire ; les deux sections sont chargées une première
    fois si besoin, comme pour la section Abonnements.
    ========================================================= */
@@ -3372,6 +3383,58 @@ function videoMatchesQuery(v, normalizedQuery){
   const haystack = normalizeSearchText(`${v.title || ''} ${v.author || ''} ${v.description || ''}`);
   return haystack.includes(normalizedQuery);
 }
+// Construit la liste des chaînes connues (déduites des vidéos déjà chargées,
+// sans lecture Firestore supplémentaire) et renvoie celles dont le nom
+// correspond au mot-clé recherché.
+function findMatchingChannels(normalizedQuery){
+  if(!normalizedQuery) return [];
+  const pool = videoSections.long.docs.concat(videoSections.short.docs);
+  const map = {};
+  pool.forEach(v=>{
+    const key = channelKeyOf(v);
+    if(!key) return;
+    const cdId = channelDocId(key);
+    if(map[cdId]) return;
+    const entry = channelsCache[cdId];
+    const count = (entry && entry.data && entry.data.subscriberCount) || 0;
+    map[cdId] = { cdId, name: v.author || key, count };
+  });
+  return Object.values(map)
+    .filter(ch => normalizeSearchText(ch.name).includes(normalizedQuery))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+function renderSearchChannelsGrid(list){
+  const grid = document.getElementById('search-channels-grid');
+  const subtitle = document.getElementById('search-channels-subtitle');
+  if(!grid || !subtitle) return;
+  if(list.length === 0){
+    grid.style.display = 'none';
+    grid.innerHTML = '';
+    subtitle.style.display = 'none';
+    return;
+  }
+  grid.style.display = '';
+  subtitle.style.display = '';
+  grid.innerHTML = list.map(ch=>{
+    const initial = (ch.name || '?').trim().charAt(0).toUpperCase();
+    return `
+      <div class="sub-channel-card" data-search-channel-name="${escapeHtml(ch.name)}">
+        <div class="sub-channel-avatar">${escapeHtml(initial)}</div>
+        <div class="sub-channel-name">${escapeHtml(ch.name)}</div>
+        <div class="sub-channel-meta">${ch.count} abonné${ch.count > 1 ? 's' : ''}</div>
+        <div class="sub-channel-hint">Voir les vidéos →</div>
+      </div>
+    `;
+  }).join('');
+  grid.querySelectorAll('[data-search-channel-name]').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const name = card.dataset.searchChannelName;
+      globalSearchInput.value = name;
+      globalSearchClear.classList.toggle('visible', !!name);
+      performGlobalSearch(name);
+    });
+  });
+}
 async function performGlobalSearch(rawQuery){
   const trimmed = (rawQuery || '').trim();
   const queryLabel = document.getElementById('search-query-label');
@@ -3380,7 +3443,7 @@ async function performGlobalSearch(rawQuery){
   if(!trimmed){
     renderVideoGrid('search-video-grid', null, [], "Entre un mot-clé pour lancer une recherche.", null, false);
     renderVideoGrid('search-shorts-grid', null, [], "", null, false);
-    showSection('section-search');
+    renderSearchChannelsGrid([]);
     return;
   }
 
@@ -3394,23 +3457,44 @@ async function performGlobalSearch(rawQuery){
   const matchedShorts = videoSections.short.docs
     .filter(v => videoMatchesQuery(v, normalized))
     .sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+  const matchedChannels = findMatchingChannels(normalized);
 
+  renderSearchChannelsGrid(matchedChannels);
   renderVideoGrid('search-video-grid', null, matchedVideos, "Aucune vidéo ne correspond à ta recherche parmi celles déjà chargées.", null, false);
   renderVideoGrid('search-shorts-grid', null, matchedShorts, "Aucun short ne correspond à ta recherche parmi ceux déjà chargés.", null, false);
   showSection('section-search');
 }
 const globalSearchInput = document.getElementById('global-search-input');
 const globalSearchClear = document.getElementById('global-search-clear');
+let globalSearchDebounce = null;
 document.getElementById('global-search-btn').addEventListener('click', ()=> performGlobalSearch(globalSearchInput.value));
 globalSearchInput.addEventListener('keydown', (e)=>{
-  if(e.key === 'Enter') performGlobalSearch(globalSearchInput.value);
+  if(e.key === 'Enter'){
+    clearTimeout(globalSearchDebounce);
+    performGlobalSearch(globalSearchInput.value);
+  }
 });
+// Recherche en direct : dès que l'utilisateur tape, la recherche se relance
+// automatiquement (avec un léger anti-rebond pour éviter de re-filtrer à
+// chaque frappe individuelle), sans avoir besoin d'appuyer sur Entrée ou de
+// cliquer sur la loupe.
 globalSearchInput.addEventListener('input', ()=>{
-  globalSearchClear.classList.toggle('visible', !!globalSearchInput.value);
+  const value = globalSearchInput.value;
+  globalSearchClear.classList.toggle('visible', !!value);
+  clearTimeout(globalSearchDebounce);
+  if(!value.trim()){
+    // Champ vidé : on nettoie les résultats sans forcer la navigation vers
+    // la section Recherche si l'utilisateur ne s'y trouvait pas déjà.
+    performGlobalSearch('');
+    return;
+  }
+  globalSearchDebounce = setTimeout(()=> performGlobalSearch(value), 280);
 });
 globalSearchClear.addEventListener('click', ()=>{
+  clearTimeout(globalSearchDebounce);
   globalSearchInput.value = '';
   globalSearchClear.classList.remove('visible');
+  performGlobalSearch('');
   globalSearchInput.focus();
 });
 
