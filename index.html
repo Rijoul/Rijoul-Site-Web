@@ -53,9 +53,12 @@
     background: radial-gradient(ellipse at top, rgba(255,255,255,0.12) 0%, transparent 55%);
   }
 
-  /* ---------- Top account bar ---------- */
+  /* ---------- Top account bar ----------
+     NOTE (correctif) : redescendu sous la barre de recherche fixe (qui est
+     en z-index:70 et occupe toute la largeur en haut de l'écran) pour ne
+     plus être caché / bloqué par elle. */
   .account-bar{
-    position: fixed; top: 1.4rem; right: 1.6rem; z-index: 50;
+    position: fixed; top: 4.4rem; right: 1.6rem; z-index: 50;
     display:flex; align-items:center; gap:0.7rem;
   }
   .account-btn{
@@ -731,7 +734,7 @@
   </div>
 </div>
 
-<!-- Top-right account bar -->
+<!-- Top-right account bar (redescendu sous la barre de recherche) -->
 <div class="account-bar">
   <button class="account-btn" id="account-btn">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9z"/></svg>
@@ -761,14 +764,15 @@
 
 <main>
 
-  <!-- Section Accueil : uniquement les vidéos (format long), triées par
-       popularité (likes) et personnalisées pour le compte connecté
-       (chaînes abonnées et vidéos likées mises en avant) -->
+  <!-- Section Accueil : uniquement les vidéos (format long). Les 5 premières
+       vignettes sont toujours les 5 plus récentes ; le reste de la liste
+       suit le tri par popularité (likes) et personnalisation (chaînes
+       abonnées / vidéos likées) comme avant. -->
   <section class="page-section" id="section-home">
     <div class="section-head">
       <div>
         <div class="section-title">Accueil</div>
-        <div class="section-subtitle" style="margin:0.4rem 0 0; font-size:0.85rem;">Les vidéos les plus populaires, et en priorité celles de tes chaînes abonnées</div>
+        <div class="section-subtitle" style="margin:0.4rem 0 0; font-size:0.85rem;">Les 5 premières sont toujours les plus récentes, puis les vidéos les plus populaires et en priorité celles de tes chaînes abonnées</div>
       </div>
       <div class="section-count-row">
         <div class="section-count" id="video-count-home">chargement…</div>
@@ -889,6 +893,7 @@
       <input type="checkbox" id="add-is-short">
       <label for="add-is-short" id="add-is-short-label">Vidéo courte (format vertical 9:16 / Shorts)</label>
     </div>
+    <div class="modal-hint" style="margin-top:-0.9rem;">Détection automatique : toute vidéo YouTube, Vimeo, Dailymotion ou fichier vidéo direct de moins de 3&nbsp;min&nbsp;10 est classée en "short" automatiquement, quelle que soit cette case. Elle n'apparaît alors que dans la section Shorts. Cette case ne compte que lorsque la durée ne peut pas être déterminée (Twitch, lien générique).</div>
     <div class="modal-error" id="add-error">Lien non reconnu.</div>
     <div class="modal-actions">
       <button class="btn" data-close="add-overlay">Annuler</button>
@@ -1096,6 +1101,11 @@ const YOUTUBE_API_KEY = "AIzaSyCHXby76C8CeuDyoSrg2dcfBcF4ghKQMKA";
 //    (réduit à 20 pour limiter fortement les lectures Firestore)
 const PAGE_SIZE = 20;
 
+// 5bis) Durée maximale (en secondes) en dessous de laquelle une vidéo est
+//       automatiquement classée comme "short", quelle que soit la case
+//       cochée manuellement. 3 minutes 10 secondes = 190 secondes.
+const SHORT_MAX_DURATION_SECONDS = 190;
+
 // 6) Durée de vie du cache local (téléphone/navigateur) avant de revérifier
 //    Firestore. Tant que ce délai n'est pas écoulé, AUCUNE lecture réseau
 //    n'est faite pour les données concernées : tout vient du cache local.
@@ -1289,6 +1299,90 @@ async function fetchYouTubePublishedAt(videoId){
     console.warn('Date de publication YouTube indisponible :', e);
     return null;
   }
+}
+
+/* =========================================================
+   Détection automatique de la durée d'une vidéo (toutes
+   plateformes qui l'exposent) et classification "short" en
+   fonction de SHORT_MAX_DURATION_SECONDS. Quand la durée n'est
+   pas déterminable (Twitch, lien générique), la fonction renvoie
+   null et la classification retombe sur la case à cocher / la
+   détection par format d'image.
+   ========================================================= */
+function parseIso8601Duration(iso){
+  if(!iso) return null;
+  const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+  if(!m) return null;
+  const h = parseFloat(m[1] || '0');
+  const mi = parseFloat(m[2] || '0');
+  const s = parseFloat(m[3] || '0');
+  return h * 3600 + mi * 60 + s;
+}
+function fetchDirectVideoDuration(url){
+  return new Promise((resolve)=>{
+    const probe = document.createElement('video');
+    probe.preload = 'metadata';
+    probe.muted = true;
+    probe.style.display = 'none';
+    const cleanup = ()=>{ probe.src = ''; probe.remove(); };
+    probe.addEventListener('loadedmetadata', ()=>{
+      const dur = isFinite(probe.duration) ? probe.duration : null;
+      cleanup();
+      resolve(dur);
+    });
+    probe.addEventListener('error', ()=>{ cleanup(); resolve(null); });
+    setTimeout(()=>{ cleanup(); resolve(null); }, 8000);
+    document.body.appendChild(probe);
+    probe.src = url;
+  });
+}
+async function fetchAutoDurationSeconds(detected){
+  try{
+    if(detected.platform === 'youtube'){
+      if(!YOUTUBE_API_KEY) return null;
+      const data = await ytApiGet('videos', { part: 'contentDetails', id: detected.id, fields: 'items(contentDetails(duration))' });
+      const iso = data.items && data.items[0] && data.items[0].contentDetails && data.items[0].contentDetails.duration;
+      return iso ? parseIso8601Duration(iso) : null;
+    }
+    if(detected.platform === 'vimeo'){
+      const res = await fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent('https://vimeo.com/' + detected.id)}`);
+      if(!res.ok) return null;
+      const data = await res.json();
+      return typeof data.duration === 'number' ? data.duration : null;
+    }
+    if(detected.platform === 'dailymotion'){
+      const res = await fetch(`https://api.dailymotion.com/video/${detected.id}?fields=duration`);
+      if(!res.ok) return null;
+      const data = await res.json();
+      return typeof data.duration === 'number' ? data.duration : null;
+    }
+    if(detected.platform === 'direct'){
+      return await fetchDirectVideoDuration(detected.id);
+    }
+  }catch(e){
+    console.warn('Durée automatique indisponible :', e);
+  }
+  return null;
+}
+// Version "par lot" (jusqu'à 50 identifiants YouTube par requête), utilisée
+// pour l'import de chaîne complet et la vérification automatique des
+// nouvelles vidéos, afin de ne pas faire une requête par vidéo.
+async function fetchDurationsMapYouTube(videoIds){
+  const map = {};
+  if(!YOUTUBE_API_KEY) return map;
+  const unique = [...new Set(videoIds)].filter(Boolean);
+  for(let i = 0; i < unique.length; i += 50){
+    const chunk = unique.slice(i, i + 50);
+    if(chunk.length === 0) continue;
+    try{
+      const data = await ytApiGet('videos', { part: 'contentDetails', id: chunk.join(','), fields: 'items(id,contentDetails(duration))' });
+      (data.items || []).forEach(it=>{
+        const iso = it.contentDetails && it.contentDetails.duration;
+        map[it.id] = iso ? parseIso8601Duration(iso) : null;
+      });
+    }catch(e){ console.warn('Durées indisponibles pour un lot de vidéos :', e); }
+  }
+  return map;
 }
 
 /* Gère indifféremment un Timestamp Firestore (objet réel ou recopié depuis
@@ -1728,10 +1822,14 @@ async function unsubscribeChannel(cdId){
 }
 
 /* =========================================================
-   Tri de l'accueil : popularité (likes) + personnalisation
-   (chaînes abonnées et vidéos likées par le compte connecté).
-   Ce tri est calculé localement, uniquement sur les vidéos déjà
-   chargées : aucune lecture Firestore supplémentaire.
+   Tri de l'accueil :
+   - Les 5 PREMIÈRES vignettes affichées sont TOUJOURS les 5 vidéos les plus
+     récentes (peu importe leur popularité).
+   - Le reste de la liste (à partir de la 6e position) garde le système
+     existant : tri par popularité (likes) + personnalisation (chaînes
+     abonnées et vidéos likées par le compte connecté).
+   Ce tri est calculé localement, uniquement sur les vidéos déjà chargées :
+   aucune lecture Firestore supplémentaire.
    ========================================================= */
 function likedChannelKeysSet(){
   const set = new Set();
@@ -1760,12 +1858,22 @@ function homeVideoScore(v, likedChannels){
   return score;
 }
 function sortForHome(docs){
+  // Étape 1 : les 5 plus récentes, toujours en tête, dans l'ordre chronologique.
+  const byRecency = docs.slice().sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+  const top5 = byRecency.slice(0, 5);
+  const top5Ids = new Set(top5.map(v => v.id));
+
+  // Étape 2 : le reste garde l'ancien système (popularité + personnalisation).
   const likedChannels = likedChannelKeysSet();
-  return docs.slice().sort((a, b)=>{
-    const diff = homeVideoScore(b, likedChannels) - homeVideoScore(a, likedChannels);
-    if(diff !== 0) return diff;
-    return effectiveMillis(b) - effectiveMillis(a); // égalité : la plus récente d'abord
-  });
+  const rest = docs
+    .filter(v => !top5Ids.has(v.id))
+    .sort((a, b)=>{
+      const diff = homeVideoScore(b, likedChannels) - homeVideoScore(a, likedChannels);
+      if(diff !== 0) return diff;
+      return effectiveMillis(b) - effectiveMillis(a); // égalité : la plus récente d'abord
+    });
+
+  return top5.concat(rest);
 }
 
 /* =========================================================
@@ -1889,14 +1997,14 @@ function renderAllSections(){
 
   if(longState.initialized){
     const emptyMsg = isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.";
-    // Accueil : uniquement les vidéos (pas les shorts), triées par popularité
-    // et personnalisées (abonnements + likes du compte connecté).
+    // Accueil : uniquement les vidéos (pas les shorts). Les 5 premières sont
+    // toujours les plus récentes, le reste suit le tri popularité/personnalisation.
     renderVideoGrid('video-grid-home', 'video-count-home', sortForHome(longState.docs), emptyMsg, 'load-more-home', longState.hasMore);
     // Vidéothèque : ordre chronologique classique (le plus récent en premier).
     renderVideoGrid('video-grid', 'video-count', longState.docs, emptyMsg, 'load-more-videos', longState.hasMore);
   }
   if(shortState.initialized){
-    const emptyMsg = isAdmin ? "Aucun short pour l'instant. Ajoute une vidéo et coche « Vidéo courte »." : "Aucun short pour l'instant. Revenez bientôt.";
+    const emptyMsg = isAdmin ? "Aucun short pour l'instant. Ajoute une vidéo de moins de 3 min 10 (ou coche « Vidéo courte »)." : "Aucun short pour l'instant. Revenez bientôt.";
     renderVideoGrid('shorts-grid', 'shorts-count', shortState.docs, emptyMsg, 'load-more-shorts', shortState.hasMore);
   }
   renderSubsSection();
@@ -2219,11 +2327,30 @@ function fetchDirectVideoRatio(url){
     probe.src = url;
   });
 }
+// Détection à l'affichage (blur/paste sur le champ lien) : essaie d'abord la
+// DURÉE réelle (règle prioritaire des 3 min 10) ; si elle est indisponible
+// (Twitch, lien générique), retombe sur la détection par format d'image
+// comme avant.
 async function autoDetectShortFormat(url){
   const myToken = ++addLinkDetectToken;
   const detected = detectVideo(url);
   if(!detected) return;
 
+  setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — analyse de la durée…');
+
+  const duration = await fetchAutoDurationSeconds(detected);
+  if(myToken !== addLinkDetectToken) return;
+
+  if(duration != null){
+    const isShort = duration < SHORT_MAX_DURATION_SECONDS;
+    addIsShortCheckbox.checked = isShort;
+    addIsShortManuallySet = false; // la durée réelle prime toujours à l'enregistrement
+    setAddIsShortLabel(`Vidéo courte (format vertical 9:16 / Shorts) — durée détectée : ${formatSeconds(duration)} (${isShort ? 'classée en short' : 'classée en vidéo'})`);
+    return;
+  }
+
+  // Durée indisponible : on retombe sur la détection par format d'image
+  // (portrait / paysage), comme avant.
   if(detected.platform === 'youtube' && detected.isShort){
     if(!addIsShortManuallySet) addIsShortCheckbox.checked = true;
     setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement');
@@ -2231,11 +2358,7 @@ async function autoDetectShortFormat(url){
   }
 
   let oembedUrl = null;
-  if(detected.platform === 'youtube'){
-    oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${detected.id}&format=json`;
-  }else if(detected.platform === 'vimeo'){
-    oembedUrl = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent('https://vimeo.com/' + detected.id)}`;
-  }else if(detected.platform === 'dailymotion'){
+  if(detected.platform === 'dailymotion'){
     oembedUrl = `https://www.dailymotion.com/services/oembed?url=${encodeURIComponent('https://www.dailymotion.com/video/' + detected.id)}&format=json`;
   }
 
@@ -2346,8 +2469,20 @@ async function submitVideo(){
   submitBtn.textContent = 'Ajout…';
   submitBtn.disabled = true;
 
-  if(!addIsShortManuallySet){
-    await autoDetectShortFormat(linkInput.value.trim());
+  // Règle prioritaire : si la durée réelle de la vidéo est connue, elle
+  // détermine SEULE si la vidéo est un short (< 3 min 10), quelle que soit
+  // la case cochée. Sinon on retombe sur la case (éventuellement pré-remplie
+  // par la détection de format d'image).
+  const autoDuration = await fetchAutoDurationSeconds(detected);
+  let finalIsShort;
+  if(autoDuration != null){
+    finalIsShort = autoDuration < SHORT_MAX_DURATION_SECONDS;
+    isShortInput.checked = finalIsShort;
+  }else{
+    if(!addIsShortManuallySet){
+      await autoDetectShortFormat(linkInput.value.trim());
+    }
+    finalIsShort = !!isShortInput.checked;
   }
 
   let title = titleInput.value.trim();
@@ -2370,7 +2505,7 @@ async function submitVideo(){
       title,
       author: authorInput.value.trim() || null,
       description: descriptionInput.value.trim() || null,
-      isShort: !!isShortInput.checked,
+      isShort: finalIsShort,
       likeCount: 0,
       dislikeCount: 0
     };
@@ -2454,6 +2589,10 @@ async function checkTrackedChannelsForNewVideos(){
         continue;
       }
 
+      // Récupère la durée réelle de chaque vidéo trouvée pour la classer
+      // automatiquement en "short" si elle dure moins de 3 min 10.
+      const durationsMap = await fetchDurationsMapYouTube(latest.map(v => v.videoId));
+
       for(const v of latest){
         const docId = makeVideoDocId('youtube', v.videoId);
         const docRef = videosRef.doc(docId);
@@ -2462,6 +2601,7 @@ async function checkTrackedChannelsForNewVideos(){
 
         const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
         const sortDate = v.publishedAt ? firebase.firestore.Timestamp.fromDate(v.publishedAt) : firebase.firestore.Timestamp.now();
+        const duration = durationsMap[v.videoId];
         const payload = {
           platform: 'youtube',
           videoId: v.videoId,
@@ -2469,7 +2609,7 @@ async function checkTrackedChannelsForNewVideos(){
           author: ch.channelTitle,
           channelId: ch.channelId,
           description: shortDesc,
-          isShort: false,
+          isShort: (duration != null) ? (duration < SHORT_MAX_DURATION_SECONDS) : false,
           likeCount: 0,
           dislikeCount: 0
         };
@@ -2481,10 +2621,11 @@ async function checkTrackedChannelsForNewVideos(){
             ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {})
           });
           addedAny = true;
-          if(videoSections.long.initialized){
+          const targetKey = payload.isShort ? 'short' : 'long';
+          if(videoSections[targetKey].initialized){
             const localDoc = { id: docId, ...payload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {}) };
-            videoSections.long.docs.unshift(localDoc);
-            videoSections.long.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+            videoSections[targetKey].docs.unshift(localDoc);
+            videoSections[targetKey].docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
           }
           console.log(`Nouvelle vidéo ajoutée automatiquement : ${v.title} (${ch.channelTitle})`);
         }catch(err){
@@ -2494,11 +2635,7 @@ async function checkTrackedChannelsForNewVideos(){
     }
     if(addedAny){
       persistSectionFirstPageCache('long');
-      // Le cache local de la 1ère page vient d'être invalidé/rafraîchi ; on
-      // force aussi les autres onglets/appareils à revoir Firestore plus tôt
-      // en réduisant artificiellement l'âge perçu du cache n'est pas
-      // possible depuis ici (autre appareil), mais sur CET appareil
-      // l'affichage est déjà à jour ci-dessous.
+      persistSectionFirstPageCache('short');
     }
     renderAllSections();
   }catch(err){
@@ -2945,6 +3082,12 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
       return;
     }
 
+    // Récupère la durée réelle de toutes les vidéos importées (par lots de
+    // 50) afin de classer automatiquement en "short" celles de moins de
+    // 3 min 10.
+    setAddChannelProgress(`Analyse des durées de ${uploads.length} vidéo(s)…`, 38);
+    const durationsMap = await fetchDurationsMapYouTube(uploads.map(u => u.videoId));
+
     // Dédoublonnage : écriture à l'id déterministe, aucune vidéo déjà
     // présente n'est jamais réécrite/dupliquée.
     let done = 0, imported = 0, skipped = 0;
@@ -2962,6 +3105,8 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
 
       const shortDesc = (u.description || '').split('\n')[0].slice(0, 200) || null;
       const sortDate = u.publishedAt ? firebase.firestore.Timestamp.fromDate(u.publishedAt) : firebase.firestore.Timestamp.now();
+      const duration = durationsMap[u.videoId];
+      const isShortAuto = (duration != null) ? (duration < SHORT_MAX_DURATION_SECONDS) : false;
       const docPayload = {
         platform: 'youtube',
         videoId: u.videoId,
@@ -2969,7 +3114,7 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
         author: channel.channelTitle,
         channelId: channel.channelId,
         description: shortDesc,
-        isShort: false,
+        isShort: isShortAuto,
         likeCount: 0,
         dislikeCount: 0
       };
@@ -2979,20 +3124,23 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
         sortDate,
         ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {})
       });
-      if(videoSections.long.initialized){
+      const targetKey = isShortAuto ? 'short' : 'long';
+      if(videoSections[targetKey].initialized){
         const localDoc = { id: docId, ...docPayload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {}) };
-        videoSections.long.docs.push(localDoc);
+        videoSections[targetKey].docs.push(localDoc);
       }
       imported++;
       done++;
       const pct = 40 + Math.round((done / Math.max(1, uploads.length)) * 60);
       setAddChannelProgress(`Importation… ${done}/${uploads.length} vidéo(s) ajoutée(s)`, pct);
     }
-    if(videoSections.long.initialized){
-      videoSections.long.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
-      persistSectionFirstPageCache('long');
-      renderAllSections();
+    for(const key of ['long', 'short']){
+      if(videoSections[key].initialized){
+        videoSections[key].docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+        persistSectionFirstPageCache(key);
+      }
     }
+    renderAllSections();
 
     const summary = skipped > 0
       ? `Terminé : chaîne suivie, ${imported} vidéo(s) importée(s), ${skipped} déjà présente(s) ignorée(s).`
