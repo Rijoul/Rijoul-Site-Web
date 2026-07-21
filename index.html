@@ -258,18 +258,27 @@
   }
   body.admin-mode .edit-btn{ display:flex; }
 
-  /* ---------- Badges "NEW" (moins de 24h) et "VU" (déjà visionnée) ---------- */
+  /* ---------- Badges "NEW" (moins de 24h) et "VU" (déjà visionnée) ----------
+     Ruban diagonal placé dans le coin supérieur droit, au-dessus de la
+     miniature. Le ruban dépasse volontairement de la carte (right négatif)
+     et est tronqué proprement par le overflow:hidden + border-radius de
+     .card, ce qui donne l'effet de "coin plié" bien net dans l'angle. */
   .card-flag-badge{
-    position:absolute; top:10px; right:10px; z-index:3;
-    font-family:'Fredoka', sans-serif; font-weight:700; font-size:0.66rem;
-    letter-spacing:0.06em; text-transform:uppercase; color:#fff;
-    padding:0.32rem 0.65rem; border-radius:999px; pointer-events:none;
+    position:absolute; top:16px; right:-38px; z-index:3;
+    transform: rotate(45deg);
+    transform-origin: center;
+    width:150px;
+    font-family:'Fredoka', sans-serif; font-weight:700; font-size:0.64rem;
+    letter-spacing:0.08em; text-transform:uppercase; color:#fff; text-align:center;
+    padding:0.32rem 0; pointer-events:none;
+    box-shadow: 0 4px 10px -3px rgba(0,0,0,0.4);
   }
-  .card-flag-badge.badge-new{ background: var(--navy); box-shadow: 0 4px 12px -3px rgba(23,35,94,0.7); }
-  .card-flag-badge.badge-watched{ background:#5a5a5a; box-shadow: 0 4px 12px -3px rgba(0,0,0,0.55); }
+  .card-flag-badge.badge-new{ background: var(--red); }
+  .card-flag-badge.badge-watched{ background:#1d63ff; }
   /* En mode admin, les boutons supprimer/modifier occupent déjà le coin
-     supérieur droit : on redescend le badge pour éviter le chevauchement. */
-  body.admin-mode .card-flag-badge{ top:46px; }
+     supérieur droit : on décale légèrement le ruban vers le bas pour éviter
+     tout chevauchement avec ces boutons. */
+  body.admin-mode .card-flag-badge{ top:52px; }
 
   .card.is-new{
     background: linear-gradient(160deg, var(--red) 0%, var(--red-dim) 100%);
@@ -793,7 +802,7 @@
 <div class="top-search-bar">
   <div class="top-search-inner">
     <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-    <input type="text" id="global-search-input" placeholder="Rechercher une vidéo, un auteur…">
+    <input type="text" id="global-search-input" name="global-search-nofill" placeholder="Rechercher une vidéo, un auteur…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
     <button class="top-search-clear" id="global-search-clear" title="Effacer">&times;</button>
     <button class="top-search-go" id="global-search-btn" title="Rechercher">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
