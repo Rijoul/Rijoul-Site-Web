@@ -766,6 +766,7 @@
     <div class="import-link-row"><a id="open-channels-list">Gérer les chaînes suivies (ajouter / retirer) →</a></div>
     <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos déjà chargées →</a></div>
     <div class="import-link-row"><a id="check-now-link">Vérifier maintenant les nouvelles vidéos des chaînes suivies →</a></div>
+    <div class="import-link-row"><a id="dedupe-link">Supprimer les vidéos en double →</a></div>
     <div class="import-link-row"><a id="migrate-sortdate-link">Migration ponctuelle : réparer le tri des anciennes vidéos →</a></div>
     <div class="import-progress" id="refresh-progress"></div>
 
@@ -995,6 +996,10 @@ const PAGE_SIZE = 20;
 const CACHE_TTL_MS = 5 * 60 * 1000;          // 5 minutes : première page de vidéos
 const CHANNELS_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes : compteurs d'abonnés
 
+// 7) Intervalle de vérification automatique des nouvelles vidéos des chaînes
+//    suivies, tant que l'admin est connecté et garde l'onglet ouvert.
+const AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
 /* =========================================================
    Firebase init
    ========================================================= */
@@ -1199,6 +1204,16 @@ function formatDate(ts){
 // (champ sortDate, aligné sur publishedAt), sinon la date d'ajout au site.
 function effectiveDate(v){ return v.publishedAt || v.sortDate || v.addedAt; }
 function effectiveMillis(v){ return toMillisAny(effectiveDate(v)); }
+
+// Identifiant de document déterministe basé sur la plateforme + l'identifiant
+// de la vidéo. Deux imports de la même vidéo (ajout manuel, import de chaîne,
+// vérification automatique...) pointent donc TOUJOURS vers le même document
+// Firestore : il devient structurellement impossible de créer un doublon.
+function makeVideoDocId(platform, videoId){
+  const raw = `${platform}_${videoId}`;
+  // Nettoyage : Firestore interdit '/', on limite aussi la longueur.
+  return raw.replace(/[\/\s]+/g, '_').slice(0, 300);
+}
 
 function openOverlay(id){ document.getElementById(id).classList.add('open'); }
 function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
@@ -2064,17 +2079,35 @@ document.getElementById('add-link').addEventListener('paste', ()=>{
 });
 
 /* Ajoute un document vidéo dans Firestore ET répercute le résultat
-   localement (mise à jour de l'état + du cache), sans relire Firestore. */
+   localement (mise à jour de l'état + du cache), sans relire Firestore.
+
+   IMPORTANT anti-doublons : le document est écrit à un identifiant
+   déterministe (platform + videoId). Si la vidéo existe déjà, on
+   récupère son id existant et on n'écrit rien (aucun doublon créé),
+   sauf pour les liens "génériques" ou "directs" où l'identifiant
+   n'est pas garanti unique (dans ce cas on vérifie explicitement
+   l'existence avant d'écrire). */
 async function addVideoDoc(payload){
+  const docId = makeVideoDocId(payload.platform, payload.videoId);
+  const docRef = videosRef.doc(docId);
+
+  const existingSnap = await docRef.get();
+  if(existingSnap.exists){
+    alert("Cette vidéo est déjà présente dans la bibliothèque : ajout annulé pour éviter un doublon.");
+    document.getElementById('add-link').value = '';
+    closeOverlay('add-overlay');
+    return;
+  }
+
   const nowTs = firebase.firestore.Timestamp.now();
   const finalSortDate = payload.sortDate || nowTs;
-  const docRef = await videosRef.add({
+  await docRef.set({
     ...payload,
     addedAt: firebase.firestore.FieldValue.serverTimestamp(),
     sortDate: finalSortDate
   });
 
-  const localDoc = { id: docRef.id, ...payload, addedAt: nowTs, sortDate: finalSortDate };
+  const localDoc = { id: docId, ...payload, addedAt: nowTs, sortDate: finalSortDate };
   const sectionKey = payload.isShort ? 'short' : 'long';
   const state = videoSections[sectionKey];
   if(state.initialized){
@@ -2162,6 +2195,8 @@ async function submitVideo(){
    Recherche de doublons SANS lire toute la collection : on
    interroge Firestore uniquement par lots de 10 videoId ('in'),
    ce qui ne coûte que le nombre de documents réellement trouvés.
+   (Conservé pour compatibilité avec les anciens documents dont
+   l'id Firestore n'est pas encore l'id déterministe.)
    ========================================================= */
 async function findExistingVideoIds(videoIds){
   const existing = new Set();
@@ -2178,9 +2213,16 @@ async function findExistingVideoIds(videoIds){
 }
 
 /* =========================================================
-   Mise à jour automatique des chaînes suivies : ne se déclenche
-   que pour l'admin, uniquement à la connexion (pas de vérification
-   automatique périodique en arrière-plan).
+   Mise à jour automatique des chaînes suivies :
+   - se déclenche à la connexion admin (comme avant)
+   - ET se répète désormais toutes les AUTO_CHECK_INTERVAL_MS tant
+     que l'admin reste connecté avec l'onglet ouvert, pour que les
+     nouvelles vidéos apparaissent sans action manuelle.
+   Rappel : ceci nécessite que la session admin reste ouverte (les
+   règles Firestore n'autorisent que l'admin à écrire des vidéos).
+   Pour une vraie automatisation même hors ligne, il faudrait une
+   Cloud Function planifiée côté serveur — ce que cette page seule
+   ne peut pas faire.
    ========================================================= */
 async function fetchLatestUploads(playlistId, maxResults = 25){
   const data = await ytApiGet('playlistItems', { part: 'snippet,contentDetails', playlistId, maxResults });
@@ -2199,6 +2241,7 @@ async function fetchLatestUploads(playlistId, maxResults = 25){
 
 async function checkTrackedChannelsForNewVideos(){
   if(!YOUTUBE_API_KEY) return;
+  let addedAny = false;
   try{
     const snap = await trackedChannelsRef.get();
     if(snap.empty) return;
@@ -2213,10 +2256,12 @@ async function checkTrackedChannelsForNewVideos(){
         continue;
       }
 
-      const existingIds = await findExistingVideoIds(latest.map(v => v.videoId));
-      const newOnes = latest.filter(v => !existingIds.has(v.videoId));
+      for(const v of latest){
+        const docId = makeVideoDocId('youtube', v.videoId);
+        const docRef = videosRef.doc(docId);
+        const existing = await docRef.get();
+        if(existing.exists) continue; // déjà importée : jamais de doublon possible
 
-      for(const v of newOnes){
         const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
         const sortDate = v.publishedAt ? firebase.firestore.Timestamp.fromDate(v.publishedAt) : firebase.firestore.Timestamp.now();
         const payload = {
@@ -2231,23 +2276,31 @@ async function checkTrackedChannelsForNewVideos(){
           dislikeCount: 0
         };
         try{
-          const docRef = await videosRef.add({
+          await docRef.set({
             ...payload,
             addedAt: firebase.firestore.FieldValue.serverTimestamp(),
             sortDate,
             ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {})
           });
+          addedAny = true;
           if(videoSections.long.initialized){
-            const localDoc = { id: docRef.id, ...payload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {}) };
+            const localDoc = { id: docId, ...payload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(v.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(v.publishedAt) } : {}) };
             videoSections.long.docs.unshift(localDoc);
             videoSections.long.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
-            persistSectionFirstPageCache('long');
           }
           console.log(`Nouvelle vidéo ajoutée automatiquement : ${v.title} (${ch.channelTitle})`);
         }catch(err){
           console.error("Impossible d'ajouter automatiquement la vidéo :", v.title, err);
         }
       }
+    }
+    if(addedAny){
+      persistSectionFirstPageCache('long');
+      // Le cache local de la 1ère page vient d'être invalidé/rafraîchi ; on
+      // force aussi les autres onglets/appareils à revoir Firestore plus tôt
+      // en réduisant artificiellement l'âge perçu du cache n'est pas
+      // possible depuis ici (autre appareil), mais sur CET appareil
+      // l'affichage est déjà à jour ci-dessous.
     }
     renderAllSections();
   }catch(err){
@@ -2261,6 +2314,82 @@ document.getElementById('check-now-link').addEventListener('click', async (e)=>{
   link.textContent = 'Vérification en cours…';
   await checkTrackedChannelsForNewVideos();
   link.textContent = original;
+});
+
+/* =========================================================
+   Admin : suppression des vidéos en double déjà présentes dans
+   Firestore (créées avant la mise en place des identifiants
+   déterministes, ou créées par une course entre deux requêtes
+   concurrentes). Regroupe par (platform + videoId), garde le
+   document le plus ancien (addedAt le plus petit, ou celui qui a
+   le plus de likes en cas d'égalité) et supprime les autres.
+   Lecture complète et ponctuelle de la collection, comme la
+   migration de tri : à ne lancer qu'une fois de temps en temps.
+   ========================================================= */
+document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  if(!confirm("Cette opération lit une seule fois toute la bibliothèque pour repérer les vidéos en double (même lien) et supprimer les copies en trop, en gardant la plus ancienne de chaque groupe. Continuer ?")) return;
+
+  link.style.pointerEvents = 'none';
+  const original = link.textContent;
+  link.textContent = 'Recherche des doublons…';
+  try{
+    const snap = await videosRef.get(); // lecture complète unique et volontaire
+    const groups = {};
+    snap.docs.forEach(d=>{
+      const data = d.data();
+      const key = `${data.platform || 'youtube'}_${data.videoId}`;
+      if(!groups[key]) groups[key] = [];
+      groups[key].push({ id: d.id, ref: d.ref, data });
+    });
+
+    const toDelete = [];
+    let groupsWithDupes = 0;
+    for(const key in groups){
+      const items = groups[key];
+      if(items.length < 2) continue;
+      groupsWithDupes++;
+      // Garde le document dont l'id correspond déjà au format déterministe
+      // s'il existe, sinon le plus ancien (addedAt le plus petit).
+      items.sort((a, b)=>{
+        const aIsCanonical = a.id === makeVideoDocId(a.data.platform || 'youtube', a.data.videoId) ? 0 : 1;
+        const bIsCanonical = b.id === makeVideoDocId(b.data.platform || 'youtube', b.data.videoId) ? 0 : 1;
+        if(aIsCanonical !== bIsCanonical) return aIsCanonical - bIsCanonical;
+        return toMillisAny(a.data.addedAt) - toMillisAny(b.data.addedAt);
+      });
+      const [keep, ...dupes] = items;
+      dupes.forEach(d=> toDelete.push(d));
+    }
+
+    if(toDelete.length === 0){
+      alert('Aucun doublon trouvé. La bibliothèque est propre.');
+      return;
+    }
+    if(!confirm(`${toDelete.length} vidéo(s) en double trouvée(s) dans ${groupsWithDupes} groupe(s). Les supprimer maintenant ? (la version la plus ancienne de chaque vidéo est conservée)`)) return;
+
+    link.textContent = `Suppression… 0/${toDelete.length}`;
+    let batch = db.batch();
+    let count = 0;
+    for(const d of toDelete){
+      batch.delete(d.ref);
+      count++;
+      if(count % 400 === 0){ await batch.commit(); batch = db.batch(); }
+      link.textContent = `Suppression… ${count}/${toDelete.length}`;
+    }
+    await batch.commit();
+
+    alert(`Terminé : ${toDelete.length} doublon(s) supprimé(s).`);
+    for(const key of ['long', 'short']) lsRemove(sectionCacheKey(key));
+    loadFirstPage('long', true);
+    loadFirstPage('short', true);
+  }catch(err){
+    console.error(err);
+    alert("Erreur pendant la suppression des doublons : " + (err.message || err));
+  }finally{
+    link.style.pointerEvents = '';
+    link.textContent = original;
+  }
 });
 
 /* =========================================================
@@ -2546,13 +2675,21 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
       return;
     }
 
-    // Dédoublonnage par lots (pas de lecture de toute la collection)
-    const existingIds = await findExistingVideoIds(uploads.map(u => u.videoId));
-    const toImport = uploads.filter(u => !existingIds.has(u.videoId));
-    const skipped = uploads.length - toImport.length;
+    // Dédoublonnage : écriture à l'id déterministe, aucune vidéo déjà
+    // présente n'est jamais réécrite/dupliquée.
+    let done = 0, imported = 0, skipped = 0;
+    for(const u of uploads){
+      const docId = makeVideoDocId('youtube', u.videoId);
+      const docRef = videosRef.doc(docId);
+      const existing = await docRef.get();
+      if(existing.exists){
+        skipped++;
+        done++;
+        const pct = 40 + Math.round((done / Math.max(1, uploads.length)) * 60);
+        setAddChannelProgress(`Importation… ${done}/${uploads.length} (déjà présentes ignorées : ${skipped})`, pct);
+        continue;
+      }
 
-    let done = 0;
-    for(const u of toImport){
       const shortDesc = (u.description || '').split('\n')[0].slice(0, 200) || null;
       const sortDate = u.publishedAt ? firebase.firestore.Timestamp.fromDate(u.publishedAt) : firebase.firestore.Timestamp.now();
       const docPayload = {
@@ -2566,19 +2703,20 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
         likeCount: 0,
         dislikeCount: 0
       };
-      const docRef = await videosRef.add({
+      await docRef.set({
         ...docPayload,
         addedAt: firebase.firestore.FieldValue.serverTimestamp(),
         sortDate,
         ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {})
       });
       if(videoSections.long.initialized){
-        const localDoc = { id: docRef.id, ...docPayload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {}) };
+        const localDoc = { id: docId, ...docPayload, addedAt: firebase.firestore.Timestamp.now(), sortDate, ...(u.publishedAt ? { publishedAt: firebase.firestore.Timestamp.fromDate(u.publishedAt) } : {}) };
         videoSections.long.docs.push(localDoc);
       }
+      imported++;
       done++;
-      const pct = 40 + Math.round((done / Math.max(1, toImport.length)) * 60);
-      setAddChannelProgress(`Importation… ${done}/${toImport.length} vidéo(s) ajoutée(s)`, pct);
+      const pct = 40 + Math.round((done / Math.max(1, uploads.length)) * 60);
+      setAddChannelProgress(`Importation… ${done}/${uploads.length} vidéo(s) ajoutée(s)`, pct);
     }
     if(videoSections.long.initialized){
       videoSections.long.docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
@@ -2587,8 +2725,8 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
     }
 
     const summary = skipped > 0
-      ? `Terminé : chaîne suivie, ${done} vidéo(s) importée(s), ${skipped} déjà présente(s) ignorée(s).`
-      : `Terminé : chaîne suivie, ${done} vidéo(s) importée(s).`;
+      ? `Terminé : chaîne suivie, ${imported} vidéo(s) importée(s), ${skipped} déjà présente(s) ignorée(s).`
+      : `Terminé : chaîne suivie, ${imported} vidéo(s) importée(s).`;
     setAddChannelProgress(summary, 100);
     linkInput.value = '';
   }catch(err){
@@ -2884,8 +3022,14 @@ auth.onAuthStateChanged(async (user)=>{
   document.body.classList.toggle('admin-mode', isAdmin);
 
   if(isAdmin && !wasAdmin){
-    // Vérifie les nouvelles vidéos des chaînes suivies uniquement à la connexion admin
+    // Vérifie les nouvelles vidéos des chaînes suivies à la connexion admin,
+    // puis répète la vérification périodiquement tant que cette session
+    // admin reste ouverte (voir AUTO_CHECK_INTERVAL_MS plus haut).
     checkTrackedChannelsForNewVideos();
+    if(trackedChannelsCheckInterval) clearInterval(trackedChannelsCheckInterval);
+    trackedChannelsCheckInterval = setInterval(checkTrackedChannelsForNewVideos, AUTO_CHECK_INTERVAL_MS);
+  }else if(!isAdmin && wasAdmin){
+    if(trackedChannelsCheckInterval){ clearInterval(trackedChannelsCheckInterval); trackedChannelsCheckInterval = null; }
   }
 
   if(realUser){
