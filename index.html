@@ -675,12 +675,61 @@
   }
   .sub-channel-meta{ font-size:0.76rem; color:#a3856f; font-weight:600; margin-bottom:0.4rem; }
   .sub-channel-hint{ font-size:0.74rem; color: var(--red-dim); font-weight:700; }
+
+  /* ---------- Barre de recherche vidéo (tout en haut du site) ---------- */
+  .top-search-bar{
+    position: fixed; top:0; left:0; right:0; z-index:70;
+    background: rgba(23,15,35,0.55);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border-bottom: 1px solid rgba(255,255,255,0.14);
+    padding: 0.65rem 1.4rem;
+    display:flex; justify-content:center;
+  }
+  .top-search-inner{
+    width:100%; max-width:620px; display:flex; align-items:center; gap:0.5rem;
+    background: var(--cream); border-radius:999px; padding:0.4rem 0.4rem 0.4rem 1.1rem;
+    box-shadow: 0 10px 24px -10px rgba(0,0,0,0.5);
+  }
+  .top-search-inner svg.search-icon{ width:16px; height:16px; flex-shrink:0; color:#a3856f; }
+  .top-search-inner input{
+    flex:1; min-width:0; border:none; background:transparent; outline:none;
+    font-family:'Baloo 2', sans-serif; font-weight:600; font-size:0.92rem; color: var(--dark-text);
+  }
+  .top-search-inner input::placeholder{ color:#b39a82; font-weight:500; }
+  .top-search-clear{
+    flex-shrink:0; background:none; border:none; color:#a3856f; font-size:1.1rem; cursor:pointer;
+    display:none; align-items:center; justify-content:center; width:24px; height:24px; padding:0;
+  }
+  .top-search-clear.visible{ display:flex; }
+  .top-search-go{
+    flex-shrink:0; width:38px; height:38px; border-radius:50%; border:none; background: var(--red); color:#fff;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; transition: background .2s ease;
+  }
+  .top-search-go:hover{ background:#ff2d4d; }
+  .top-search-go svg{ width:16px; height:16px; }
+  @media (max-width:640px){
+    .top-search-bar{ padding:0.55rem 0.8rem; }
+    .top-search-inner{ padding:0.35rem 0.35rem 0.35rem 0.9rem; }
+  }
 </style>
 </head>
 <body>
 
 <div class="grain"></div>
 <div class="vignette"></div>
+
+<!-- Barre de recherche vidéo — tout en haut du site -->
+<div class="top-search-bar">
+  <div class="top-search-inner">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input type="text" id="global-search-input" placeholder="Rechercher une vidéo, un auteur…">
+    <button class="top-search-clear" id="global-search-clear" title="Effacer">&times;</button>
+    <button class="top-search-go" id="global-search-btn" title="Rechercher">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </button>
+  </div>
+</div>
 
 <!-- Top-right account bar -->
 <div class="account-bar">
@@ -781,6 +830,26 @@
       <div class="section-count" id="subs-videos-count"></div>
     </div>
     <div class="grid" id="subs-videos-grid"></div>
+
+    <div class="section-head" id="subs-shorts-head" style="margin-top:2.4rem; display:none;">
+      <div class="section-subtitle" style="margin:0;">Shorts</div>
+      <div class="section-count" id="subs-shorts-count"></div>
+    </div>
+    <div class="grid shorts-grid" id="subs-shorts-grid"></div>
+  </section>
+
+  <!-- Section Résultats de recherche -->
+  <section class="page-section" id="section-search">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Recherche</div>
+        <div class="section-subtitle" id="search-query-label" style="margin:0.4rem 0 0; font-size:0.85rem;"></div>
+      </div>
+    </div>
+    <div class="section-subtitle">Vidéos</div>
+    <div class="grid" id="search-video-grid"></div>
+    <div class="section-subtitle" style="margin-top:2.4rem;">Shorts</div>
+    <div class="grid shorts-grid" id="search-shorts-grid"></div>
   </section>
 
 </main>
@@ -1798,7 +1867,7 @@ function bindCardEvents(grid, list){
 
 function renderVideoGrid(gridId, countId, list, emptyMessage, moreBtnId, hasMore){
   const grid = document.getElementById(gridId);
-  const count = document.getElementById(countId);
+  const count = countId ? document.getElementById(countId) : null;
   if(count) count.textContent = list.length + (list.length > 1 ? ' vidéos chargées' : ' vidéo chargée');
 
   const moreBtn = moreBtnId ? document.getElementById(moreBtnId) : null;
@@ -1836,11 +1905,14 @@ function renderAllSections(){
 function renderSubsSection(){
   const intro = document.getElementById('subs-intro');
   const channelsListEl = document.getElementById('subs-channels-list');
+  const shortsHead = document.getElementById('subs-shorts-head');
 
   if(!isConnected){
     intro.textContent = "Connecte-toi pour voir et gérer tes abonnements.";
     channelsListEl.innerHTML = '';
     renderVideoGrid('subs-videos-grid', 'subs-videos-count', [], "Connecte-toi pour voir les vidéos de tes chaînes abonnées.", null, false);
+    renderVideoGrid('subs-shorts-grid', 'subs-shorts-count', [], "", null, false);
+    shortsHead.style.display = 'none';
     return;
   }
 
@@ -1886,6 +1958,8 @@ function renderSubsSection(){
   if(!selectedSubChannelCdId){
     if(subtitleEl) subtitleEl.textContent = 'Vidéos de tes chaînes abonnées';
     renderVideoGrid('subs-videos-grid', 'subs-videos-count', [], "Sélectionne une chaîne ci-dessus pour afficher ses vidéos.", null, false);
+    renderVideoGrid('subs-shorts-grid', 'subs-shorts-count', [], "", null, false);
+    shortsHead.style.display = 'none';
     return;
   }
 
@@ -1893,12 +1967,20 @@ function renderSubsSection(){
   const selectedName = (selectedEntry && selectedEntry.data && selectedEntry.data.name) || 'cette chaîne';
   if(subtitleEl) subtitleEl.textContent = `Vidéos de ${selectedName}`;
 
+  // Section Abonnements : uniquement un tri chronologique (plus récent
+  // d'abord), sans aucune notion de popularité — et séparation stricte
+  // vidéos (format long) / shorts, chacun trié indépendamment.
   const pool = videoSections.long.docs.concat(videoSections.short.docs);
-  const subVideos = pool.filter(v=>{
+  const channelVideos = pool.filter(v=>{
     const key = channelKeyOf(v);
     return key && channelDocId(key) === selectedSubChannelCdId;
   });
-  renderVideoGrid('subs-videos-grid', 'subs-videos-count', subVideos, "Aucune vidéo de cette chaîne parmi celles déjà chargées. Ouvre les sections Vidéos/Shorts et clique sur « Afficher plus » pour en voir davantage.", null, false);
+  const longVideos = channelVideos.filter(v => !v.isShort).sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+  const shortVideos = channelVideos.filter(v => v.isShort).sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+
+  shortsHead.style.display = '';
+  renderVideoGrid('subs-videos-grid', 'subs-videos-count', longVideos, "Aucune vidéo (format long) de cette chaîne parmi celles déjà chargées. Ouvre la section Vidéos et clique sur « Afficher plus » pour en voir davantage.", null, false);
+  renderVideoGrid('subs-shorts-grid', 'subs-shorts-count', shortVideos, "Aucun short de cette chaîne parmi ceux déjà chargés. Ouvre la section Shorts et clique sur « Afficher plus » pour en voir davantage.", null, false);
 }
 
 function escapeHtml(str){
@@ -2992,6 +3074,63 @@ document.getElementById('edit-submit').addEventListener('click', async ()=>{
 });
 
 /* =========================================================
+   RECHERCHE — barre de recherche vidéo tout en haut du site.
+   Recherche (titre / auteur / description) uniquement parmi les
+   vidéos et shorts déjà chargés localement, sans lecture Firestore
+   supplémentaire ; les deux sections sont chargées une première
+   fois si besoin, comme pour la section Abonnements.
+   ========================================================= */
+function normalizeSearchText(s){
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+function videoMatchesQuery(v, normalizedQuery){
+  if(!normalizedQuery) return false;
+  const haystack = normalizeSearchText(`${v.title || ''} ${v.author || ''} ${v.description || ''}`);
+  return haystack.includes(normalizedQuery);
+}
+async function performGlobalSearch(rawQuery){
+  const trimmed = (rawQuery || '').trim();
+  const queryLabel = document.getElementById('search-query-label');
+  queryLabel.textContent = trimmed ? `Résultats pour « ${trimmed} »` : 'Entre un mot-clé dans la barre de recherche.';
+
+  if(!trimmed){
+    renderVideoGrid('search-video-grid', null, [], "Entre un mot-clé pour lancer une recherche.", null, false);
+    renderVideoGrid('search-shorts-grid', null, [], "", null, false);
+    showSection('section-search');
+    return;
+  }
+
+  // S'assure que les vidéos/shorts sont au moins chargés une première fois.
+  await Promise.all([loadFirstPage('long'), loadFirstPage('short')]);
+
+  const normalized = normalizeSearchText(trimmed);
+  const matchedVideos = videoSections.long.docs
+    .filter(v => videoMatchesQuery(v, normalized))
+    .sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+  const matchedShorts = videoSections.short.docs
+    .filter(v => videoMatchesQuery(v, normalized))
+    .sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+
+  renderVideoGrid('search-video-grid', null, matchedVideos, "Aucune vidéo ne correspond à ta recherche parmi celles déjà chargées.", null, false);
+  renderVideoGrid('search-shorts-grid', null, matchedShorts, "Aucun short ne correspond à ta recherche parmi ceux déjà chargés.", null, false);
+  showSection('section-search');
+}
+const globalSearchInput = document.getElementById('global-search-input');
+const globalSearchClear = document.getElementById('global-search-clear');
+document.getElementById('global-search-btn').addEventListener('click', ()=> performGlobalSearch(globalSearchInput.value));
+globalSearchInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') performGlobalSearch(globalSearchInput.value);
+});
+globalSearchInput.addEventListener('input', ()=>{
+  globalSearchClear.classList.toggle('visible', !!globalSearchInput.value);
+});
+globalSearchClear.addEventListener('click', ()=>{
+  globalSearchInput.value = '';
+  globalSearchClear.classList.remove('visible');
+  globalSearchInput.focus();
+});
+
+/* =========================================================
    COMPTE — Firebase Authentication + profil partagé Firestore
    (le profil reste en écoute temps réel : un seul petit document,
    utile pour la synchronisation instantanée entre les sites RIJOUL/
@@ -3260,7 +3399,7 @@ auth.onAuthStateChanged(async (user)=>{
    chargement paresseux de la première page de vidéos longues)
    ========================================================= */
 (function initialSection(){
-  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-subs'];
+  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-subs', 'section-search'];
   const hash = (location.hash || '').replace('#','');
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
