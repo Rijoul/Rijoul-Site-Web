@@ -644,6 +644,37 @@
   }
   .subs-channels-list{ margin-bottom: 2.6rem; }
   .subs-channels-list .channel-row{ max-width:520px; }
+
+  /* Cartes de chaînes abonnées (section Abonnements) — auparavant sans style
+     (classes non définies), ce qui cassait complètement l'affichage. */
+  .subs-channels-list{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:1rem;
+  }
+  .sub-channel-card{
+    position:relative; background: var(--panel); border:3px solid var(--cream-2); border-radius:20px;
+    padding: 1.2rem 1.1rem 1rem; cursor:pointer; transition: all .2s ease;
+    box-shadow: 0 10px 22px -12px rgba(60,10,30,0.4);
+  }
+  .sub-channel-card:hover{ transform: translateY(-3px); border-color: var(--red); }
+  .sub-channel-card.selected{ border-color: var(--red); background: #fff; box-shadow: 0 14px 28px -12px rgba(200,16,46,0.4); }
+  .sub-channel-untrack{
+    position:absolute; top:10px; right:10px; width:26px; height:26px; border-radius:50%;
+    background: var(--red); border:2px solid var(--cream); color:#fff; font-size:0.75rem;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .sub-channel-untrack:hover{ background:#ff2d4d; }
+  .sub-channel-avatar{
+    width:48px; height:48px; border-radius:50%; margin-bottom:0.7rem;
+    background: linear-gradient(160deg, var(--title-top), var(--title-bottom));
+    color:#fff; font-family:'Fredoka', sans-serif; font-weight:700; font-size:1.1rem;
+    display:flex; align-items:center; justify-content:center; text-transform:uppercase;
+  }
+  .sub-channel-name{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:0.95rem; color: var(--dark-text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:0.2rem;
+  }
+  .sub-channel-meta{ font-size:0.76rem; color:#a3856f; font-weight:600; margin-bottom:0.4rem; }
+  .sub-channel-hint{ font-size:0.74rem; color: var(--red-dim); font-weight:700; }
 </style>
 </head>
 <body>
@@ -681,10 +712,15 @@
 
 <main>
 
-  <!-- Section Accueil : affiche le même contenu que la section Vidéos (même source de données, aucune double lecture) -->
+  <!-- Section Accueil : uniquement les vidéos (format long), triées par
+       popularité (likes) et personnalisées pour le compte connecté
+       (chaînes abonnées et vidéos likées mises en avant) -->
   <section class="page-section" id="section-home">
     <div class="section-head">
-      <div class="section-title">Accueil</div>
+      <div>
+        <div class="section-title">Accueil</div>
+        <div class="section-subtitle" style="margin:0.4rem 0 0; font-size:0.85rem;">Les vidéos les plus populaires, et en priorité celles de tes chaînes abonnées</div>
+      </div>
       <div class="section-count-row">
         <div class="section-count" id="video-count-home">chargement…</div>
         <a class="refresh-link" id="refresh-home-link">↻ Actualiser</a>
@@ -741,7 +777,7 @@
     <div class="subs-channels-list" id="subs-channels-list"></div>
 
     <div class="section-head">
-      <div class="section-subtitle" style="margin:0;">Vidéos de tes chaînes abonnées</div>
+      <div class="section-subtitle" id="subs-videos-subtitle" style="margin:0;">Vidéos de tes chaînes abonnées</div>
       <div class="section-count" id="subs-videos-count"></div>
     </div>
     <div class="grid" id="subs-videos-grid"></div>
@@ -767,6 +803,7 @@
     <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos déjà chargées →</a></div>
     <div class="import-link-row"><a id="check-now-link">Vérifier maintenant les nouvelles vidéos des chaînes suivies →</a></div>
     <div class="import-link-row"><a id="dedupe-link">Supprimer les vidéos en double →</a></div>
+    <div class="import-link-row"><a id="merge-channels-link">Fusionner les chaînes en double (même auteur) →</a></div>
     <div class="import-link-row"><a id="migrate-sortdate-link">Migration ponctuelle : réparer le tri des anciennes vidéos →</a></div>
     <div class="import-progress" id="refresh-progress"></div>
 
@@ -1357,9 +1394,18 @@ document.getElementById('refresh-shorts-link').addEventListener('click', ()=> lo
 /* =========================================================
    Réactions (like / dislike) et abonnements — identité de chaîne
    ========================================================= */
+// Identité de chaîne UNIFIÉE : on se base en priorité sur le nom d'auteur
+// (normalisé : espaces/majuscules ignorés), qui est présent sur toutes les
+// vidéos (ajout manuel ou import de chaîne), plutôt que sur channelId qui
+// n'existe que pour les vidéos importées automatiquement. Avant ce correctif,
+// une même chaîne (ex: "Squeezie") pouvait se retrouver scindée en plusieurs
+// "chaînes" différentes selon la façon dont la vidéo avait été ajoutée.
+function normalizeAuthorKey(name){
+  return (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
 function channelKeyOf(v){
+  if(v.author && v.author.trim()) return normalizeAuthorKey(v.author);
   if(v.channelId) return v.channelId;
-  if(v.author && v.author.trim()) return v.author.trim();
   return null;
 }
 function channelDocId(key){
@@ -1613,6 +1659,47 @@ async function unsubscribeChannel(cdId){
 }
 
 /* =========================================================
+   Tri de l'accueil : popularité (likes) + personnalisation
+   (chaînes abonnées et vidéos likées par le compte connecté).
+   Ce tri est calculé localement, uniquement sur les vidéos déjà
+   chargées : aucune lecture Firestore supplémentaire.
+   ========================================================= */
+function likedChannelKeysSet(){
+  const set = new Set();
+  const pool = videoSections.long.docs.concat(videoSections.short.docs);
+  for(const vidId in userReactions){
+    if(userReactions[vidId] !== 'like') continue;
+    const v = pool.find(x => x.id === vidId);
+    if(v){
+      const key = channelKeyOf(v);
+      if(key) set.add(key);
+    }
+  }
+  return set;
+}
+function homeVideoScore(v, likedChannels){
+  const likes = v.likeCount || 0;
+  const dislikes = v.dislikeCount || 0;
+  let score = likes - dislikes * 2;
+  const key = channelKeyOf(v);
+  if(key){
+    // Grosse priorité aux vidéos des chaînes auxquelles le compte est abonné
+    if(userSubscribedKeys.has(channelDocId(key))) score += 1000;
+    // Léger bonus pour les chaînes dont l'utilisateur a déjà aimé une vidéo
+    if(likedChannels.has(key)) score += 300;
+  }
+  return score;
+}
+function sortForHome(docs){
+  const likedChannels = likedChannelKeysSet();
+  return docs.slice().sort((a, b)=>{
+    const diff = homeVideoScore(b, likedChannels) - homeVideoScore(a, likedChannels);
+    if(diff !== 0) return diff;
+    return effectiveMillis(b) - effectiveMillis(a); // égalité : la plus récente d'abord
+  });
+}
+
+/* =========================================================
    Rendu de la galerie
    ========================================================= */
 function thumbForVideo(v){
@@ -1733,7 +1820,10 @@ function renderAllSections(){
 
   if(longState.initialized){
     const emptyMsg = isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.";
-    renderVideoGrid('video-grid-home', 'video-count-home', longState.docs, emptyMsg, 'load-more-home', longState.hasMore);
+    // Accueil : uniquement les vidéos (pas les shorts), triées par popularité
+    // et personnalisées (abonnements + likes du compte connecté).
+    renderVideoGrid('video-grid-home', 'video-count-home', sortForHome(longState.docs), emptyMsg, 'load-more-home', longState.hasMore);
+    // Vidéothèque : ordre chronologique classique (le plus récent en premier).
     renderVideoGrid('video-grid', 'video-count', longState.docs, emptyMsg, 'load-more-videos', longState.hasMore);
   }
   if(shortState.initialized){
@@ -2412,6 +2502,78 @@ document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
   }catch(err){
     console.error(err);
     alert("Erreur pendant la suppression des doublons : " + (err.message || err));
+  }finally{
+    link.style.pointerEvents = '';
+    link.textContent = original;
+  }
+});
+
+/* =========================================================
+   Admin : fusion des fiches "channels" en double (compteurs
+   d'abonnés) qui correspondent en réalité à la même chaîne mais
+   avaient été enregistrées sous des identifiants différents
+   (une fois via channelId, une fois via le nom d'auteur, avec une
+   casse ou des espaces différents). Regroupe par nom d'auteur
+   normalisé (même règle que channelKeyOf), additionne les
+   compteurs d'abonnés dans une fiche unique et supprime les autres.
+   Lecture ponctuelle et volontaire de toute la collection "channels"
+   (généralement petite), à ne lancer qu'une fois de temps en temps.
+   ========================================================= */
+document.getElementById('merge-channels-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  if(!confirm("Cette opération fusionne les fiches de chaînes en double qui partagent le même nom d'auteur (ex : une chaîne apparue une fois via son identifiant YouTube et une fois via son nom saisi manuellement). Les compteurs d'abonnés sont additionnés dans une fiche unique. Continuer ?")) return;
+
+  link.style.pointerEvents = 'none';
+  const original = link.textContent;
+  link.textContent = 'Fusion en cours…';
+  try{
+    const snap = await channelsRef.get(); // lecture complète unique et volontaire (petite collection)
+    const groups = {};
+    snap.forEach(doc=>{
+      const data = doc.data();
+      const name = (data.name || '').trim();
+      if(!name) return;
+      const canonicalKey = normalizeAuthorKey(name);
+      const canonicalId = channelDocId(canonicalKey);
+      if(!groups[canonicalId]) groups[canonicalId] = { name, count: 0, oldIds: [] };
+      groups[canonicalId].name = name;
+      groups[canonicalId].count += (data.subscriberCount || 0);
+      groups[canonicalId].oldIds.push(doc.id);
+    });
+
+    let batch = db.batch();
+    let ops = 0;
+    let mergedGroups = 0;
+    for(const canonicalId in groups){
+      const g = groups[canonicalId];
+      const isAlreadyCanonical = g.oldIds.length === 1 && g.oldIds[0] === canonicalId;
+      if(isAlreadyCanonical) continue;
+      mergedGroups++;
+      batch.set(channelsRef.doc(canonicalId), { name: g.name, subscriberCount: g.count }, { merge: true });
+      ops++;
+      for(const oldId of g.oldIds){
+        if(oldId !== canonicalId){
+          batch.delete(channelsRef.doc(oldId));
+          ops++;
+        }
+      }
+      if(ops >= 400){ await batch.commit(); batch = db.batch(); ops = 0; }
+    }
+    if(ops > 0) await batch.commit();
+
+    if(mergedGroups === 0){
+      alert("Aucune chaîne en double trouvée.");
+    }else{
+      alert(`Terminé : ${mergedGroups} groupe(s) de chaînes fusionné(s). Note : les abonnements déjà enregistrés par les utilisateurs pointent encore vers les anciennes fiches ; ils se reconnecteront automatiquement à la fiche fusionnée dès leur prochaine interaction (like ou (dés)abonnement) sur une vidéo de cette chaîne.`);
+    }
+    channelsCache = {};
+    for(const key of ['long', 'short']) lsRemove(sectionCacheKey(key));
+    loadFirstPage('long', true);
+    loadFirstPage('short', true);
+  }catch(err){
+    console.error(err);
+    alert("Erreur pendant la fusion des chaînes : " + (err.message || err));
   }finally{
     link.style.pointerEvents = '';
     link.textContent = original;
