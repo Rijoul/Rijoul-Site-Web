@@ -693,6 +693,28 @@
     width:100%; max-width:620px; display:flex; align-items:center; gap:0.5rem;
     background: var(--cream); border-radius:999px; padding:0.4rem 0.4rem 0.4rem 1.1rem;
     box-shadow: 0 10px 24px -10px rgba(0,0,0,0.5);
+    position:relative; z-index:1;
+  }
+  /* Anneau lumineux animé autour de la barre de recherche : un dégradé
+     conique qui tourne en continu derrière la pilule, révélé uniquement
+     sur son contour grâce au masquage (mask-composite). */
+  .top-search-inner::before{
+    content:'';
+    position:absolute;
+    inset:-3px;
+    border-radius:999px;
+    padding:3px;
+    background: conic-gradient(from 0deg, var(--red), var(--title-top), var(--title-bottom), var(--cream), var(--red));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: searchRingSpin 4.5s linear infinite;
+    z-index:-1;
+    opacity:0.95;
+    pointer-events:none;
+  }
+  @keyframes searchRingSpin{
+    to{ transform: rotate(360deg); }
   }
   .top-search-inner svg.search-icon{ width:16px; height:16px; flex-shrink:0; color:#a3856f; }
   .top-search-inner input{
@@ -874,6 +896,7 @@
 
     <div class="import-link-row"><a id="open-channels-list">Gérer les chaînes suivies (ajouter / retirer) →</a></div>
     <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos déjà chargées →</a></div>
+    <div class="import-link-row"><a id="recalc-short-link">Recalculer le classement Vidéo / Short (durée réelle) des vidéos déjà chargées →</a></div>
     <div class="import-link-row"><a id="check-now-link">Vérifier maintenant les nouvelles vidéos des chaînes suivies →</a></div>
     <div class="import-link-row"><a id="dedupe-link">Supprimer les vidéos en double →</a></div>
     <div class="import-link-row"><a id="merge-channels-link">Fusionner les chaînes en double (même auteur) →</a></div>
@@ -1301,6 +1324,21 @@ async function fetchYouTubePublishedAt(videoId){
   }
 }
 
+/* Ratio largeur/hauteur d'une vidéo YouTube via oEmbed (ne nécessite PAS de
+   clé API). Sert de filet de sécurité pour détecter un format vertical
+   (Shorts) quand la durée réelle n'a pas pu être récupérée (clé API absente,
+   quota dépassé, erreur réseau…) : sans ce filet, une vidéo courte finissait
+   silencieusement classée comme "longue" par défaut. */
+async function fetchYouTubeOEmbedRatio(videoId){
+  try{
+    const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`);
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(data.width && data.height) return data.width / data.height;
+    return null;
+  }catch(e){ return null; }
+}
+
 /* =========================================================
    Détection automatique de la durée d'une vidéo (toutes
    plateformes qui l'exposent) et classification "short" en
@@ -1363,6 +1401,26 @@ async function fetchAutoDurationSeconds(detected){
     console.warn('Durée automatique indisponible :', e);
   }
   return null;
+}
+/* Classification robuste "short / long" pour une vidéo YouTube donnée,
+   utilisée partout où l'ancien code retombait silencieusement sur `false`
+   (donc "vidéo longue") dès que la durée réelle n'était pas disponible —
+   c'était la cause du bug : toute vidéo courte importée alors que l'API
+   Data YouTube échouait (clé absente, quota dépassé…) restait coincée dans
+   Vidéos/Accueil au lieu de Shorts. On tente maintenant, dans l'ordre :
+   1) la durée réelle (fiable à 100%), 2) le ratio d'image via oEmbed (fiable
+   pour les vidéos verticales), 3) uniquement en dernier recours, `false`. */
+async function classifyYouTubeIsShort(videoId, knownDurationSeconds){
+  let duration = knownDurationSeconds;
+  if(duration === undefined){
+    duration = await fetchAutoDurationSeconds({ platform: 'youtube', id: videoId });
+  }
+  if(duration != null) return duration < SHORT_MAX_DURATION_SECONDS;
+
+  const ratio = await fetchYouTubeOEmbedRatio(videoId);
+  if(ratio != null) return ratio < 1;
+
+  return false;
 }
 // Version "par lot" (jusqu'à 50 identifiants YouTube par requête), utilisée
 // pour l'import de chaîne complet et la vérification automatique des
@@ -2329,8 +2387,10 @@ function fetchDirectVideoRatio(url){
 }
 // Détection à l'affichage (blur/paste sur le champ lien) : essaie d'abord la
 // DURÉE réelle (règle prioritaire des 3 min 10) ; si elle est indisponible
-// (Twitch, lien générique), retombe sur la détection par format d'image
-// comme avant.
+// (Twitch, lien générique, ou YouTube sans clé API / quota dépassé), retombe
+// sur la détection par ratio d'image (oEmbed, y compris pour YouTube) comme
+// filet de sécurité, avant de retomber en tout dernier recours sur la case
+// à cocher manuelle.
 async function autoDetectShortFormat(url){
   const myToken = ++addLinkDetectToken;
   const detected = detectVideo(url);
@@ -2350,7 +2410,7 @@ async function autoDetectShortFormat(url){
   }
 
   // Durée indisponible : on retombe sur la détection par format d'image
-  // (portrait / paysage), comme avant.
+  // (portrait / paysage) via oEmbed, y compris pour YouTube désormais.
   if(detected.platform === 'youtube' && detected.isShort){
     if(!addIsShortManuallySet) addIsShortCheckbox.checked = true;
     setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement');
@@ -2358,7 +2418,9 @@ async function autoDetectShortFormat(url){
   }
 
   let oembedUrl = null;
-  if(detected.platform === 'dailymotion'){
+  if(detected.platform === 'youtube'){
+    oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + detected.id)}&format=json`;
+  }else if(detected.platform === 'dailymotion'){
     oembedUrl = `https://www.dailymotion.com/services/oembed?url=${encodeURIComponent('https://www.dailymotion.com/video/' + detected.id)}&format=json`;
   }
 
@@ -2471,8 +2533,9 @@ async function submitVideo(){
 
   // Règle prioritaire : si la durée réelle de la vidéo est connue, elle
   // détermine SEULE si la vidéo est un short (< 3 min 10), quelle que soit
-  // la case cochée. Sinon on retombe sur la case (éventuellement pré-remplie
-  // par la détection de format d'image).
+  // la case cochée. Sinon on retombe sur la détection par ratio d'image
+  // (oEmbed), puis en tout dernier recours sur la case (éventuellement
+  // pré-remplie par cette même détection).
   const autoDuration = await fetchAutoDurationSeconds(detected);
   let finalIsShort;
   if(autoDuration != null){
@@ -2546,6 +2609,76 @@ async function findExistingVideoIds(videoIds){
 }
 
 /* =========================================================
+   Admin : recalcule le classement Vidéo / Short des vidéos déjà
+   chargées à partir de leur durée réelle (ou, à défaut, du ratio
+   d'image via oEmbed pour YouTube). Corrige les vidéos courtes
+   qui avaient été importées comme "longues" à cause d'un échec
+   ponctuel de récupération de durée (clé API YouTube absente ou
+   quota dépassé au moment de l'import), qui les faisait retomber
+   par défaut dans Vidéos/Accueil au lieu de Shorts.
+   ========================================================= */
+document.getElementById('recalc-short-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  const progressEl = document.getElementById('refresh-progress');
+
+  await Promise.all([loadFirstPage('long'), loadFirstPage('short')]);
+  const pool = videoSections.long.docs.concat(videoSections.short.docs);
+  const eligible = pool.filter(v => ['youtube', 'vimeo', 'dailymotion', 'direct'].includes(v.platform));
+
+  if(eligible.length === 0){
+    progressEl.classList.add('visible');
+    progressEl.textContent = "Aucune vidéo éligible (YouTube, Vimeo, Dailymotion ou fichier direct) parmi celles déjà chargées.";
+    return;
+  }
+  if(!confirm(`Vérifier la durée réelle de ${eligible.length} vidéo(s) déjà chargée(s) et corriger leur classement Vidéo/Short si besoin ? (les vidéos Twitch et liens génériques ne sont pas concernés)`)) return;
+
+  link.style.pointerEvents = 'none';
+  link.style.opacity = '0.6';
+  progressEl.classList.add('visible');
+
+  let done = 0, changed = 0;
+  for(const v of eligible){
+    progressEl.innerHTML = `Vérification… ${done}/${eligible.length} (${changed} corrigée(s))<div class="bar-track"><div class="bar-fill" style="width:${Math.round((done/eligible.length)*100)}%"></div></div>`;
+    try{
+      const detected = { platform: v.platform, id: v.videoId };
+      let newIsShort = null;
+      const duration = await fetchAutoDurationSeconds(detected);
+      if(duration != null){
+        newIsShort = duration < SHORT_MAX_DURATION_SECONDS;
+      }else if(v.platform === 'youtube'){
+        const ratio = await fetchYouTubeOEmbedRatio(v.videoId);
+        if(ratio != null) newIsShort = ratio < 1;
+      }
+
+      if(newIsShort != null && newIsShort !== !!v.isShort){
+        await videosRef.doc(v.id).update({ isShort: newIsShort });
+        const oldKey = v.isShort ? 'short' : 'long';
+        const newKey = newIsShort ? 'short' : 'long';
+        const idx = videoSections[oldKey].docs.findIndex(x => x.id === v.id);
+        if(idx !== -1){
+          const [doc] = videoSections[oldKey].docs.splice(idx, 1);
+          doc.isShort = newIsShort;
+          videoSections[newKey].docs.push(doc);
+          videoSections[newKey].docs.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+        }
+        changed++;
+      }
+    }catch(err){
+      console.warn('Recalcul du format impossible pour', v.id, err);
+    }
+    done++;
+  }
+
+  for(const key of ['long', 'short']) persistSectionFirstPageCache(key);
+  renderAllSections();
+
+  progressEl.innerHTML = `Terminé : ${changed} vidéo(s) recorrigée(s) sur ${eligible.length} vérifiée(s).`;
+  link.style.pointerEvents = '';
+  link.style.opacity = '';
+});
+
+/* =========================================================
    Mise à jour automatique des chaînes suivies :
    - se déclenche à la connexion admin (comme avant)
    - ET se répète désormais toutes les AUTO_CHECK_INTERVAL_MS tant
@@ -2590,7 +2723,10 @@ async function checkTrackedChannelsForNewVideos(){
       }
 
       // Récupère la durée réelle de chaque vidéo trouvée pour la classer
-      // automatiquement en "short" si elle dure moins de 3 min 10.
+      // automatiquement en "short" si elle dure moins de 3 min 10. Si le lot
+      // échoue entièrement (quota API dépassé, etc.), on ne classera plus
+      // aveuglément en "long" : un filet de sécurité par ratio d'image
+      // (oEmbed, sans clé API) est utilisé juste en dessous.
       const durationsMap = await fetchDurationsMapYouTube(latest.map(v => v.videoId));
 
       for(const v of latest){
@@ -2601,7 +2737,7 @@ async function checkTrackedChannelsForNewVideos(){
 
         const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
         const sortDate = v.publishedAt ? firebase.firestore.Timestamp.fromDate(v.publishedAt) : firebase.firestore.Timestamp.now();
-        const duration = durationsMap[v.videoId];
+        const isShortFinal = await classifyYouTubeIsShort(v.videoId, durationsMap[v.videoId]);
         const payload = {
           platform: 'youtube',
           videoId: v.videoId,
@@ -2609,7 +2745,7 @@ async function checkTrackedChannelsForNewVideos(){
           author: ch.channelTitle,
           channelId: ch.channelId,
           description: shortDesc,
-          isShort: (duration != null) ? (duration < SHORT_MAX_DURATION_SECONDS) : false,
+          isShort: isShortFinal,
           likeCount: 0,
           dislikeCount: 0
         };
@@ -3084,7 +3220,8 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
 
     // Récupère la durée réelle de toutes les vidéos importées (par lots de
     // 50) afin de classer automatiquement en "short" celles de moins de
-    // 3 min 10.
+    // 3 min 10. Un filet de sécurité par ratio d'image (oEmbed) est utilisé
+    // ci-dessous vidéo par vidéo si la durée reste indéterminée (échec API).
     setAddChannelProgress(`Analyse des durées de ${uploads.length} vidéo(s)…`, 38);
     const durationsMap = await fetchDurationsMapYouTube(uploads.map(u => u.videoId));
 
@@ -3105,8 +3242,7 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
 
       const shortDesc = (u.description || '').split('\n')[0].slice(0, 200) || null;
       const sortDate = u.publishedAt ? firebase.firestore.Timestamp.fromDate(u.publishedAt) : firebase.firestore.Timestamp.now();
-      const duration = durationsMap[u.videoId];
-      const isShortAuto = (duration != null) ? (duration < SHORT_MAX_DURATION_SECONDS) : false;
+      const isShortAuto = await classifyYouTubeIsShort(u.videoId, durationsMap[u.videoId]);
       const docPayload = {
         platform: 'youtube',
         videoId: u.videoId,
