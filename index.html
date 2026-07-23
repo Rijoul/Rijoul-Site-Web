@@ -654,10 +654,34 @@
     font-family:'Baloo 2', sans-serif; font-weight:600; color: var(--text); opacity:0.85; font-size:0.9rem;
   }
   footer .gold-word{ color: var(--cream); font-weight:700; }
+  footer .footer-legal-row{
+    display:flex; align-items:center; justify-content:center; gap:0.7rem; flex-wrap:wrap;
+    margin-top:1rem;
+  }
+  footer .footer-legal-btn{
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.72rem; letter-spacing:0.04em; text-transform:uppercase;
+    color: var(--cream); background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.35);
+    border-radius:999px; padding:0.5rem 1.1rem; cursor:pointer; transition: all .2s ease;
+  }
+  footer .footer-legal-btn:hover{ background: rgba(255,255,255,0.22); }
+  footer .footer-legal-sep{ color: rgba(255,255,255,0.5); font-size:0.7rem; }
 
   .modal-actions .btn{ color: var(--dark-text); border-color: var(--cream-2); }
   .modal-actions .btn:hover{ background: var(--cream-2); color: var(--dark-text); }
   .modal-actions .btn.primary{ color: var(--navy); }
+
+  /* ---------- Modal légale (CGU / Mentions légales) ---------- */
+  .legal-modal{ max-width: 620px; }
+  .legal-modal .legal-body{
+    max-height: 58vh; overflow-y:auto; padding-right:0.4rem;
+    font-family:'Baloo 2', sans-serif; font-size:0.9rem; line-height:1.6; color:#4a3a2e;
+  }
+  .legal-modal .legal-body h3{
+    font-family:'Fredoka', sans-serif; font-weight:700; font-size:1rem; color: var(--red-dim);
+    margin: 1.2rem 0 0.5rem;
+  }
+  .legal-modal .legal-body h3:first-child{ margin-top:0; }
+  .legal-modal .legal-body p{ margin: 0 0 0.8rem; }
 
   /* ---------- Réactions (like / dislike) + abonnement, sous chaque vidéo ---------- */
   .card-actions{
@@ -937,11 +961,64 @@
 
 <footer>
   Une production <span class="gold-word">RIJOUL</span>
+  <div class="footer-legal-row">
+    <button type="button" class="footer-legal-btn" id="open-cgu-link">CGU</button>
+    <span class="footer-legal-sep">•</span>
+    <button type="button" class="footer-legal-btn" id="open-mentions-link">Mentions légales</button>
+  </div>
 </footer>
 
 <!-- Floating admin controls -->
 <button class="fab" id="fab-add" title="Ajouter une vidéo">+</button>
 <div class="admin-tag">Mode admin <button id="admin-logout">se déconnecter</button></div>
+
+<!-- Modal CGU -->
+<div class="overlay" id="cgu-overlay">
+  <div class="modal legal-modal">
+    <button class="modal-close" data-close="cgu-overlay">&times;</button>
+    <h2>Conditions Générales d'Utilisation</h2>
+    <div class="legal-body">
+      <h3>1. Objet</h3>
+      <p>Les présentes Conditions Générales d'Utilisation (CGU) ont pour objet de définir les modalités d'accès et d'utilisation du site RIJOUL par tout visiteur ou utilisateur inscrit.</p>
+      <h3>2. Accès au site</h3>
+      <p>Le site est accessible gratuitement à tout utilisateur disposant d'un accès à internet. Certaines fonctionnalités (réactions, abonnements, ajout de vidéos) nécessitent la création d'un compte.</p>
+      <h3>3. Compte utilisateur</h3>
+      <p>L'utilisateur s'engage à fournir des informations exactes lors de son inscription et à garder confidentiels ses identifiants de connexion.</p>
+      <h3>4. Contenu</h3>
+      <p>Les vidéos référencées sur le site proviennent de plateformes tierces (YouTube, Vimeo, Dailymotion, etc.) ou de liens fournis par l'administrateur du site, et restent la propriété de leurs auteurs respectifs.</p>
+      <h3>5. Responsabilité</h3>
+      <p>L'éditeur du site ne saurait être tenu responsable des contenus hébergés par des plateformes tierces ni des interruptions de service indépendantes de sa volonté.</p>
+      <h3>6. Modification des CGU</h3>
+      <p>L'éditeur se réserve le droit de modifier les présentes CGU à tout moment. Les utilisateurs seront informés de toute modification substantielle.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" data-close="cgu-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Mentions légales -->
+<div class="overlay" id="mentions-overlay">
+  <div class="modal legal-modal">
+    <button class="modal-close" data-close="mentions-overlay">&times;</button>
+    <h2>Mentions légales</h2>
+    <div class="legal-body">
+      <h3>Éditeur du site</h3>
+      <p>Le site RIJOUL est édité à titre non professionnel. Pour toute question relative à l'édition du site, merci de contacter l'administrateur via les moyens de contact habituels.</p>
+      <h3>Hébergement</h3>
+      <p>Les données du site (vidéos référencées, comptes utilisateurs, réactions et abonnements) sont hébergées via Firebase, un service fourni par Google Ireland Limited.</p>
+      <h3>Propriété intellectuelle</h3>
+      <p>Le nom, le logo et la charte graphique RIJOUL sont la propriété exclusive de l'éditeur. Les vidéos affichées restent la propriété de leurs auteurs et plateformes d'origine respectives.</p>
+      <h3>Données personnelles</h3>
+      <p>Les données collectées (adresse e-mail, nom affiché, réactions, abonnements) sont utilisées uniquement pour le fonctionnement du site. Conformément à la réglementation en vigueur, chaque utilisateur dispose d'un droit d'accès, de rectification et de suppression de ses données, exerçable en contactant l'administrateur.</p>
+      <h3>Cookies</h3>
+      <p>Le site utilise le stockage local du navigateur (localStorage) afin d'améliorer les performances de navigation, sans finalité publicitaire.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" data-close="mentions-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add video modal -->
 <div class="overlay" id="add-overlay">
@@ -1550,6 +1627,10 @@ document.querySelectorAll('[data-close]').forEach(btn=>{
 document.querySelectorAll('.overlay').forEach(ov=>{
   ov.addEventListener('click', (e)=>{ if(e.target === ov) ov.classList.remove('open'); });
 });
+
+/* Boutons du pied de page : CGU / Mentions légales */
+document.getElementById('open-cgu-link').addEventListener('click', ()=> openOverlay('cgu-overlay'));
+document.getElementById('open-mentions-link').addEventListener('click', ()=> openOverlay('mentions-overlay'));
 
 /* =========================================================
    Navigation entre sections — chaque section ne déclenche une
