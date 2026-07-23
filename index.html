@@ -593,6 +593,16 @@
   .auth-forgot{ text-align:right; margin: -1rem 0 1.3rem; }
   .auth-forgot a{ font-size:0.75rem; font-weight:600; color:#a3856f; cursor:pointer; text-decoration:underline; }
   .auth-forgot a:hover{ color: var(--red); }
+  .auth-terms-row{
+    display:flex; align-items:flex-start; gap:0.6rem; margin: -0.4rem 0 1.3rem;
+  }
+  .auth-terms-row input[type=checkbox]{
+    width:auto; margin:0.15rem 0 0; accent-color: var(--red); flex-shrink:0;
+  }
+  .auth-terms-row label{
+    margin:0; text-transform:none; font-size:0.78rem; font-weight:500; color:#6b5644; letter-spacing:0; line-height:1.5;
+  }
+  .auth-terms-row a{ color: var(--red); font-weight:700; text-decoration:underline; cursor:pointer; }
 
   /* ---------- Profile edit modal ---------- */
   .profile-photo-row{ display:flex; align-items:center; gap:1.1rem; margin-bottom:1.4rem; }
@@ -1169,6 +1179,10 @@
       <input type="email" id="signup-email" placeholder="vous@exemple.com" autocomplete="email">
       <label for="signup-password">Mot de passe</label>
       <input type="password" id="signup-password" placeholder="6 caractères minimum" autocomplete="new-password">
+      <div class="auth-terms-row">
+        <input type="checkbox" id="signup-terms">
+        <label for="signup-terms">J'ai lu et j'accepte les <a data-open-legal="cgu">CGU</a> et les <a data-open-legal="mentions">mentions légales</a> du site.</label>
+      </div>
       <div class="modal-error" id="signup-error"></div>
       <button class="btn primary auth-submit" id="signup-submit">Créer mon compte</button>
       <div class="auth-switch">Déjà un compte ? <a data-switch="login">Se connecter</a></div>
@@ -1688,6 +1702,21 @@ document.getElementById('open-cgu-link').addEventListener('click', async ()=>{
 document.getElementById('open-mentions-link').addEventListener('click', async ()=>{
   openOverlay('mentions-overlay');
   await applyLegalContent('mentions', 'mentions-legal-body');
+});
+
+// Liens "CGU" / "mentions légales" à l'intérieur du formulaire d'inscription :
+// ouvrent la modale légale correspondante par-dessus la modale de compte,
+// sans cocher la case à la place de l'utilisateur (lecture explicite requise).
+document.querySelectorAll('[data-open-legal]').forEach(link=>{
+  link.addEventListener('click', async (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    const key = link.dataset.openLegal;
+    const bodyElId = key === 'cgu' ? 'cgu-legal-body' : 'mentions-legal-body';
+    const overlayId = key === 'cgu' ? 'cgu-overlay' : 'mentions-overlay';
+    openOverlay(overlayId);
+    await applyLegalContent(key, bodyElId);
+  });
 });
 
 document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
@@ -3963,6 +3992,10 @@ document.getElementById('signup-submit').addEventListener('click', async ()=>{
   const name = document.getElementById('signup-name').value.trim();
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
+  if(!document.getElementById('signup-terms').checked){
+    showAuthError('signup-error', "Tu dois accepter les CGU et les mentions légales pour créer un compte.");
+    return;
+  }
   if(!email || !password){ showAuthError('signup-error', "Merci de remplir tous les champs."); return; }
   const btn = document.getElementById('signup-submit');
   btn.disabled = true; btn.textContent = 'Création…';
@@ -3990,7 +4023,13 @@ async function googleAuth(){
   }
 }
 document.getElementById('google-login-btn').addEventListener('click', googleAuth);
-document.getElementById('google-signup-btn').addEventListener('click', googleAuth);
+document.getElementById('google-signup-btn').addEventListener('click', ()=>{
+  if(!document.getElementById('signup-terms').checked){
+    showAuthError('signup-error', "Tu dois accepter les CGU et les mentions légales pour créer un compte.");
+    return;
+  }
+  googleAuth();
+});
 document.getElementById('forgot-link').addEventListener('click', async ()=>{
   const email = document.getElementById('login-email').value.trim();
   if(!email){ showAuthError('login-error', "Entre ton adresse e-mail ci-dessus, puis clique à nouveau sur ce lien."); return; }
