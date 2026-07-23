@@ -99,6 +99,8 @@
   }
   .user-dropdown button:hover{ background: var(--cream-2); color: var(--red); }
   .user-dropdown .dd-mail{ color: var(--text-dim); color:#8a7a6a; font-size:0.7rem; padding:0.5rem 0.8rem 0.3rem; border-bottom:1px solid var(--cream-2); margin-bottom:0.2rem; }
+  .user-dropdown button.dd-danger{ color: var(--red-dim); }
+  .user-dropdown button.dd-danger:hover{ background: #fdeceb; color: var(--red); }
 
   /* ---------- Header / Hero ---------- */
   header{
@@ -861,6 +863,8 @@
     <div class="user-dropdown">
       <div class="dd-mail" id="user-email-label">—</div>
       <button id="dd-edit-profile">Modifier le profil</button>
+      <button id="dd-export-data">Télécharger mes données</button>
+      <button id="dd-delete-account" class="dd-danger">Supprimer mon compte</button>
       <button id="dd-logout">Se déconnecter</button>
     </div>
   </div>
@@ -3837,13 +3841,108 @@ const userEmailLabel = document.getElementById('user-email-label');
 
 accountBtn.addEventListener('click', ()=>{ clearAuthErrors(); openOverlay('account-overlay'); });
 userChip.addEventListener('click', (e)=>{
-  if(e.target.closest('#dd-logout') || e.target.closest('#dd-edit-profile')) return;
+  if(e.target.closest('#dd-logout') || e.target.closest('#dd-edit-profile') || e.target.closest('#dd-export-data') || e.target.closest('#dd-delete-account')) return;
   userChip.classList.toggle('open');
 });
 document.addEventListener('click', (e)=>{ if(!userChip.contains(e.target)) userChip.classList.remove('open'); });
 document.getElementById('dd-logout').addEventListener('click', async ()=>{
   await auth.signOut();
   userChip.classList.remove('open');
+});
+
+/* Téléchargement des données personnelles de l'utilisateur connecté (profil,
+   réactions, vidéos vues, abonnements) sous forme d'un fichier JSON, sans
+   lecture Firestore supplémentaire au-delà de ce qui est strictement
+   nécessaire pour constituer l'export. */
+document.getElementById('dd-export-data').addEventListener('click', async ()=>{
+  userChip.classList.remove('open');
+  const user = auth.currentUser;
+  if(!user || user.isAnonymous){ clearAuthErrors(); openOverlay('account-overlay'); return; }
+
+  const btn = document.getElementById('dd-export-data');
+  const originalText = btn.textContent;
+  btn.textContent = 'Préparation…';
+  btn.disabled = true;
+  try{
+    const [profileSnap, reactionsSnap, watchedSnap, subsSnap] = await Promise.all([
+      usersRef.doc(user.uid).get(),
+      userReactionsRef.doc(user.uid).get(),
+      userWatchedRef.doc(user.uid).get(),
+      userSubsCollection(user.uid).get()
+    ]);
+    const exportData = {
+      compte: {
+        uid: user.uid,
+        email: user.email || null,
+        nomAffiche: (profileSnap.exists && profileSnap.data().displayName) || user.displayName || null,
+        photoURL: (profileSnap.exists && profileSnap.data().photoURL) || user.photoURL || null,
+        dateCreation: (user.metadata && user.metadata.creationTime) || null
+      },
+      reactions: (reactionsSnap.exists && reactionsSnap.data().reactions) || {},
+      videosVues: (watchedSnap.exists && watchedSnap.data().watched) || {},
+      abonnements: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      exporteLe: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rijoul-mes-donnees-${user.uid}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }catch(e){
+    console.error('Erreur export des données :', e);
+    alert("Impossible de récupérer tes données pour le moment. Réessaie plus tard.");
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+});
+
+/* Suppression définitive du compte utilisateur : efface le profil partagé,
+   les réactions, les vidéos vues et les abonnements de l'utilisateur, puis
+   supprime le compte Firebase Authentication lui-même. Double confirmation
+   requise avant toute suppression. */
+document.getElementById('dd-delete-account').addEventListener('click', async ()=>{
+  userChip.classList.remove('open');
+  const user = auth.currentUser;
+  if(!user || user.isAnonymous){ clearAuthErrors(); openOverlay('account-overlay'); return; }
+
+  if(!confirm("Supprimer définitivement ton compte ? Cette action est irréversible : ton profil, tes réactions, tes vidéos vues et tes abonnements seront effacés.")) return;
+  if(!confirm("Dernière confirmation : ton compte RIJOUL va être supprimé définitivement. Continuer ?")) return;
+
+  const btn = document.getElementById('dd-delete-account');
+  const originalText = btn.textContent;
+  btn.textContent = 'Suppression…';
+  btn.disabled = true;
+  try{
+    const uid = user.uid;
+    const subsSnap = await userSubsCollection(uid).get();
+    const batch = db.batch();
+    subsSnap.forEach(d => batch.delete(d.ref));
+    batch.delete(usersRef.doc(uid));
+    batch.delete(userReactionsRef.doc(uid));
+    batch.delete(userWatchedRef.doc(uid));
+    await batch.commit();
+
+    for(const key of ['reactions_' + uid, 'watched_' + uid, 'subs_' + uid]) lsRemove(key);
+
+    await user.delete();
+    alert("Ton compte a bien été supprimé.");
+  }catch(e){
+    console.error('Erreur suppression du compte :', e);
+    if(e.code === 'auth/requires-recent-login'){
+      alert("Pour des raisons de sécurité, merci de te reconnecter puis de réessayer immédiatement.");
+      try{ await auth.signOut(); }catch(err){}
+    }else{
+      alert("Impossible de supprimer ton compte pour le moment. Réessaie plus tard.");
+    }
+  }finally{
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 });
 
 function renderAccountUI(label, photoURL){
