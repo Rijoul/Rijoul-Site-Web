@@ -938,7 +938,7 @@
     </div>
   </section>
 
-  <!-- Section Abonnements : chaînes suivies par l'utilisateur connecté + leurs vidéos (déduites des vidéos déjà chargées, sans lecture supplémentaire) -->
+  <!-- Section Abonnements : chaînes suivies par l'utilisateur connecté + leurs vidéos -->
   <section class="page-section" id="section-subs">
     <div class="section-head">
       <div class="section-title">Abonnements</div>
@@ -1406,7 +1406,7 @@ let channelsCache = {};               // { channelDocId: { data, ts } } — en m
 let userSubscribedKeys = new Set();   // Set des channelDocId suivis par l'utilisateur courant
 let subscribeInFlight = new Set();
 let selectedSubChannelCdId = null;    // Chaîne actuellement sélectionnée dans "Abonnements" (aucune vidéo tant que rien n'est sélectionné)
-let subsChannelVideosCache = {};      // { cdId: { long: [], short: [], loading: bool, loaded: bool } } — 20 dernières vidéos / 10 derniers shorts de la chaîne sélectionnée, lus directement depuis Firestore
+let subsChannelVideosCache = {};      // { cdId: { long: [], short: [], loading: bool, loaded: bool, error: bool } } — vidéos/shorts de la chaîne sélectionnée, lus directement depuis Firestore
 
 /* =========================================================
    Utilitaires : détection de plateforme / format
@@ -2203,28 +2203,52 @@ async function unsubscribeChannel(cdId){
   }
 }
 
-/* Charge, directement depuis Firestore, les 20 dernières vidéos (format
-   long) et les 10 derniers shorts d'UNE chaîne précise (celle sélectionnée
-   dans la section Abonnements), au lieu de se limiter aux vidéos déjà
-   paginées dans les sections Vidéos/Shorts. Résultat mis en cache en
-   mémoire pour la durée de la session, par chaîne (cdId), afin de ne
-   relancer la requête qu'une seule fois par sélection. */
+/* =========================================================
+   CORRECTIF PRINCIPAL — chargement des vidéos d'une chaîne
+   sélectionnée dans la section Abonnements.
+
+   Ancienne version : la requête combinait DEUX filtres d'égalité
+   (author + isShort) ET un orderBy('sortDate'), ce qui nécessite
+   un INDEX COMPOSITE Firestore dédié (author + isShort + sortDate).
+   Cet index n'existait pas, donc la requête échouait silencieusement
+   à chaque fois (l'erreur ne partait que dans la console), et la
+   section affichait "Aucune vidéo trouvée" pour absolument toutes
+   les chaînes, même celles qui avaient des vidéos.
+
+   Nouvelle version : une seule requête à égalité simple sur
+   `author` (toujours indexée nativement par Firestore, aucun index
+   composite requis), puis tri + séparation long/short faits en
+   mémoire côté client — comme le fait déjà sortForHome() pour
+   l'accueil. On garde aussi un indicateur d'erreur explicite pour
+   ne plus confondre "aucune vidéo" et "la requête a échoué".
+   ========================================================= */
 async function fetchChannelRecentVideos(cdId, channelName){
   if(!cdId || !channelName) return;
-  const cache = subsChannelVideosCache[cdId] || (subsChannelVideosCache[cdId] = { long: [], short: [], loading: false, loaded: false });
+  const cache = subsChannelVideosCache[cdId] || (subsChannelVideosCache[cdId] = { long: [], short: [], loading: false, loaded: false, error: false });
   if(cache.loading || cache.loaded) return;
   cache.loading = true;
+  cache.error = false;
   renderAllSections();
   try{
-    const [longSnap, shortSnap] = await Promise.all([
-      videosRef.where('author', '==', channelName).where('isShort', '==', false).orderBy('sortDate', 'desc').limit(20).get(),
-      videosRef.where('author', '==', channelName).where('isShort', '==', true).orderBy('sortDate', 'desc').limit(10).get()
-    ]);
-    cache.long = longSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    cache.short = shortSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Requête à égalité simple uniquement : ne nécessite aucun index
+    // composite Firestore, contrairement à l'ancienne requête qui
+    // combinait author + isShort + orderBy(sortDate).
+    const snap = await videosRef.where('author', '==', channelName).limit(200).get();
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    cache.long = all
+      .filter(v => !v.isShort)
+      .sort((a, b) => effectiveMillis(b) - effectiveMillis(a))
+      .slice(0, 20);
+    cache.short = all
+      .filter(v => v.isShort)
+      .sort((a, b) => effectiveMillis(b) - effectiveMillis(a))
+      .slice(0, 10);
+
     await ensureChannelsLoadedForDocs(cache.long.concat(cache.short));
   }catch(e){
     console.error('Erreur chargement des vidéos de la chaîne sélectionnée :', e);
+    cache.error = true;
   }finally{
     cache.loading = false;
     cache.loaded = true;
@@ -2484,7 +2508,22 @@ function renderSubsSection(){
         const cdId = card.dataset.channelCdid;
         const wasSelected = selectedSubChannelCdId === cdId;
         selectedSubChannelCdId = wasSelected ? null : cdId;
+
+        // Pré-initialise l'état de chargement AVANT le rendu suivant, pour
+        // éviter le flash "Aucune vidéo trouvée" qui apparaissait un court
+        // instant avant que le message "Chargement…" ne s'affiche.
+        if(!wasSelected){
+          const entry = channelsCache[cdId];
+          const name = entry && entry.data && entry.data.name;
+          if(name){
+            if(!subsChannelVideosCache[cdId]){
+              subsChannelVideosCache[cdId] = { long: [], short: [], loading: true, loaded: false, error: false };
+            }
+          }
+        }
+
         renderAllSections();
+
         if(!wasSelected){
           const entry = channelsCache[cdId];
           const name = entry && entry.data && entry.data.name;
@@ -2507,19 +2546,24 @@ function renderSubsSection(){
   const selectedName = (selectedEntry && selectedEntry.data && selectedEntry.data.name) || 'cette chaîne';
   if(subtitleEl) subtitleEl.textContent = `Vidéos de ${selectedName}`;
 
-  // Les 20 dernières vidéos (format long) et les 10 derniers shorts de la
-  // chaîne sélectionnée sont chargés directement depuis Firestore (voir
-  // fetchChannelRecentVideos), et non plus filtrés parmi les vidéos déjà
-  // paginées dans les sections Vidéos/Shorts.
+  // Les vidéos (format long) et les shorts de la chaîne sélectionnée sont
+  // chargés directement depuis Firestore (voir fetchChannelRecentVideos, qui
+  // utilise désormais une requête à égalité simple sur `author`, sans index
+  // composite requis), et non plus filtrés parmi les vidéos déjà paginées
+  // dans les sections Vidéos/Shorts.
   const channelCache = subsChannelVideosCache[selectedSubChannelCdId];
   const loadingChannel = !!(channelCache && channelCache.loading);
+  const errorChannel = !!(channelCache && channelCache.error);
   const longVideos = (channelCache && channelCache.long) || [];
   const shortVideos = (channelCache && channelCache.short) || [];
   const loadingMsg = "Chargement des vidéos de cette chaîne…";
+  const errorMsg = "Impossible de charger les vidéos de cette chaîne pour le moment. Réessaie dans un instant.";
 
   shortsHead.style.display = '';
-  renderVideoGrid('subs-videos-grid', 'subs-videos-count', longVideos, loadingChannel ? loadingMsg : "Aucune vidéo (format long) trouvée pour cette chaîne.", null, false);
-  renderVideoGrid('subs-shorts-grid', 'subs-shorts-count', shortVideos, loadingChannel ? loadingMsg : "Aucun short trouvé pour cette chaîne.", null, false);
+  renderVideoGrid('subs-videos-grid', 'subs-videos-count', longVideos,
+    loadingChannel ? loadingMsg : errorChannel ? errorMsg : "Aucune vidéo (format long) trouvée pour cette chaîne.", null, false);
+  renderVideoGrid('subs-shorts-grid', 'subs-shorts-count', shortVideos,
+    loadingChannel ? loadingMsg : errorChannel ? errorMsg : "Aucun short trouvé pour cette chaîne.", null, false);
 }
 
 function escapeHtml(str){
