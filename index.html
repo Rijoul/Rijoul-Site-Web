@@ -1181,6 +1181,19 @@
   </div>
 </div>
 
+<!-- Playlist delete choice modal -->
+<div class="overlay" id="playlist-delete-choice-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="playlist-delete-choice-overlay">&times;</button>
+    <h2>Supprimer la playlist</h2>
+    <div class="modal-hint" id="playlist-delete-choice-hint">Choisis comment supprimer cette playlist.</div>
+    <div class="modal-actions" style="flex-direction:column; align-items:stretch; gap:0.7rem;">
+      <button class="btn" id="playlist-delete-choice-mine">Supprimer pour moi uniquement</button>
+      <button class="btn primary" id="playlist-delete-choice-everyone">Supprimer pour tout le monde</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit video modal -->
 <div class="overlay" id="edit-overlay">
   <div class="modal">
@@ -1455,6 +1468,9 @@ let selectedPlaylistId = null;
 let playlistVideosCache = {};
 let playlistPickerVideo = null;
 let playlistOpInFlight = new Set();
+let playlistListenerUnsubs = [];
+let playlistListenerUid = null;
+let playlistDeleteChoiceId = null;
 
 /* =========================================================
    Utilitaires : détection de plateforme / format
@@ -2196,9 +2212,14 @@ async function unsubscribeChannel(cdId){
      compte existant correspond déjà à l'e-mail invité, sinon dès que la
      personne se connecte un jour avec cette adresse (voir loadUserPlaylists,
      jointure automatique).
-   - Seul le propriétaire peut renommer, supprimer ou partager une playlist.
+   - Seul le propriétaire peut supprimer une playlist pour tout le monde ou
+     la partager avec de nouvelles personnes.
    - N'importe quel membre (propriétaire ou invité) peut ajouter/retirer des
-     vidéos.
+     vidéos, renommer la playlist, ou la quitter (« supprimer pour moi »).
+   - Les playlists sont synchronisées EN TEMPS RÉEL entre tous les membres
+     via des écouteurs Firestore (onSnapshot) : dès qu'un membre ajoute ou
+     retire une vidéo, tous les autres membres le voient automatiquement,
+     sans avoir besoin de recharger la page.
    ========================================================= */
 function playlistCacheKey(uid){ return 'playlists_' + uid; }
 function persistPlaylistsCache(){
@@ -2206,55 +2227,96 @@ function persistPlaylistsCache(){
   lsSet(playlistCacheKey(auth.currentUser.uid), { ts: Date.now(), data: userPlaylists });
 }
 
-async function loadUserPlaylists(uid, force){
-  if(playlistsInitialized && !force) return;
-  const cacheKey = playlistCacheKey(uid);
-  if(!force){
-    const cached = lsGet(cacheKey);
-    if(cached){
-      userPlaylists = cached.data || [];
-      if((Date.now() - cached.ts) < CACHE_TTL_MS){
-        playlistsInitialized = true;
-        renderAllSections();
-        return;
-      }
-      renderAllSections();
-    }
+function removePlaylistLocally(id){
+  userPlaylists = userPlaylists.filter(p => p.id !== id);
+  delete playlistVideosCache[id];
+  if(selectedPlaylistId === id) selectedPlaylistId = null;
+}
+
+function upsertPlaylistFromDoc(doc){
+  const data = { id: doc.id, ...doc.data() };
+  const idx = userPlaylists.findIndex(p => p.id === doc.id);
+  const prev = idx !== -1 ? userPlaylists[idx] : null;
+  if(idx !== -1){ userPlaylists[idx] = data; } else { userPlaylists.push(data); }
+
+  // Si les vidéos de cette playlist ont changé (ajout/retrait par un autre
+  // membre, ou par nous-même sur un autre appareil), on invalide le cache
+  // de ses vidéos et on recharge immédiatement si elle est actuellement
+  // ouverte, pour une synchronisation en temps réel entre tous les membres.
+  const prevIds = (prev && prev.videoIds) || [];
+  const newIds = data.videoIds || [];
+  const idsChanged = prevIds.length !== newIds.length || prevIds.some((vid, i) => vid !== newIds[i]);
+  if(idsChanged){
+    delete playlistVideosCache[doc.id];
+    if(selectedPlaylistId === doc.id) fetchPlaylistVideos(doc.id);
   }
-  try{
-    const email = ((auth.currentUser && auth.currentUser.email) || '').toLowerCase();
-    const queries = [playlistsRef.where('memberUids', 'array-contains', uid).get()];
-    if(email) queries.push(playlistsRef.where('memberEmails', 'array-contains', email).get());
-    const snaps = await Promise.all(queries);
-    const map = {};
-    snaps.forEach(snap => snap.docs.forEach(d => { map[d.id] = { id: d.id, ...d.data() }; }));
-    userPlaylists = Object.values(map);
+}
 
-    // Jointure automatique : une playlist trouvée via l'e-mail (partagée
-    // avant que ce compte existe, ou depuis un autre appareil) mais dont
-    // l'uid courant n'est pas encore dans memberUids se voit ajouter cet
-    // uid, pour un accès cohérent partout ailleurs dans le code (qui
-    // s'appuie sur memberUids).
-    for(const pl of userPlaylists){
-      if(!(pl.memberUids || []).includes(uid)){
-        try{
-          await playlistsRef.doc(pl.id).update({
-            memberUids: firebase.firestore.FieldValue.arrayUnion(uid),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          pl.memberUids = [...(pl.memberUids || []), uid];
-        }catch(e){ console.warn('Jointure automatique de playlist impossible :', e); }
+function detachPlaylistListeners(){
+  playlistListenerUnsubs.forEach(unsub=>{ try{ unsub(); }catch(e){} });
+  playlistListenerUnsubs = [];
+  playlistListenerUid = null;
+}
+
+// Branche des écouteurs Firestore en temps réel sur toutes les playlists
+// accessibles par cet utilisateur (via memberUids, et via memberEmails s'il
+// a une adresse e-mail). Remplace l'ancien chargement ponctuel (get()) afin
+// que toute modification (ajout/retrait de vidéo, renommage, suppression,
+// nouvel accès partagé) se répercute instantanément chez tous les membres.
+function attachPlaylistsListeners(uid){
+  if(playlistListenerUid === uid) return;
+  detachPlaylistListeners();
+  playlistListenerUid = uid;
+
+  const cacheKey = playlistCacheKey(uid);
+  const cached = lsGet(cacheKey);
+  if(cached){
+    userPlaylists = cached.data || [];
+    renderAllSections();
+  }
+
+  const handleSnapshot = (snap)=>{
+    snap.docChanges().forEach(change=>{
+      if(change.type === 'removed'){
+        removePlaylistLocally(change.doc.id);
+      }else{
+        upsertPlaylistFromDoc(change.doc);
       }
-    }
-
-    lsSet(cacheKey, { ts: Date.now(), data: userPlaylists });
+    });
     playlistsInitialized = true;
-  }catch(e){
-    console.error('Playlists indisponibles :', e);
-  }finally{
+    persistPlaylistsCache();
     renderAllSections();
     if(document.getElementById('playlist-picker-overlay').classList.contains('open')) renderPlaylistPickerList();
+
+    // Jointure automatique : une playlist retrouvée via l'e-mail (partagée
+    // avant que ce compte existe, ou depuis un autre appareil) mais dont
+    // l'uid courant n'est pas encore dans memberUids se voit ajouter cet
+    // uid, pour un accès cohérent partout ailleurs dans le code.
+    snap.docs.forEach(doc=>{
+      const data = doc.data();
+      if(!(data.memberUids || []).includes(uid)){
+        playlistsRef.doc(doc.id).update({
+          memberUids: firebase.firestore.FieldValue.arrayUnion(uid),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(e=> console.warn('Jointure automatique de playlist impossible :', e));
+      }
+    });
+  };
+
+  const unsub1 = playlistsRef.where('memberUids', 'array-contains', uid)
+    .onSnapshot(handleSnapshot, e=> console.error('Playlists (memberUids) indisponibles :', e));
+  playlistListenerUnsubs.push(unsub1);
+
+  const email = ((auth.currentUser && auth.currentUser.email) || '').toLowerCase();
+  if(email){
+    const unsub2 = playlistsRef.where('memberEmails', 'array-contains', email)
+      .onSnapshot(handleSnapshot, e=> console.error('Playlists (memberEmails) indisponibles :', e));
+    playlistListenerUnsubs.push(unsub2);
   }
+}
+
+function loadUserPlaylists(uid){
+  attachPlaylistsListeners(uid);
 }
 
 async function createPlaylist(name, videoIdToAdd){
@@ -2275,7 +2337,8 @@ async function createPlaylist(name, videoIdToAdd){
   await docRef.set(payload);
   const nowTs = firebase.firestore.Timestamp.now();
   const local = { id: docRef.id, ...payload, createdAt: nowTs, updatedAt: nowTs };
-  userPlaylists.push(local);
+  const idx = userPlaylists.findIndex(p => p.id === docRef.id);
+  if(idx === -1) userPlaylists.push(local); else userPlaylists[idx] = local;
   persistPlaylistsCache();
   renderAllSections();
   return local;
@@ -2291,13 +2354,35 @@ async function renamePlaylistById(id, newName){
   renderAllSections();
 }
 
+// Supprime la playlist définitivement, pour tous ses membres.
 async function deletePlaylistById(id){
   await playlistsRef.doc(id).delete();
-  userPlaylists = userPlaylists.filter(p => p.id !== id);
-  delete playlistVideosCache[id];
-  if(selectedPlaylistId === id) selectedPlaylistId = null;
+  removePlaylistLocally(id);
   persistPlaylistsCache();
   renderAllSections();
+}
+
+// Retire uniquement l'utilisateur courant de la playlist (« supprimer pour
+// moi ») : elle disparaît de sa liste mais reste intacte pour les autres
+// membres, qui continuent à la voir et à la modifier normalement.
+async function leavePlaylist(id){
+  const user = auth.currentUser;
+  if(!user || user.isAnonymous) return;
+  try{
+    const updates = {
+      memberUids: firebase.firestore.FieldValue.arrayRemove(user.uid),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    const myEmail = (user.email || '').toLowerCase();
+    if(myEmail) updates.memberEmails = firebase.firestore.FieldValue.arrayRemove(myEmail);
+    await playlistsRef.doc(id).update(updates);
+    removePlaylistLocally(id);
+    persistPlaylistsCache();
+    renderAllSections();
+  }catch(e){
+    console.error('Erreur en quittant la playlist :', e);
+    alert("Impossible de quitter cette playlist pour le moment.");
+  }
 }
 
 function playlistNameById(id){
@@ -2335,7 +2420,7 @@ async function toggleVideoInPlaylist(playlistId, videoId, shouldAdd){
 // besoin de correspondre à un compte RIJOUL existant. Si un compte existe
 // déjà avec cette adresse, il obtient un accès immédiat (memberUids mis à
 // jour tout de suite) ; sinon, l'accès se met en place automatiquement dès
-// que cette adresse se connecte un jour (voir loadUserPlaylists).
+// que cette adresse se connecte un jour (voir attachPlaylistsListeners).
 async function sharePlaylistWithEmail(playlistId, email){
   const trimmed = (email || '').trim().toLowerCase();
   if(!trimmed) return { error: "Merci d'entrer une adresse e-mail." };
@@ -2400,7 +2485,6 @@ async function fetchPlaylistVideos(playlistId){
   const pl = userPlaylists.find(p => p.id === playlistId);
   if(!pl) return;
   const cache = playlistVideosCache[playlistId] || (playlistVideosCache[playlistId] = { videos: [], loading: false, loaded: false });
-  if(cache.loaded) return;
   cache.loading = true;
   renderAllSections();
   try{
@@ -2447,12 +2531,12 @@ function renderPlaylistsSection(){
       const isSelected = pl.id === selectedPlaylistId;
       return `
         <div class="sub-channel-card ${isSelected ? 'selected' : ''}" data-playlist-id="${pl.id}">
-          ${isOwner ? `<button class="sub-channel-untrack" data-delete-playlist="${pl.id}" title="Supprimer la playlist">✕</button>` : ''}
+          <button class="sub-channel-untrack" data-delete-playlist="${pl.id}" title="Supprimer la playlist">✕</button>
           <div class="sub-channel-avatar">${escapeHtml((pl.name||'?').trim().charAt(0).toUpperCase())}</div>
           <div class="sub-channel-name">${escapeHtml(pl.name)}</div>
           <div class="sub-channel-meta">${count} vidéo${count > 1 ? 's' : ''}${isShared ? ' · partagée' : ''}${!isOwner ? ' · invité' : ''}</div>
           <div style="display:flex; gap:0.4rem; margin-top:0.3rem; flex-wrap:wrap;">
-            ${isOwner ? `<button class="btn" data-rename-playlist="${pl.id}" style="padding:0.35rem 0.7rem; font-size:0.68rem; border-color:var(--cream-2); color:var(--dark-text);">✎ Renommer</button>` : ''}
+            <button class="btn" data-rename-playlist="${pl.id}" style="padding:0.35rem 0.7rem; font-size:0.68rem; border-color:var(--cream-2); color:var(--dark-text);">✎ Renommer</button>
             ${isOwner ? `<button class="btn" data-share-playlist="${pl.id}" style="padding:0.35rem 0.7rem; font-size:0.68rem; border-color:var(--cream-2); color:var(--dark-text);">Partager</button>` : ''}
           </div>
           <div class="sub-channel-hint">${isSelected ? 'Vidéos affichées ↓' : 'Voir les vidéos →'}</div>
@@ -2463,8 +2547,7 @@ function renderPlaylistsSection(){
     listEl.querySelectorAll('[data-delete-playlist]').forEach(btn=>{
       btn.addEventListener('click', (e)=>{
         e.stopPropagation();
-        const id = btn.dataset.deletePlaylist;
-        if(confirm(`Supprimer la playlist « ${playlistNameById(id)} » ? Cette action est irréversible.`)) deletePlaylistById(id);
+        openPlaylistDeleteChoice(btn.dataset.deletePlaylist);
       });
     });
     listEl.querySelectorAll('[data-rename-playlist]').forEach(btn=>{
@@ -2525,6 +2608,29 @@ function renderPlaylistShareMembers(id){
   const emails = (pl.memberEmails || []).filter(e => e !== myEmail);
   el.textContent = emails.length > 0 ? `Déjà partagée avec : ${emails.join(', ')}` : "Pas encore partagée.";
 }
+
+// Ouvre le choix « supprimer pour moi / pour tout le monde », proposé à
+// TOUS les membres d'une playlist (propriétaire ou invité).
+function openPlaylistDeleteChoice(id){
+  playlistDeleteChoiceId = id;
+  const name = playlistNameById(id);
+  document.getElementById('playlist-delete-choice-hint').textContent = `Que veux-tu faire de « ${name} » ?`;
+  openOverlay('playlist-delete-choice-overlay');
+}
+document.getElementById('playlist-delete-choice-mine').addEventListener('click', async ()=>{
+  const id = playlistDeleteChoiceId;
+  closeOverlay('playlist-delete-choice-overlay');
+  if(!id) return;
+  await leavePlaylist(id);
+});
+document.getElementById('playlist-delete-choice-everyone').addEventListener('click', async ()=>{
+  const id = playlistDeleteChoiceId;
+  const name = playlistNameById(id);
+  closeOverlay('playlist-delete-choice-overlay');
+  if(!id) return;
+  if(!confirm(`Supprimer définitivement « ${name} » pour tous les membres ? Cette action est irréversible.`)) return;
+  await deletePlaylistById(id);
+});
 
 function openPlaylistPicker(v){
   if(!isConnected){
@@ -4718,6 +4824,7 @@ auth.onAuthStateChanged(async (user)=>{
     loadUserSubs(realUser.uid);
     loadUserPlaylists(realUser.uid);
   }else{
+    detachPlaylistListeners();
     userSubscribedKeys = new Set();
     userPlaylists = [];
     playlistsInitialized = false;
