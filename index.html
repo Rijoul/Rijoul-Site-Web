@@ -261,26 +261,28 @@
   body.admin-mode .edit-btn{ display:flex; }
 
   /* ---------- Badges "NEW" (moins de 24h) et "VU" (déjà visionnée) ----------
-     Ruban diagonal placé dans le coin supérieur droit, au-dessus de la
-     miniature. Le ruban dépasse volontairement de la carte (right négatif)
-     et est tronqué proprement par le overflow:hidden + border-radius de
-     .card, ce qui donne l'effet de "coin plié" bien net dans l'angle. */
+     Pastille arrondie façon "pilule", cohérente avec le reste des éléments
+     du site (boutons d'abonnement, navigation…), plutôt qu'un ruban diagonal
+     qui dépassait de la carte. Reste bien visible grâce au contraste de
+     couleur, à l'icône et à l'ombre portée, sans dénaturer le visuel de la
+     miniature. */
   .card-flag-badge{
-    position:absolute; top:16px; right:-38px; z-index:3;
-    transform: rotate(45deg);
-    transform-origin: center;
-    width:150px;
-    font-family:'Fredoka', sans-serif; font-weight:700; font-size:0.64rem;
-    letter-spacing:0.08em; text-transform:uppercase; color:#fff; text-align:center;
-    padding:0.32rem 0; pointer-events:none;
-    box-shadow: 0 4px 10px -3px rgba(0,0,0,0.4);
+    position:absolute; top:10px; right:10px; z-index:3;
+    display:inline-flex; align-items:center; gap:0.32rem;
+    font-family:'Fredoka', sans-serif; font-weight:700; font-size:0.66rem;
+    letter-spacing:0.06em; text-transform:uppercase; color:#fff;
+    padding:0.36rem 0.75rem; border-radius:999px;
+    border: 1.5px solid rgba(255,255,255,0.55);
+    box-shadow: 0 6px 14px -4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+    pointer-events:none;
   }
+  .card-flag-badge svg{ width:11px; height:11px; flex-shrink:0; }
   .card-flag-badge.badge-new{ background: var(--red); }
   .card-flag-badge.badge-watched{ background:#1d63ff; }
   /* En mode admin, les boutons supprimer/modifier occupent déjà le coin
-     supérieur droit : on décale légèrement le ruban vers le bas pour éviter
-     tout chevauchement avec ces boutons. */
-  body.admin-mode .card-flag-badge{ top:52px; }
+     supérieur droit : on décale légèrement la pastille vers le bas pour
+     éviter tout chevauchement avec ces boutons. */
+  body.admin-mode .card-flag-badge{ top:46px; }
 
   .card.is-new{
     background: linear-gradient(160deg, var(--red) 0%, var(--red-dim) 100%);
@@ -2354,10 +2356,10 @@ function subsCountHtml(v){
 function cardFlagBadgeHtml(v){
   const watched = !!userWatched[v.id];
   if(watched){
-    return '<span class="card-flag-badge badge-watched">VU</span>';
+    return '<span class="card-flag-badge badge-watched"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>VU</span>';
   }
   if(isNewVideo(v)){
-    return '<span class="card-flag-badge badge-new">NEW</span>';
+    return '<span class="card-flag-badge badge-new"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.8L20 9.3l-5 3.8L16.5 20 12 16.3 7.5 20l1.5-6.9-5-3.8 6.1-1.5z"/></svg>NEW</span>';
   }
   return '';
 }
