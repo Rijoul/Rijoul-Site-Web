@@ -880,6 +880,7 @@
     <button class="site-nav-btn" data-section="section-home">Accueil</button>
     <button class="site-nav-btn" data-section="section-videos">Vidéos</button>
     <button class="site-nav-btn" data-section="section-shorts">Shorts</button>
+    <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
     <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
   </nav>
 </header>
@@ -940,6 +941,25 @@
     <div class="load-more-row">
       <button class="btn primary load-more-btn" id="load-more-shorts">Afficher plus</button>
     </div>
+  </section>
+
+  <!-- Section Playlists : playlists personnelles de l'utilisateur connecté,
+       éventuellement partagées et synchronisées avec un autre compte. -->
+  <section class="page-section" id="section-playlists">
+    <div class="section-head">
+      <div class="section-title">Playlists</div>
+      <div class="section-count-row">
+        <button class="btn primary" id="create-playlist-btn" style="padding:0.6rem 1.2rem; font-size:0.78rem;">+ Nouvelle playlist</button>
+      </div>
+    </div>
+    <p class="subs-intro" id="playlists-intro">Connecte-toi pour créer et gérer tes playlists.</p>
+    <div class="subs-channels-list" id="playlists-list"></div>
+
+    <div class="section-head">
+      <div class="section-subtitle" id="playlist-videos-subtitle" style="margin:0;">Vidéos de la playlist</div>
+      <div class="section-count" id="playlist-videos-count"></div>
+    </div>
+    <div class="grid" id="playlist-videos-grid"></div>
   </section>
 
   <!-- Section Abonnements : chaînes suivies par l'utilisateur connecté + leurs vidéos -->
@@ -1120,6 +1140,74 @@
     </div>
     <div class="modal-actions">
       <button class="btn" data-close="channels-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Playlist picker modal (ajouter / retirer une vidéo de ses playlists) -->
+<div class="overlay" id="playlist-picker-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="playlist-picker-overlay">&times;</button>
+    <h2>Ajouter à une playlist</h2>
+    <div class="modal-hint">Coche les playlists dans lesquelles ajouter cette vidéo, décoche pour l'en retirer.</div>
+    <div id="playlist-picker-list" style="margin-bottom:1.2rem;"></div>
+    <label for="playlist-picker-new-name">Nouvelle playlist</label>
+    <div class="add-channel-row">
+      <input type="text" id="playlist-picker-new-name" placeholder="Nom de la nouvelle playlist">
+      <button class="btn primary" id="playlist-picker-create-btn">Créer</button>
+    </div>
+    <div class="modal-error" id="playlist-picker-error"></div>
+    <div class="modal-actions">
+      <button class="btn primary" data-close="playlist-picker-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Playlist create modal -->
+<div class="overlay" id="playlist-create-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="playlist-create-overlay">&times;</button>
+    <h2>Nouvelle playlist</h2>
+    <label for="playlist-create-name">Nom de la playlist</label>
+    <input type="text" id="playlist-create-name" placeholder="Ex : Mes favoris">
+    <div class="modal-error" id="playlist-create-error"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="playlist-create-overlay">Annuler</button>
+      <button class="btn primary" id="playlist-create-submit">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Playlist rename modal -->
+<div class="overlay" id="playlist-rename-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="playlist-rename-overlay">&times;</button>
+    <h2>Renommer la playlist</h2>
+    <input type="hidden" id="playlist-rename-id">
+    <label for="playlist-rename-name">Nouveau nom</label>
+    <input type="text" id="playlist-rename-name" placeholder="Nom de la playlist">
+    <div class="modal-error" id="playlist-rename-error"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="playlist-rename-overlay">Annuler</button>
+      <button class="btn primary" id="playlist-rename-submit">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Playlist share modal -->
+<div class="overlay" id="playlist-share-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="playlist-share-overlay">&times;</button>
+    <h2>Partager la playlist</h2>
+    <input type="hidden" id="playlist-share-id">
+    <div class="modal-hint">Entre l'adresse e-mail du compte RIJOUL avec qui partager cette playlist. Les deux comptes verront et pourront modifier la même playlist, synchronisée pour les deux.</div>
+    <label for="playlist-share-email">Adresse e-mail</label>
+    <input type="email" id="playlist-share-email" placeholder="ami@exemple.com">
+    <div id="playlist-share-members" style="margin:-0.6rem 0 1.2rem; font-size:0.8rem; color:#6b5644; font-weight:600;"></div>
+    <div class="modal-error" id="playlist-share-error"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="playlist-share-overlay">Fermer</button>
+      <button class="btn primary" id="playlist-share-submit">Partager</button>
     </div>
   </div>
 </div>
@@ -1345,6 +1433,7 @@ let currentProfilePhoto = null;
 const userReactionsRef = db.collection('userReactions');
 const userWatchedRef = db.collection('userWatched');
 const channelsRef = db.collection('channels');
+const playlistsRef = db.collection('playlists');
 // Collection utilisée pour stocker le texte des CGU / Mentions légales,
 // éditable uniquement par l'administrateur (voir règles Firestore).
 const siteContentRef = db.collection('siteContent');
@@ -1417,6 +1506,16 @@ let subscribeInFlight = new Set();
 let selectedSubChannelCdId = null;    // Chaîne actuellement sélectionnée dans "Abonnements" (aucune vidéo tant que rien n'est sélectionné)
 let subsChannelVideosCache = {};      // { cdId: { long: [], short: [], loading: bool, loaded: bool, error: bool } } — vidéos/shorts de la chaîne sélectionnée, lus directement depuis Firestore
 let channelVideosFetchInFlight = new Set(); // cdId en cours de récupération réelle (distinct du flag "loading" utilisé pour l'affichage)
+
+// Playlists personnelles de l'utilisateur connecté (éventuellement partagées
+// avec un autre compte). Chaque playlist est un document Firestore contenant
+// { name, ownerUid, memberUids: [...], videoIds: [...] }.
+let userPlaylists = [];               // playlists dont l'utilisateur courant est membre (propriétaire ou invité)
+let playlistsInitialized = false;
+let selectedPlaylistId = null;
+let playlistVideosCache = {};         // { playlistId: { videos: [], loading, loaded } }
+let playlistPickerVideo = null;       // vidéo actuellement affichée dans la fenêtre "Ajouter à une playlist"
+let playlistOpInFlight = new Set();
 
 /* =========================================================
    Utilitaires : détection de plateforme / format
@@ -1796,6 +1895,8 @@ function showSection(id){
   }else if(id === 'section-subs'){
     // Réutilise les vidéos longues déjà chargées (ou les charge si jamais visitées)
     loadFirstPage('long');
+  }else if(id === 'section-playlists'){
+    if(isConnected) loadUserPlaylists(auth.currentUser.uid);
   }
 }
 document.querySelectorAll('.site-nav-btn').forEach(btn=>{
@@ -2214,6 +2315,431 @@ async function unsubscribeChannel(cdId){
 }
 
 /* =========================================================
+   PLAYLISTS — création, renommage, suppression, ajout/retrait de
+   vidéos et partage synchronisé entre deux comptes connectés.
+
+   Modèle de données Firestore (collection "playlists") :
+   { name, ownerUid, memberUids: [uid...], videoIds: [videoDocId...],
+     createdAt, updatedAt }
+   - "memberUids" contient toujours au moins le propriétaire ; partager la
+     playlist ajoute simplement l'uid de l'autre compte à ce tableau.
+   - Seul le propriétaire peut renommer, supprimer ou partager une playlist.
+   - N'importe quel membre (propriétaire ou invité) peut ajouter/retirer des
+     vidéos : la playlist reste ainsi synchronisée pour les deux comptes.
+   - Chaque utilisateur ne voit que les playlists dont il est membre
+     (requête "memberUids array-contains uid").
+   ========================================================= */
+function playlistCacheKey(uid){ return 'playlists_' + uid; }
+function persistPlaylistsCache(){
+  if(!auth.currentUser || auth.currentUser.isAnonymous) return;
+  lsSet(playlistCacheKey(auth.currentUser.uid), { ts: Date.now(), data: userPlaylists });
+}
+
+async function loadUserPlaylists(uid, force){
+  if(playlistsInitialized && !force) return;
+  const cacheKey = playlistCacheKey(uid);
+  if(!force){
+    const cached = lsGet(cacheKey);
+    if(cached){
+      userPlaylists = cached.data || [];
+      if((Date.now() - cached.ts) < CACHE_TTL_MS){
+        playlistsInitialized = true;
+        renderAllSections();
+        return; // cache encore valide : aucune lecture Firestore
+      }
+      renderAllSections();
+    }
+  }
+  try{
+    const snap = await playlistsRef.where('memberUids', 'array-contains', uid).get();
+    userPlaylists = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    lsSet(cacheKey, { ts: Date.now(), data: userPlaylists });
+    playlistsInitialized = true;
+  }catch(e){
+    console.error('Playlists indisponibles :', e);
+  }finally{
+    renderAllSections();
+    if(document.getElementById('playlist-picker-overlay').classList.contains('open')) renderPlaylistPickerList();
+  }
+}
+
+async function createPlaylist(name, videoIdToAdd){
+  const user = auth.currentUser;
+  if(!user || user.isAnonymous) return null;
+  const trimmed = (name || '').trim();
+  if(!trimmed) return null;
+  const docRef = playlistsRef.doc();
+  const payload = {
+    name: trimmed,
+    ownerUid: user.uid,
+    memberUids: [user.uid],
+    videoIds: videoIdToAdd ? [videoIdToAdd] : [],
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  await docRef.set(payload);
+  const nowTs = firebase.firestore.Timestamp.now();
+  const local = { id: docRef.id, ...payload, createdAt: nowTs, updatedAt: nowTs };
+  userPlaylists.push(local);
+  persistPlaylistsCache();
+  renderAllSections();
+  return local;
+}
+
+async function renamePlaylistById(id, newName){
+  const trimmed = (newName || '').trim();
+  if(!trimmed) return;
+  await playlistsRef.doc(id).update({ name: trimmed, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  const pl = userPlaylists.find(p => p.id === id);
+  if(pl) pl.name = trimmed;
+  persistPlaylistsCache();
+  renderAllSections();
+}
+
+async function deletePlaylistById(id){
+  await playlistsRef.doc(id).delete();
+  userPlaylists = userPlaylists.filter(p => p.id !== id);
+  delete playlistVideosCache[id];
+  if(selectedPlaylistId === id) selectedPlaylistId = null;
+  persistPlaylistsCache();
+  renderAllSections();
+}
+
+function playlistNameById(id){
+  const pl = userPlaylists.find(p => p.id === id);
+  return pl ? pl.name : 'Playlist';
+}
+
+async function toggleVideoInPlaylist(playlistId, videoId, shouldAdd){
+  const opKey = playlistId + '_' + videoId;
+  if(playlistOpInFlight.has(opKey)) return;
+  playlistOpInFlight.add(opKey);
+  try{
+    await playlistsRef.doc(playlistId).update({
+      videoIds: shouldAdd ? firebase.firestore.FieldValue.arrayUnion(videoId) : firebase.firestore.FieldValue.arrayRemove(videoId),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const pl = userPlaylists.find(p => p.id === playlistId);
+    if(pl){
+      pl.videoIds = pl.videoIds || [];
+      if(shouldAdd){ if(!pl.videoIds.includes(videoId)) pl.videoIds.push(videoId); }
+      else{ pl.videoIds = pl.videoIds.filter(id => id !== videoId); }
+    }
+    delete playlistVideosCache[playlistId]; // force le rechargement la prochaine fois qu'elle est ouverte
+    persistPlaylistsCache();
+    renderAllSections();
+  }catch(e){
+    console.error('Erreur mise à jour playlist :', e);
+    alert("Impossible de mettre à jour la playlist pour le moment.");
+  }finally{
+    playlistOpInFlight.delete(opKey);
+  }
+}
+
+async function sharePlaylistWithEmail(playlistId, email){
+  const trimmed = (email || '').trim().toLowerCase();
+  if(!trimmed) return { error: "Merci d'entrer une adresse e-mail." };
+  if(auth.currentUser && trimmed === (auth.currentUser.email || '').toLowerCase()){
+    return { error: "Tu ne peux pas te partager une playlist à toi-même." };
+  }
+  try{
+    const snap = await usersRef.where('email', '==', trimmed).limit(1).get();
+    if(snap.empty) return { error: "Aucun compte RIJOUL ne correspond à cette adresse e-mail." };
+    const targetUid = snap.docs[0].id;
+    await playlistsRef.doc(playlistId).update({
+      memberUids: firebase.firestore.FieldValue.arrayUnion(targetUid),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const pl = userPlaylists.find(p => p.id === playlistId);
+    if(pl){
+      pl.memberUids = pl.memberUids || [];
+      if(!pl.memberUids.includes(targetUid)) pl.memberUids.push(targetUid);
+    }
+    persistPlaylistsCache();
+    return { success: true };
+  }catch(e){
+    console.error('Erreur partage playlist :', e);
+    return { error: "Impossible de partager cette playlist pour le moment." };
+  }
+}
+
+/* Récupère des vidéos par identifiant : réutilise celles déjà chargées en
+   mémoire quand c'est possible, sinon lit Firestore par lots de 10. */
+async function fetchVideosByIds(ids){
+  const result = {};
+  const missing = [];
+  ids.forEach(id=>{
+    const loaded = findLoadedVideoById(id);
+    if(loaded) result[id] = loaded; else missing.push(id);
+  });
+  const uniqueMissing = [...new Set(missing)];
+  for(let i = 0; i < uniqueMissing.length; i += 10){
+    const chunk = uniqueMissing.slice(i, i + 10);
+    if(chunk.length === 0) continue;
+    try{
+      const snap = await videosRef.where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
+      snap.forEach(doc=>{ result[doc.id] = { id: doc.id, ...doc.data() }; });
+    }catch(e){ console.error('Erreur chargement des vidéos de la playlist :', e); }
+  }
+  return result;
+}
+
+async function fetchPlaylistVideos(playlistId){
+  const pl = userPlaylists.find(p => p.id === playlistId);
+  if(!pl) return;
+  const cache = playlistVideosCache[playlistId] || (playlistVideosCache[playlistId] = { videos: [], loading: false, loaded: false });
+  if(cache.loaded) return;
+  cache.loading = true;
+  renderAllSections();
+  try{
+    const ids = (pl.videoIds || []).slice().reverse(); // la plus récemment ajoutée en premier
+    const map = await fetchVideosByIds(ids);
+    cache.videos = ids.map(id => map[id]).filter(Boolean);
+  }catch(e){
+    console.error(e);
+  }finally{
+    cache.loading = false;
+    cache.loaded = true;
+    renderAllSections();
+  }
+}
+
+function renderPlaylistsSection(){
+  const intro = document.getElementById('playlists-intro');
+  const listEl = document.getElementById('playlists-list');
+  const createBtn = document.getElementById('create-playlist-btn');
+
+  if(!isConnected){
+    intro.textContent = "Connecte-toi pour créer et gérer tes playlists.";
+    listEl.innerHTML = '';
+    createBtn.style.display = 'none';
+    document.getElementById('playlist-videos-subtitle').textContent = 'Vidéos de la playlist';
+    renderVideoGrid('playlist-videos-grid', 'playlist-videos-count', [], "Connecte-toi pour voir tes playlists.", null, false);
+    return;
+  }
+  createBtn.style.display = '';
+
+  const uid = auth.currentUser.uid;
+  const sorted = userPlaylists.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||''));
+
+  if(sorted.length === 0){
+    intro.textContent = "Tu n'as encore aucune playlist. Crée-en une avec le bouton ci-dessus, ou ajoute directement une vidéo à une nouvelle playlist depuis le bouton playlist sous chaque vidéo.";
+    listEl.innerHTML = '';
+    selectedPlaylistId = null;
+  }else{
+    intro.textContent = `Tu as accès à ${sorted.length} playlist${sorted.length > 1 ? 's' : ''}. Clique sur une playlist pour voir ses vidéos.`;
+    listEl.innerHTML = sorted.map(pl=>{
+      const isOwner = pl.ownerUid === uid;
+      const isShared = (pl.memberUids || []).length > 1;
+      const count = (pl.videoIds || []).length;
+      const isSelected = pl.id === selectedPlaylistId;
+      return `
+        <div class="sub-channel-card ${isSelected ? 'selected' : ''}" data-playlist-id="${pl.id}">
+          ${isOwner ? `<button class="sub-channel-untrack" data-delete-playlist="${pl.id}" title="Supprimer la playlist">✕</button>` : ''}
+          <div class="sub-channel-avatar">${escapeHtml((pl.name||'?').trim().charAt(0).toUpperCase())}</div>
+          <div class="sub-channel-name">${escapeHtml(pl.name)}</div>
+          <div class="sub-channel-meta">${count} vidéo${count > 1 ? 's' : ''}${isShared ? ' · partagée' : ''}${!isOwner ? ' · invité' : ''}</div>
+          <div style="display:flex; gap:0.4rem; margin-top:0.3rem; flex-wrap:wrap;">
+            ${isOwner ? `<button class="btn" data-rename-playlist="${pl.id}" style="padding:0.35rem 0.7rem; font-size:0.68rem; border-color:var(--cream-2); color:var(--dark-text);">✎ Renommer</button>` : ''}
+            ${isOwner ? `<button class="btn" data-share-playlist="${pl.id}" style="padding:0.35rem 0.7rem; font-size:0.68rem; border-color:var(--cream-2); color:var(--dark-text);">Partager</button>` : ''}
+          </div>
+          <div class="sub-channel-hint">${isSelected ? 'Vidéos affichées ↓' : 'Voir les vidéos →'}</div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('[data-delete-playlist]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const id = btn.dataset.deletePlaylist;
+        if(confirm(`Supprimer la playlist « ${playlistNameById(id)} » ? Cette action est irréversible.`)) deletePlaylistById(id);
+      });
+    });
+    listEl.querySelectorAll('[data-rename-playlist]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const id = btn.dataset.renamePlaylist;
+        document.getElementById('playlist-rename-id').value = id;
+        document.getElementById('playlist-rename-name').value = playlistNameById(id);
+        document.getElementById('playlist-rename-error').style.display = 'none';
+        openOverlay('playlist-rename-overlay');
+      });
+    });
+    listEl.querySelectorAll('[data-share-playlist]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const id = btn.dataset.sharePlaylist;
+        document.getElementById('playlist-share-id').value = id;
+        document.getElementById('playlist-share-email').value = '';
+        document.getElementById('playlist-share-error').style.display = 'none';
+        renderPlaylistShareMembers(id);
+        openOverlay('playlist-share-overlay');
+      });
+    });
+    listEl.querySelectorAll('.sub-channel-card').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        const id = card.dataset.playlistId;
+        const wasSelected = selectedPlaylistId === id;
+        selectedPlaylistId = wasSelected ? null : id;
+        if(!wasSelected && !playlistVideosCache[id]){
+          playlistVideosCache[id] = { videos: [], loading: true, loaded: false };
+        }
+        renderAllSections();
+        if(!wasSelected) fetchPlaylistVideos(id);
+      });
+    });
+  }
+
+  const subtitleEl = document.getElementById('playlist-videos-subtitle');
+  if(!selectedPlaylistId){
+    subtitleEl.textContent = 'Vidéos de la playlist';
+    renderVideoGrid('playlist-videos-grid', 'playlist-videos-count', [], "Sélectionne une playlist ci-dessus pour afficher ses vidéos.", null, false);
+    return;
+  }
+  const pl = userPlaylists.find(p => p.id === selectedPlaylistId);
+  subtitleEl.textContent = pl ? `Vidéos de « ${pl.name} »` : 'Vidéos de la playlist';
+  const cache = playlistVideosCache[selectedPlaylistId];
+  const loading = !!(cache && cache.loading);
+  const videos = (cache && cache.videos) || [];
+  renderVideoGrid('playlist-videos-grid', 'playlist-videos-count', videos,
+    loading ? "Chargement des vidéos de cette playlist…" : "Cette playlist est vide pour l'instant. Ajoute des vidéos avec le bouton playlist sous chaque vidéo.", null, false);
+}
+
+function renderPlaylistShareMembers(id){
+  const pl = userPlaylists.find(p => p.id === id);
+  const el = document.getElementById('playlist-share-members');
+  if(!pl){ el.textContent = ''; return; }
+  const count = (pl.memberUids || []).length;
+  el.textContent = count > 1 ? `Déjà partagée avec ${count - 1} autre compte${count - 1 > 1 ? 's' : ''}.` : "Pas encore partagée.";
+}
+
+function openPlaylistPicker(v){
+  if(!isConnected){
+    clearAuthErrors();
+    openOverlay('account-overlay');
+    return;
+  }
+  playlistPickerVideo = v;
+  document.getElementById('playlist-picker-error').style.display = 'none';
+  document.getElementById('playlist-picker-new-name').value = '';
+  if(!playlistsInitialized) loadUserPlaylists(auth.currentUser.uid);
+  renderPlaylistPickerList();
+  openOverlay('playlist-picker-overlay');
+}
+function renderPlaylistPickerList(){
+  const container = document.getElementById('playlist-picker-list');
+  if(!playlistPickerVideo) return;
+  const vid = playlistPickerVideo.id;
+  if(userPlaylists.length === 0){
+    container.innerHTML = `<div class="modal-hint" style="margin:0 0 0.6rem;">Tu n'as pas encore de playlist. Crée-en une ci-dessous.</div>`;
+    return;
+  }
+  container.innerHTML = userPlaylists.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(pl=>{
+    const checked = (pl.videoIds || []).includes(vid);
+    return `
+      <div class="modal-checkbox-row" data-picker-playlist="${pl.id}">
+        <input type="checkbox" id="picker-pl-${pl.id}" ${checked ? 'checked' : ''}>
+        <label for="picker-pl-${pl.id}">${escapeHtml(pl.name)}</label>
+      </div>
+    `;
+  }).join('');
+  container.querySelectorAll('[data-picker-playlist]').forEach(row=>{
+    const checkbox = row.querySelector('input[type=checkbox]');
+    checkbox.addEventListener('change', async ()=>{
+      const plId = row.dataset.pickerPlaylist;
+      await toggleVideoInPlaylist(plId, playlistPickerVideo.id, checkbox.checked);
+    });
+  });
+}
+document.getElementById('playlist-picker-create-btn').addEventListener('click', async ()=>{
+  const nameInput = document.getElementById('playlist-picker-new-name');
+  const errorEl = document.getElementById('playlist-picker-error');
+  errorEl.style.display = 'none';
+  const name = nameInput.value.trim();
+  if(!name){ errorEl.textContent = "Merci d'entrer un nom de playlist."; errorEl.style.display = 'block'; return; }
+  if(!playlistPickerVideo) return;
+  try{
+    await createPlaylist(name, playlistPickerVideo.id);
+    nameInput.value = '';
+    renderPlaylistPickerList();
+  }catch(e){
+    console.error(e);
+    errorEl.textContent = "Impossible de créer la playlist.";
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('create-playlist-btn').addEventListener('click', ()=>{
+  if(!isConnected){ clearAuthErrors(); openOverlay('account-overlay'); return; }
+  document.getElementById('playlist-create-name').value = '';
+  document.getElementById('playlist-create-error').style.display = 'none';
+  openOverlay('playlist-create-overlay');
+});
+document.getElementById('playlist-create-submit').addEventListener('click', async ()=>{
+  const nameInput = document.getElementById('playlist-create-name');
+  const errorEl = document.getElementById('playlist-create-error');
+  errorEl.style.display = 'none';
+  const name = nameInput.value.trim();
+  if(!name){ errorEl.textContent = "Merci d'entrer un nom de playlist."; errorEl.style.display = 'block'; return; }
+  const btn = document.getElementById('playlist-create-submit');
+  btn.disabled = true; btn.textContent = 'Création…';
+  try{
+    await createPlaylist(name);
+    closeOverlay('playlist-create-overlay');
+  }catch(e){
+    console.error(e);
+    errorEl.textContent = "Impossible de créer la playlist.";
+    errorEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Créer';
+  }
+});
+
+document.getElementById('playlist-rename-submit').addEventListener('click', async ()=>{
+  const id = document.getElementById('playlist-rename-id').value;
+  const nameInput = document.getElementById('playlist-rename-name');
+  const errorEl = document.getElementById('playlist-rename-error');
+  errorEl.style.display = 'none';
+  const name = nameInput.value.trim();
+  if(!name){ errorEl.textContent = "Le nom ne peut pas être vide."; errorEl.style.display = 'block'; return; }
+  const btn = document.getElementById('playlist-rename-submit');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  try{
+    await renamePlaylistById(id, name);
+    closeOverlay('playlist-rename-overlay');
+  }catch(e){
+    console.error(e);
+    errorEl.textContent = "Impossible de renommer la playlist.";
+    errorEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+});
+
+document.getElementById('playlist-share-submit').addEventListener('click', async ()=>{
+  const id = document.getElementById('playlist-share-id').value;
+  const email = document.getElementById('playlist-share-email').value;
+  const errorEl = document.getElementById('playlist-share-error');
+  errorEl.style.display = 'none';
+  if(!id) return;
+  const btn = document.getElementById('playlist-share-submit');
+  btn.disabled = true; btn.textContent = 'Partage…';
+  try{
+    const res = await sharePlaylistWithEmail(id, email);
+    if(res.error){
+      errorEl.textContent = res.error;
+      errorEl.style.display = 'block';
+    }else{
+      document.getElementById('playlist-share-email').value = '';
+      renderPlaylistShareMembers(id);
+      renderAllSections();
+    }
+  }finally{
+    btn.disabled = false; btn.textContent = 'Partager';
+  }
+});
+
+/* =========================================================
    CORRECTIF — chargement des vidéos d'une chaîne sélectionnée
    dans la section Abonnements.
 
@@ -2400,6 +2926,13 @@ function shareButtonHtml(v){
     </button>
   `;
 }
+function playlistButtonHtml(v){
+  return `
+    <button class="reaction-btn playlist-btn" data-playlist-video="${v.id}" title="Ajouter à une playlist">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><line x1="18" y1="14" x2="18" y2="21"/><line x1="14.5" y1="17.5" x2="21.5" y2="17.5"/></svg>
+    </button>
+  `;
+}
 function reactionButtonsHtml(v){
   const myReaction = userReactions[v.id] || null;
   const likeCount = v.likeCount || 0;
@@ -2412,6 +2945,7 @@ function reactionButtonsHtml(v){
     <button class="reaction-btn ${myReaction === 'dislike' ? 'active-dislike' : ''}" data-reaction-video="${v.id}" data-reaction-type="dislike" title="Je n'aime pas" ${busy ? 'disabled' : ''}>
       <svg viewBox="0 0 24 24" style="transform:rotate(180deg);"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>
     </button>
+    ${playlistButtonHtml(v)}
     ${shareButtonHtml(v)}
   `;
 }
@@ -2503,6 +3037,13 @@ function bindCardEvents(grid, list){
       if(v) shareVideo(v);
     });
   });
+  grid.querySelectorAll('[data-playlist-video]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const v = list.find(x => x.id === btn.dataset.playlistVideo);
+      if(v) openPlaylistPicker(v);
+    });
+  });
   grid.querySelectorAll('[data-subscribe-video]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
       e.stopPropagation();
@@ -2547,6 +3088,7 @@ function renderAllSections(){
     renderVideoGrid('shorts-grid', 'shorts-count', shortState.docs, emptyMsg, 'load-more-shorts', shortState.hasMore);
   }
   renderSubsSection();
+  renderPlaylistsSection();
 }
 
 function renderSubsSection(){
@@ -4445,8 +4987,13 @@ auth.onAuthStateChanged(async (user)=>{
 
   if(realUser){
     loadUserSubs(realUser.uid);
+    loadUserPlaylists(realUser.uid);
   }else{
     userSubscribedKeys = new Set();
+    userPlaylists = [];
+    playlistsInitialized = false;
+    selectedPlaylistId = null;
+    playlistVideosCache = {};
   }
 
   renderAllSections();
@@ -4461,7 +5008,7 @@ auth.onAuthStateChanged(async (user)=>{
    chargement paresseux de la première page de vidéos longues)
    ========================================================= */
 (function initialSection(){
-  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-subs', 'section-search'];
+  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-playlists', 'section-subs', 'section-search'];
   const hash = (location.hash || '').replace('#','');
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
