@@ -3875,25 +3875,99 @@ document.getElementById('edit-submit').addEventListener('click', async ()=>{
 
 /* =========================================================
    RECHERCHE — barre de recherche vidéo tout en haut du site.
-   Recherche (titre / auteur / description / chaînes) en direct,
-   au fur et à mesure de la frappe, uniquement parmi les vidéos et
-   shorts déjà chargés localement, sans lecture Firestore
-   supplémentaire ; les deux sections sont chargées une première
-   fois si besoin, comme pour la section Abonnements.
+
+   Système de recherche « intelligente » par mots-clés élargis :
+   ce n'est PAS une IA sémantique (pas d'appel serveur), mais un
+   dictionnaire de synonymes/catégories qui permet à un mot-clé
+   comme "fruit" de retrouver aussi des chaînes/vidéos de cuisine,
+   de nourriture, etc., même si le mot exact n'apparaît pas.
+   Le tout reste calculé localement, uniquement parmi les vidéos et
+   shorts déjà chargés, sans lecture Firestore supplémentaire.
    ========================================================= */
 function normalizeSearchText(s){
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
-function videoMatchesQuery(v, normalizedQuery){
-  if(!normalizedQuery) return false;
-  const haystack = normalizeSearchText(`${v.title || ''} ${v.author || ''} ${v.description || ''}`);
-  return haystack.includes(normalizedQuery);
+
+// Dictionnaire de catégories : chaque entrée relie un mot-clé à un ensemble
+// de termes proches (aliments, thèmes, activités...). Un mot tapé par
+// l'utilisateur qui appartient à un groupe fait remonter TOUS les termes du
+// groupe dans la recherche (ex: "fruit" élargit vers "cuisine", "recette",
+// "nourriture"...), pour retrouver du contenu relié même sans le mot exact.
+const SEARCH_SYNONYMS = {
+  'fruit': ['fruits','pomme','pommes','poire','poires','banane','bananes','orange','oranges','mandarine','fraise','fraises','framboise','framboises','cerise','cerises','raisin','raisins','citron','citrons','citron vert','mangue','mangues','ananas','pasteque','melon','kiwi','abricot','abricots','peche','peches','prune','prunes','fruits rouges','fruits exotiques','vitamine','vitamines','nourriture','cuisine','recette','recettes','alimentation','manger','cuisiner','aliment','aliments','sain','healthy'],
+  'legume': ['legumes','carotte','carottes','tomate','tomates','pomme de terre','patate','patates','salade','courgette','courgettes','poivron','poivrons','oignon','oignons','ail','brocoli','epinard','epinards','cuisine','nourriture','recette','recettes','alimentation'],
+  'nourriture': ['manger','repas','cuisine','cuisiner','recette','recettes','food','plat','plats','gastronomie','chef','restaurant','patisserie','dessert','desserts','gateau','gateaux','snack','cooking','alimentation','fruit','fruits','legume','legumes'],
+  'sport': ['sports','football','foot','basket','basketball','tennis','rugby','course','courir','running','musculation','fitness','entrainement','match','sportif','sportive','athlete','competition'],
+  'jeu': ['jeux','jeuvideo','jeux video','gaming','gamer','console','playstation','xbox','nintendo','switch','stream','streaming','lets play','fps','rpg'],
+  'musique': ['chanson','chansons','clip','clips','concert','chanteur','chanteuse','rap','pop','rock','instrumental','album','beat','remix','dj'],
+  'voiture': ['voitures','auto','automobile','moto','motos','course','circuit','tuning','mecanique','bolide','conduite','permis'],
+  'animal': ['animaux','chat','chats','chaton','chatons','chien','chiens','chiot','chiots','oiseau','oiseaux','faune','nature','zoo','elevage'],
+  'voyage': ['voyages','vacances','tourisme','pays','ville','decouverte','aventure','exploration','road trip','destination'],
+  'humour': ['drole','rire','rires','comique','sketch','sketchs','blague','blagues','fun','marrant','parodie'],
+  'technologie': ['tech','high-tech','hightech','informatique','smartphone','telephone','ordinateur','pc','gadget','test','review','unboxing'],
+  'beaute': ['maquillage','makeup','cosmetique','cosmetiques','soin','soins','coiffure','beauty','skincare'],
+  'sante': ['medecine','bien-etre','bienetre','forme','nutrition','sante mentale','psychologie'],
+  'cinema': ['film','films','serie','series','acteur','acteurs','actrice','bande annonce','critique cinema'],
+  'bricolage': ['diy','fait maison','construction','reparation','outillage','menuiserie'],
+  'science': ['sciences','experience','experiences','physique','chimie','biologie','espace','astronomie'],
+  'mode': ['fashion','vetement','vetements','look','style','tenue','shopping'],
+  'education': ['apprendre','cours','tuto','tutoriel','formation','ecole','etude','etudes']
+};
+
+// À partir d'une requête tapée par l'utilisateur, renvoie :
+// - words : les mots exacts tapés (normalisés, sans accents)
+// - expanded : words + tous les termes des catégories associées
+function expandSearchTerms(rawQuery){
+  const words = normalizeSearchText(rawQuery).split(/\s+/).filter(Boolean);
+  const expanded = new Set(words);
+  words.forEach(w=>{
+    for(const key in SEARCH_SYNONYMS){
+      const normKey = normalizeSearchText(key);
+      const group = [normKey, ...SEARCH_SYNONYMS[key].map(normalizeSearchText)];
+      if(group.includes(w)){
+        group.forEach(g => expanded.add(g));
+      }
+    }
+  });
+  return { words, expanded: [...expanded] };
 }
+
+// Score de correspondance d'un texte donné (titre, auteur, description ou
+// nom de chaîne) : phrase exacte > mot tapé littéralement > terme élargi
+// (synonyme/catégorie). Renvoie 0 si aucune correspondance.
+function scoreTextMatch(text, words, expandedTerms){
+  if(!text) return 0;
+  const norm = normalizeSearchText(text);
+  let score = 0;
+  const fullQuery = words.join(' ');
+  if(fullQuery && norm.includes(fullQuery)) score += 100;
+  words.forEach(w=>{ if(w && norm.includes(w)) score += 40; });
+  expandedTerms.forEach(t=>{
+    if(words.includes(t)) return; // déjà compté comme mot exact ci-dessus
+    if(norm.includes(t)) score += 15;
+  });
+  return score;
+}
+
+// Score global d'une vidéo : le titre compte le plus, puis l'auteur, puis
+// la description — pour que "fruit" fasse remonter en priorité une vidéo
+// dont le titre parle de fruits, tout en retrouvant aussi les chaînes de
+// cuisine ou les vidéos dont seule la description mentionne le thème.
+function scoreVideoMatch(v, words, expandedTerms){
+  let score = 0;
+  score += scoreTextMatch(v.title, words, expandedTerms) * 1.4;
+  score += scoreTextMatch(v.author, words, expandedTerms) * 1.1;
+  score += scoreTextMatch(v.description, words, expandedTerms) * 0.7;
+  return Math.round(score);
+}
+
 // Construit la liste des chaînes connues (déduites des vidéos déjà chargées,
 // sans lecture Firestore supplémentaire) et renvoie celles dont le nom
-// correspond au mot-clé recherché.
-function findMatchingChannels(normalizedQuery){
-  if(!normalizedQuery) return [];
+// correspond au mot-clé recherché OU à l'un de ses termes élargis (ex:
+// "fruit" retrouve une chaîne nommée "Cuisine de Julie" via la catégorie
+// nourriture/cuisine).
+function findMatchingChannels(words, expandedTerms){
+  if(!words || words.length === 0) return [];
   const pool = videoSections.long.docs.concat(videoSections.short.docs);
   const map = {};
   pool.forEach(v=>{
@@ -3906,8 +3980,10 @@ function findMatchingChannels(normalizedQuery){
     map[cdId] = { cdId, name: v.author || key, count };
   });
   return Object.values(map)
-    .filter(ch => normalizeSearchText(ch.name).includes(normalizedQuery))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map(ch => ({ ch, score: scoreTextMatch(ch.name, words, expandedTerms) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.ch.name.localeCompare(b.ch.name))
+    .map(x => x.ch);
 }
 function renderSearchChannelsGrid(list){
   const grid = document.getElementById('search-channels-grid');
@@ -3956,14 +4032,19 @@ async function performGlobalSearch(rawQuery){
   // S'assure que les vidéos/shorts sont au moins chargés une première fois.
   await Promise.all([loadFirstPage('long'), loadFirstPage('short')]);
 
-  const normalized = normalizeSearchText(trimmed);
+  const { words, expanded } = expandSearchTerms(trimmed);
+
   const matchedVideos = videoSections.long.docs
-    .filter(v => videoMatchesQuery(v, normalized))
-    .sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    .map(v => ({ v, score: scoreVideoMatch(v, words, expanded) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || effectiveMillis(b.v) - effectiveMillis(a.v))
+    .map(x => x.v);
   const matchedShorts = videoSections.short.docs
-    .filter(v => videoMatchesQuery(v, normalized))
-    .sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
-  const matchedChannels = findMatchingChannels(normalized);
+    .map(v => ({ v, score: scoreVideoMatch(v, words, expanded) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || effectiveMillis(b.v) - effectiveMillis(a.v))
+    .map(x => x.v);
+  const matchedChannels = findMatchingChannels(words, expanded);
 
   renderSearchChannelsGrid(matchedChannels);
   renderVideoGrid('search-video-grid', null, matchedVideos, "Aucune vidéo ne correspond à ta recherche parmi celles déjà chargées.", null, false);
