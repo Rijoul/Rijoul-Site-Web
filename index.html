@@ -53,10 +53,7 @@
     background: radial-gradient(ellipse at top, rgba(255,255,255,0.12) 0%, transparent 55%);
   }
 
-  /* ---------- Top account bar ----------
-     NOTE (correctif) : redescendu sous la barre de recherche fixe (qui est
-     en z-index:70 et occupe toute la largeur en haut de l'écran) pour ne
-     plus être caché / bloqué par elle. */
+  /* ---------- Top account bar ---------- */
   .account-bar{
     position: fixed; top: 4.4rem; right: 1.6rem; z-index: 50;
     display:flex; align-items:center; gap:0.7rem;
@@ -260,12 +257,7 @@
   }
   body.admin-mode .edit-btn{ display:flex; }
 
-  /* ---------- Badges "NEW" (moins de 24h) et "VU" (déjà visionnée) ----------
-     Pastille arrondie façon "pilule", cohérente avec le reste des éléments
-     du site (boutons d'abonnement, navigation…), plutôt qu'un ruban diagonal
-     qui dépassait de la carte. Reste bien visible grâce au contraste de
-     couleur, à l'icône et à l'ombre portée, sans dénaturer le visuel de la
-     miniature. */
+  /* ---------- Badges "NEW" (moins de 24h) et "VU" (déjà visionnée) ---------- */
   .card-flag-badge{
     position:absolute; top:10px; right:10px; z-index:3;
     display:inline-flex; align-items:center; gap:0.32rem;
@@ -279,9 +271,6 @@
   .card-flag-badge svg{ width:11px; height:11px; flex-shrink:0; }
   .card-flag-badge.badge-new{ background: var(--red); }
   .card-flag-badge.badge-watched{ background:#1d63ff; }
-  /* En mode admin, les boutons supprimer/modifier occupent déjà le coin
-     supérieur droit : on décale légèrement la pastille vers le bas pour
-     éviter tout chevauchement avec ces boutons. */
   body.admin-mode .card-flag-badge{ top:46px; }
 
   .card.is-new{
@@ -386,7 +375,6 @@
     margin: auto;
   }
 
-  /* Barre au-dessus du lecteur : uniquement le bouton fermer, jamais sur la vidéo */
   .player-topbar{
     display:flex; justify-content:flex-end; align-items:center;
     padding: 0 0.2rem 0.7rem;
@@ -410,7 +398,6 @@
     background: linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%);
   }
 
-  /* Bandeau d'informations — toujours affiché (titre, auteur, description) quelle que soit la plateforme */
   .player-info-bar{
     position:relative; display:flex; align-items:flex-start; gap:0.9rem; padding: 1.2rem 1.5rem 0.5rem;
     background: rgba(18,14,24,0.82);
@@ -439,6 +426,13 @@
     margin-top:0.2rem;
   }
   .player-info-actions{ flex-shrink:0; display:flex; align-items:center; gap:0.5rem; }
+  /* Boutons like/dislike/playlist/partager du lecteur : plus compacts que
+     les boutons verre par défaut, pour que 4 boutons tiennent côte à côte
+     sans déborder à côté du titre/auteur. */
+  .player-info-actions .glass-btn{ width:36px; height:36px; }
+  .player-info-actions .glass-btn svg{ width:16px; height:16px; }
+  .player-info-actions .glass-btn.player-action-active-like{ background: var(--red); border-color: var(--red); }
+  .player-info-actions .glass-btn.player-action-active-dislike{ background: var(--navy); border-color: var(--navy); }
   .player-info-desc-wrap{
     position:relative;
     background: rgba(18,14,24,0.82);
@@ -463,7 +457,6 @@
   .desc-toggle.visible{ display:inline-flex; }
   .desc-toggle:hover{ color:#fff; }
 
-  /* Boutons verre — style iOS 26 : blur profond, liseré lumineux, reflet interne, rebond au tap */
   .glass-btn{
     width:42px; height:42px; border-radius:50%; border: 1px solid rgba(255,255,255,0.32);
     background: rgba(255,255,255,0.16);
@@ -490,8 +483,6 @@
   }
   .generic-fallback a{ color:#ff6a86; font-weight:700; }
 
-  /* Contrôles personnalisés pour les fichiers vidéo directs (.mp4/.webm/.ogg) —
-     pilule flottante en verre, façon iOS 26, centrée en bas du lecteur */
   .custom-controls{
     position:absolute; left:50%; bottom:16px; transform:translateX(-50%); z-index:4;
     display:flex; align-items:center; gap:0.7rem;
@@ -545,9 +536,6 @@
     .custom-controls{ bottom:12px; width: calc(100% - 20px); padding:0.5rem 0.8rem 0.5rem 0.5rem; }
   }
 
-  /* Paysage sur mobile (hauteur d'écran réduite) : on limite la hauteur de la
-     vidéo pour que tout le lecteur (vidéo + infos) reste visible sans déborder
-     de l'écran, la largeur s'ajuste automatiquement selon le ratio 16/9. */
   @media (max-height:500px) and (orientation:landscape){
     .overlay.player-overlay{ padding:0.4rem; align-items:center; }
     .player-shell{ max-height: calc(100vh - 0.8rem); max-height: calc(100dvh - 0.8rem); }
@@ -698,7 +686,6 @@
   .legal-modal .legal-body h3:first-child{ margin-top:0; }
   .legal-modal .legal-body p{ margin: 0 0 0.8rem; }
 
-  /* Bouton "Modifier" sur les modales légales : réservé aux admins */
   .edit-legal-btn{ display:none; margin-right:auto; }
   body.admin-mode .edit-legal-btn{ display:inline-flex; }
 
@@ -738,8 +725,6 @@
   .subs-channels-list{ margin-bottom: 2.6rem; }
   .subs-channels-list .channel-row{ max-width:520px; }
 
-  /* Cartes de chaînes abonnées (section Abonnements) — auparavant sans style
-     (classes non définies), ce qui cassait complètement l'affichage. */
   .subs-channels-list{
     display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:1rem;
   }
@@ -785,12 +770,6 @@
     box-shadow: 0 10px 24px -10px rgba(0,0,0,0.5);
     position:relative; z-index:1;
   }
-  /* Anneau lumineux animé autour de la barre de recherche : le contour
-     lui-même reste parfaitement fixe (aucune rotation de l'élément), seul
-     le dégradé de couleurs qui le compose se déplace en boucle le long du
-     contour (haut → droite → bas → gauche → haut), grâce à l'animation de
-     l'angle de départ du conic-gradient (variable enregistrée via
-     @property pour permettre une interpolation fluide). */
   @property --search-ring-angle{
     syntax: '<angle>';
     inherits: false;
@@ -854,7 +833,7 @@
   </div>
 </div>
 
-<!-- Top-right account bar (redescendu sous la barre de recherche) -->
+<!-- Top-right account bar -->
 <div class="account-bar">
   <button class="account-btn" id="account-btn">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9z"/></svg>
@@ -887,10 +866,6 @@
 
 <main>
 
-  <!-- Section Accueil : uniquement les vidéos (format long). Les 5 premières
-       vignettes sont toujours les 5 plus récentes ; le reste de la liste
-       suit le tri par popularité (likes) et personnalisation (chaînes
-       abonnées / vidéos likées) comme avant. -->
   <section class="page-section" id="section-home">
     <div class="section-head">
       <div>
@@ -909,7 +884,6 @@
     </div>
   </section>
 
-  <!-- Section Vidéos : vidéos "longues" au format 16:9 -->
   <section class="page-section" id="section-videos">
     <div class="section-head" id="gallery">
       <div class="section-title">Vidéothèque</div>
@@ -926,7 +900,6 @@
     </div>
   </section>
 
-  <!-- Section Shorts : vidéos "courtes" au format 9:16, séparées des vidéos longues -->
   <section class="page-section" id="section-shorts">
     <div class="section-head">
       <div class="section-title">Shorts</div>
@@ -943,8 +916,6 @@
     </div>
   </section>
 
-  <!-- Section Playlists : playlists personnelles de l'utilisateur connecté,
-       éventuellement partagées et synchronisées avec un autre compte. -->
   <section class="page-section" id="section-playlists">
     <div class="section-head">
       <div class="section-title">Playlists</div>
@@ -962,7 +933,6 @@
     <div class="grid" id="playlist-videos-grid"></div>
   </section>
 
-  <!-- Section Abonnements : chaînes suivies par l'utilisateur connecté + leurs vidéos -->
   <section class="page-section" id="section-subs">
     <div class="section-head">
       <div class="section-title">Abonnements</div>
@@ -983,7 +953,6 @@
     <div class="grid shorts-grid" id="subs-shorts-grid"></div>
   </section>
 
-  <!-- Section Résultats de recherche -->
   <section class="page-section" id="section-search">
     <div class="section-head">
       <div>
@@ -1200,7 +1169,7 @@
     <button class="modal-close" data-close="playlist-share-overlay">&times;</button>
     <h2>Partager la playlist</h2>
     <input type="hidden" id="playlist-share-id">
-    <div class="modal-hint">Entre l'adresse e-mail du compte RIJOUL avec qui partager cette playlist. Les deux comptes verront et pourront modifier la même playlist, synchronisée pour les deux.</div>
+    <div class="modal-hint">Entre n'importe quelle adresse e-mail. Si un compte RIJOUL existe déjà avec cette adresse, il aura accès immédiatement ; sinon, l'accès sera activé automatiquement dès qu'un compte sera créé ou connecté avec cette adresse. Les deux comptes verront et pourront modifier la même playlist, synchronisée pour les deux.</div>
     <label for="playlist-share-email">Adresse e-mail</label>
     <input type="email" id="playlist-share-email" placeholder="ami@exemple.com">
     <div id="playlist-share-members" style="margin:-0.6rem 0 1.2rem; font-size:0.8rem; color:#6b5644; font-weight:600;"></div>
@@ -1245,7 +1214,6 @@
       <button class="auth-tab" data-tab="signup">Inscription</button>
     </div>
 
-    <!-- Login panel -->
     <div class="auth-panel active" id="panel-login">
       <button class="google-btn" id="google-login-btn">
         <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-4.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.5 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 15.6 3 8.3 7.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.7 0 10.7-1.9 14.6-5.1l-6.7-5.7C29.6 36 26.9 37 24 37c-5.3 0-9.7-3.4-11.3-8l-6.6 5.1C8.3 40.1 15.5 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.7 5.7C41.2 36.4 45 30.8 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
@@ -1262,7 +1230,6 @@
       <div class="auth-switch">Pas encore de compte ? <a data-switch="signup">Créer un compte</a></div>
     </div>
 
-    <!-- Signup panel -->
     <div class="auth-panel" id="panel-signup">
       <button class="google-btn" id="google-signup-btn">
         <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-4.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.5 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 15.6 3 8.3 7.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.7 0 10.7-1.9 14.6-5.1l-6.7-5.7C29.6 36 26.9 37 24 37c-5.3 0-9.7-3.4-11.3-8l-6.6 5.1C8.3 40.1 15.5 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.7 5.7C41.2 36.4 45 30.8 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
@@ -1286,7 +1253,7 @@
   </div>
 </div>
 
-<!-- Profile edit modal (synced across all Rijoul/NovaLink sites via Firestore) -->
+<!-- Profile edit modal -->
 <div class="overlay" id="profile-overlay">
   <div class="modal auth-modal">
     <button class="modal-close" data-close="profile-overlay">&times;</button>
@@ -1321,7 +1288,6 @@
       <div class="player-media" id="player-media">
         <iframe id="player-iframe" src="" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
 
-        <!-- Contrôles personnalisés (fichiers vidéo directs uniquement) -->
         <div class="custom-controls" id="custom-controls" style="display:none;">
           <button class="glass-btn" id="cc-playpause" title="Lecture / Pause">
             <svg id="cc-play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -1349,6 +1315,15 @@
           <div class="player-info-author" id="player-info-author"></div>
         </div>
         <div class="player-info-actions">
+          <button class="glass-btn" id="player-like-btn" title="J'aime">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>
+          </button>
+          <button class="glass-btn" id="player-dislike-btn" title="Je n'aime pas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg);"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>
+          </button>
+          <button class="glass-btn" id="player-playlist-btn" title="Ajouter à une playlist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><line x1="18" y1="14" x2="18" y2="21"/><line x1="14.5" y1="17.5" x2="21.5" y2="17.5"/></svg>
+          </button>
           <button class="glass-btn" id="player-share-btn" title="Partager cette vidéo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
@@ -1366,9 +1341,6 @@
 /* =========================================================
    CONFIGURATION — à personnaliser
    ========================================================= */
-
-// 1) Configuration Firebase — projet partagé RIJOUL / ASSTTF / ONYX
-//    (même projet Firebase que les autres sites, pour synchroniser les comptes)
 const firebaseConfig = {
   apiKey: "AIzaSyCkiMirg--YtJMCENWm6Ba4qBn7XY55qrQ",
   authDomain: "onyx-chat-by-rijoul.firebaseapp.com",
@@ -1378,38 +1350,14 @@ const firebaseConfig = {
   appId: "1:699855199393:web:0b454be9733e3853ada4e0"
 };
 
-// 2) UID Firebase du compte administrateur autorisé à gérer les vidéos
 const ADMIN_UID = "K4DFzCs0MVccolAVciX1ViPUBk83";
-
-// 3) Nom de la collection Firestore utilisée pour stocker les vidéos
 const COLLECTION_NAME = "videos";
-
-// 4) Clé API YouTube Data v3 — nécessaire UNIQUEMENT pour la fonction
-//    "Importer toutes les vidéos d'une chaîne". À créer sur
-//    https://console.cloud.google.com/apis/credentials
 const YOUTUBE_API_KEY = "AIzaSyCHXby76C8CeuDyoSrg2dcfBcF4ghKQMKA";
-
-// 5) Nombre de vidéos chargées par défaut, et par clic sur "Afficher plus"
-//    (réduit à 20 pour limiter fortement les lectures Firestore)
 const PAGE_SIZE = 20;
-
-// 5bis) Durée maximale (en secondes) en dessous de laquelle une vidéo est
-//       automatiquement classée comme "short", quelle que soit la case
-//       cochée manuellement. 3 minutes 10 secondes = 190 secondes.
 const SHORT_MAX_DURATION_SECONDS = 190;
-
-// 5ter) Fenêtre (en millisecondes) pendant laquelle une vidéo est considérée
-//       comme "nouvelle" (badge NEW + fond rouge) après sa publication.
 const NEW_VIDEO_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 heures
-
-// 6) Durée de vie du cache local (téléphone/navigateur) avant de revérifier
-//    Firestore. Tant que ce délai n'est pas écoulé, AUCUNE lecture réseau
-//    n'est faite pour les données concernées : tout vient du cache local.
 const CACHE_TTL_MS = 5 * 60 * 1000;          // 5 minutes : première page de vidéos
 const CHANNELS_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes : compteurs d'abonnés
-
-// 7) Intervalle de vérification automatique des nouvelles vidéos des chaînes
-//    suivies, tant que l'admin est connecté et garde l'onglet ouvert.
 const AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 /* =========================================================
@@ -1434,17 +1382,14 @@ const userReactionsRef = db.collection('userReactions');
 const userWatchedRef = db.collection('userWatched');
 const channelsRef = db.collection('channels');
 const playlistsRef = db.collection('playlists');
-// Collection utilisée pour stocker le texte des CGU / Mentions légales,
-// éditable uniquement par l'administrateur (voir règles Firestore).
 const siteContentRef = db.collection('siteContent');
-let legalContentCache = {}; // { cgu: html, mentions: html } — déjà chargé depuis Firestore
+let legalContentCache = {};
 function userSubsCollection(uid){
   return db.collection('userSubscriptions').doc(uid).collection('subs');
 }
 
 /* =========================================================
-   Cache local (localStorage) — évite de relire Firestore à
-   chaque visite tant que les données ne sont pas jugées "périmées".
+   Cache local (localStorage)
    ========================================================= */
 const CACHE_PREFIX = 'rijoulYtCache_';
 function lsGet(key){
@@ -1488,33 +1433,27 @@ let isAdmin = false;
 let isConnected = false;
 let trackedChannelsCheckInterval = null;
 
-// Vidéos : deux sections indépendantes et paginées ("long" = vidéothèque/accueil,
-// "short" = shorts). Chacune ne lit Firestore qu'à sa première ouverture, puis
-// utilise le cache local tant qu'il est frais.
 const videoSections = {
   long:  { docs: [], lastDocMillis: null, hasMore: true, loading: false, initialized: false },
   short: { docs: [], lastDocMillis: null, hasMore: true, loading: false, initialized: false }
 };
 
-let userReactions = {};              // { videoId: 'like'|'dislike' }
+let userReactions = {};
 let reactionInFlight = new Set();
-let userWatched = {};                 // { videoId: true } — vidéos déjà visionnées par l'utilisateur
+let userWatched = {};
 
-let channelsCache = {};               // { channelDocId: { data, ts } } — en mémoire, recopié en localStorage
-let userSubscribedKeys = new Set();   // Set des channelDocId suivis par l'utilisateur courant
+let channelsCache = {};
+let userSubscribedKeys = new Set();
 let subscribeInFlight = new Set();
-let selectedSubChannelCdId = null;    // Chaîne actuellement sélectionnée dans "Abonnements" (aucune vidéo tant que rien n'est sélectionné)
-let subsChannelVideosCache = {};      // { cdId: { long: [], short: [], loading: bool, loaded: bool, error: bool } } — vidéos/shorts de la chaîne sélectionnée, lus directement depuis Firestore
-let channelVideosFetchInFlight = new Set(); // cdId en cours de récupération réelle (distinct du flag "loading" utilisé pour l'affichage)
+let selectedSubChannelCdId = null;
+let subsChannelVideosCache = {};
+let channelVideosFetchInFlight = new Set();
 
-// Playlists personnelles de l'utilisateur connecté (éventuellement partagées
-// avec un autre compte). Chaque playlist est un document Firestore contenant
-// { name, ownerUid, memberUids: [...], videoIds: [...] }.
-let userPlaylists = [];               // playlists dont l'utilisateur courant est membre (propriétaire ou invité)
+let userPlaylists = [];
 let playlistsInitialized = false;
 let selectedPlaylistId = null;
-let playlistVideosCache = {};         // { playlistId: { videos: [], loading, loaded } }
-let playlistPickerVideo = null;       // vidéo actuellement affichée dans la fenêtre "Ajouter à une playlist"
+let playlistVideosCache = {};
+let playlistPickerVideo = null;
 let playlistOpInFlight = new Set();
 
 /* =========================================================
@@ -1615,12 +1554,6 @@ async function fetchYouTubePublishedAt(videoId){
     return null;
   }
 }
-
-/* Ratio largeur/hauteur d'une vidéo YouTube via oEmbed (ne nécessite PAS de
-   clé API). Sert de filet de sécurité pour détecter un format vertical
-   (Shorts) quand la durée réelle n'a pas pu être récupérée (clé API absente,
-   quota dépassé, erreur réseau…) : sans ce filet, une vidéo courte finissait
-   silencieusement classée comme "longue" par défaut. */
 async function fetchYouTubeOEmbedRatio(videoId){
   try{
     const res = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`);
@@ -1631,14 +1564,6 @@ async function fetchYouTubeOEmbedRatio(videoId){
   }catch(e){ return null; }
 }
 
-/* =========================================================
-   Détection automatique de la durée d'une vidéo (toutes
-   plateformes qui l'exposent) et classification "short" en
-   fonction de SHORT_MAX_DURATION_SECONDS. Quand la durée n'est
-   pas déterminable (Twitch, lien générique), la fonction renvoie
-   null et la classification retombe sur la case à cocher / la
-   détection par format d'image.
-   ========================================================= */
 function parseIso8601Duration(iso){
   if(!iso) return null;
   const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
@@ -1694,14 +1619,6 @@ async function fetchAutoDurationSeconds(detected){
   }
   return null;
 }
-/* Classification robuste "short / long" pour une vidéo YouTube donnée,
-   utilisée partout où l'ancien code retombait silencieusement sur `false`
-   (donc "vidéo longue") dès que la durée réelle n'était pas disponible —
-   c'était la cause du bug : toute vidéo courte importée alors que l'API
-   Data YouTube échouait (clé absente, quota dépassé…) restait coincée dans
-   Vidéos/Accueil au lieu de Shorts. On tente maintenant, dans l'ordre :
-   1) la durée réelle (fiable à 100%), 2) le ratio d'image via oEmbed (fiable
-   pour les vidéos verticales), 3) uniquement en dernier recours, `false`. */
 async function classifyYouTubeIsShort(videoId, knownDurationSeconds){
   let duration = knownDurationSeconds;
   if(duration === undefined){
@@ -1714,9 +1631,6 @@ async function classifyYouTubeIsShort(videoId, knownDurationSeconds){
 
   return false;
 }
-// Version "par lot" (jusqu'à 50 identifiants YouTube par requête), utilisée
-// pour l'import de chaîne complet et la vérification automatique des
-// nouvelles vidéos, afin de ne pas faire une requête par vidéo.
 async function fetchDurationsMapYouTube(videoIds){
   const map = {};
   if(!YOUTUBE_API_KEY) return map;
@@ -1735,9 +1649,6 @@ async function fetchDurationsMapYouTube(videoIds){
   return map;
 }
 
-/* Gère indifféremment un Timestamp Firestore (objet réel ou recopié depuis
-   le cache localStorage sous forme {seconds,nanoseconds}), ou un nombre de
-   millisecondes brut. */
 function toMillisAny(ts){
   if(!ts) return 0;
   if(typeof ts === 'number') return ts;
@@ -1751,24 +1662,15 @@ function formatDate(ts){
   if(!ms) return '';
   return new Date(ms).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric' });
 }
-// Date utilisée pour le tri/affichage : la vraie date de publication si connue
-// (champ sortDate, aligné sur publishedAt), sinon la date d'ajout au site.
 function effectiveDate(v){ return v.publishedAt || v.sortDate || v.addedAt; }
 function effectiveMillis(v){ return toMillisAny(effectiveDate(v)); }
-// Vrai si la vidéo a été publiée il y a moins de NEW_VIDEO_WINDOW_MS (24h).
 function isNewVideo(v){
   const ms = effectiveMillis(v);
   if(!ms) return false;
   return (Date.now() - ms) < NEW_VIDEO_WINDOW_MS;
 }
-
-// Identifiant de document déterministe basé sur la plateforme + l'identifiant
-// de la vidéo. Deux imports de la même vidéo (ajout manuel, import de chaîne,
-// vérification automatique...) pointent donc TOUJOURS vers le même document
-// Firestore : il devient structurellement impossible de créer un doublon.
 function makeVideoDocId(platform, videoId){
   const raw = `${platform}_${videoId}`;
-  // Nettoyage : Firestore interdit '/', on limite aussi la longueur.
   return raw.replace(/[\/\s]+/g, '_').slice(0, 300);
 }
 
@@ -1783,10 +1685,7 @@ document.querySelectorAll('.overlay').forEach(ov=>{
 });
 
 /* =========================================================
-   CGU / Mentions légales : contenu modifiable par l'admin
-   uniquement (bouton "Modifier" masqué en CSS pour les non-admins,
-   et de toute façon l'écriture Firestore est bloquée pour les
-   autres comptes par les règles de sécurité côté serveur).
+   CGU / Mentions légales
    ========================================================= */
 async function loadLegalContent(key){
   if(legalContentCache[key] !== undefined) return legalContentCache[key];
@@ -1805,9 +1704,6 @@ async function applyLegalContent(key, bodyElId){
   if(html){
     document.getElementById(bodyElId).innerHTML = html;
   }
-  // Si aucun contenu personnalisé n'existe encore en base, on laisse le
-  // texte par défaut déjà présent dans la page (celui-ci sert de brouillon
-  // initial, éditable par l'admin via le bouton "Modifier").
 }
 document.getElementById('open-cgu-link').addEventListener('click', async ()=>{
   openOverlay('cgu-overlay');
@@ -1817,10 +1713,6 @@ document.getElementById('open-mentions-link').addEventListener('click', async ()
   openOverlay('mentions-overlay');
   await applyLegalContent('mentions', 'mentions-legal-body');
 });
-
-// Liens "CGU" / "mentions légales" à l'intérieur du formulaire d'inscription :
-// ouvrent la modale légale correspondante par-dessus la modale de compte,
-// sans cocher la case à la place de l'utilisateur (lecture explicite requise).
 document.querySelectorAll('[data-open-legal]').forEach(link=>{
   link.addEventListener('click', async (e)=>{
     e.preventDefault();
@@ -1832,10 +1724,9 @@ document.querySelectorAll('[data-open-legal]').forEach(link=>{
     await applyLegalContent(key, bodyElId);
   });
 });
-
 document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    if(!isAdmin) return; // sécurité côté client ; les règles Firestore bloquent aussi l'écriture
+    if(!isAdmin) return;
     const key = btn.dataset.editLegal;
     const bodyElId = key === 'cgu' ? 'cgu-legal-body' : 'mentions-legal-body';
     const titleLabel = key === 'cgu' ? "Modifier les CGU" : "Modifier les mentions légales";
@@ -1876,8 +1767,7 @@ document.getElementById('legal-edit-save').addEventListener('click', async ()=>{
 });
 
 /* =========================================================
-   Navigation entre sections — chaque section ne déclenche une
-   lecture Firestore que lors de sa toute première ouverture.
+   Navigation entre sections
    ========================================================= */
 function showSection(id){
   document.querySelectorAll('.page-section').forEach(sec=>{
@@ -1893,7 +1783,6 @@ function showSection(id){
   }else if(id === 'section-shorts'){
     loadFirstPage('short');
   }else if(id === 'section-subs'){
-    // Réutilise les vidéos longues déjà chargées (ou les charge si jamais visitées)
     loadFirstPage('long');
   }else if(id === 'section-playlists'){
     if(isConnected) loadUserPlaylists(auth.currentUser.uid);
@@ -1904,17 +1793,13 @@ document.querySelectorAll('.site-nav-btn').forEach(btn=>{
 });
 
 /* =========================================================
-   Chargement paginé des vidéos (lecture Firestore MINIMALE) :
-   - 1ère page : lue depuis le cache local si encore fraîche, sinon 1 requête
-     Firestore limitée à PAGE_SIZE documents, mise en cache ensuite.
-   - Pages suivantes ("Afficher plus") : 1 requête par clic, limitée à
-     PAGE_SIZE nouveaux documents (jamais toute la collection).
+   Chargement paginé des vidéos
    ========================================================= */
 function sectionCacheKey(sectionKey){ return 'videos_' + sectionKey + '_page1'; }
 
 async function loadFirstPage(sectionKey, force){
   const state = videoSections[sectionKey];
-  if(state.initialized && !force) return; // déjà chargé cette session
+  if(state.initialized && !force) return;
 
   if(!force){
     const cached = lsGet(sectionCacheKey(sectionKey));
@@ -1925,7 +1810,7 @@ async function loadFirstPage(sectionKey, force){
       state.initialized = true;
       await ensureChannelsLoadedForDocs(state.docs);
       renderAllSections();
-      return; // aucune lecture Firestore : tout vient du cache local du téléphone
+      return;
     }
   }
 
@@ -2006,14 +1891,8 @@ document.getElementById('refresh-videos-link').addEventListener('click', ()=> lo
 document.getElementById('refresh-shorts-link').addEventListener('click', ()=> loadFirstPage('short', true));
 
 /* =========================================================
-   Réactions (like / dislike) et abonnements — identité de chaîne
+   Réactions (like / dislike) et abonnements
    ========================================================= */
-// Identité de chaîne UNIFIÉE : on se base en priorité sur le nom d'auteur
-// (normalisé : espaces/majuscules ignorés), qui est présent sur toutes les
-// vidéos (ajout manuel ou import de chaîne), plutôt que sur channelId qui
-// n'existe que pour les vidéos importées automatiquement. Avant ce correctif,
-// une même chaîne (ex: "Squeezie") pouvait se retrouver scindée en plusieurs
-// "chaînes" différentes selon la façon dont la vidéo avait été ajoutée.
 function normalizeAuthorKey(name){
   return (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -2032,9 +1911,6 @@ async function ensureAnyAuth(){
   return cred.user;
 }
 
-/* Charge le document de réactions de l'utilisateur (1 seul doc) : lecture
-   depuis le cache local si frais, sinon 1 lecture Firestore, jamais de
-   listener temps réel permanent. */
 async function loadUserReactions(uid){
   const cacheKey = 'reactions_' + uid;
   const cached = lsGet(cacheKey);
@@ -2042,9 +1918,9 @@ async function loadUserReactions(uid){
     userReactions = cached.data || {};
     if((Date.now() - cached.ts) < CACHE_TTL_MS){
       renderAllSections();
-      return; // cache encore valide : aucune lecture Firestore
+      return;
     }
-    renderAllSections(); // affichage immédiat, rafraîchi ensuite en tâche de fond
+    renderAllSections();
   }
   try{
     const snap = await userReactionsRef.doc(uid).get();
@@ -2056,8 +1932,6 @@ async function loadUserReactions(uid){
   }
 }
 
-/* Charge la liste des vidéos déjà visionnées par l'utilisateur (1 seul doc),
-   avec le même principe de cache local que les réactions. */
 async function loadUserWatched(uid){
   const cacheKey = 'watched_' + uid;
   const cached = lsGet(cacheKey);
@@ -2079,9 +1953,6 @@ async function loadUserWatched(uid){
   }
 }
 
-/* Marque une vidéo comme visionnée (dès qu'elle est ouverte dans le lecteur).
-   Mise à jour optimiste locale + écriture Firestore fusionnée (merge) pour
-   ne jamais écraser les autres vidéos déjà marquées comme vues. */
 async function markVideoWatched(videoId){
   if(!videoId || userWatched[videoId]) return;
   userWatched[videoId] = true;
@@ -2141,8 +2012,6 @@ async function toggleReaction(videoId, type){
       tx.update(videoRef, updates);
     });
 
-    // Répercute localement le résultat connu de la transaction : pas besoin
-    // de relire Firestore pour rafraîchir l'affichage.
     let likeDelta = 0, dislikeDelta = 0;
     if(existingBefore === type){
       delete userReactions[videoId];
@@ -2170,8 +2039,6 @@ async function toggleReaction(videoId, type){
   }
 }
 
-/* Charge uniquement les chaînes (compteurs d'abonnés) référencées par une
-   liste de vidéos donnée — jamais toute la collection "channels". */
 async function ensureChannelsLoadedForDocs(docs){
   const keys = [...new Set(docs.map(v => channelKeyOf(v)).filter(Boolean).map(k => channelDocId(k)))];
   await ensureChannelsLoaded(keys);
@@ -2224,7 +2091,7 @@ async function loadUserSubs(uid){
     userSubscribedKeys = new Set(cached.data || []);
     if((Date.now() - cached.ts) < CACHE_TTL_MS){
       renderAllSections();
-      return; // cache encore valide : aucune lecture Firestore
+      return;
     }
     renderAllSections();
   }
@@ -2316,18 +2183,22 @@ async function unsubscribeChannel(cdId){
 
 /* =========================================================
    PLAYLISTS — création, renommage, suppression, ajout/retrait de
-   vidéos et partage synchronisé entre deux comptes connectés.
+   vidéos et partage synchronisé.
 
    Modèle de données Firestore (collection "playlists") :
-   { name, ownerUid, memberUids: [uid...], videoIds: [videoDocId...],
-     createdAt, updatedAt }
-   - "memberUids" contient toujours au moins le propriétaire ; partager la
-     playlist ajoute simplement l'uid de l'autre compte à ce tableau.
+   { name, ownerUid, memberUids: [uid...], memberEmails: [email...],
+     videoIds: [videoDocId...], createdAt, updatedAt }
+
+   - "memberEmails" est la source de vérité pour un partage : on peut y
+     ajouter N'IMPORTE QUELLE adresse e-mail, même si aucun compte RIJOUL
+     n'existe encore avec cette adresse.
+   - "memberUids" est mis à jour automatiquement : immédiatement si un
+     compte existant correspond déjà à l'e-mail invité, sinon dès que la
+     personne se connecte un jour avec cette adresse (voir loadUserPlaylists,
+     jointure automatique).
    - Seul le propriétaire peut renommer, supprimer ou partager une playlist.
    - N'importe quel membre (propriétaire ou invité) peut ajouter/retirer des
-     vidéos : la playlist reste ainsi synchronisée pour les deux comptes.
-   - Chaque utilisateur ne voit que les playlists dont il est membre
-     (requête "memberUids array-contains uid").
+     vidéos.
    ========================================================= */
 function playlistCacheKey(uid){ return 'playlists_' + uid; }
 function persistPlaylistsCache(){
@@ -2345,14 +2216,37 @@ async function loadUserPlaylists(uid, force){
       if((Date.now() - cached.ts) < CACHE_TTL_MS){
         playlistsInitialized = true;
         renderAllSections();
-        return; // cache encore valide : aucune lecture Firestore
+        return;
       }
       renderAllSections();
     }
   }
   try{
-    const snap = await playlistsRef.where('memberUids', 'array-contains', uid).get();
-    userPlaylists = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const email = ((auth.currentUser && auth.currentUser.email) || '').toLowerCase();
+    const queries = [playlistsRef.where('memberUids', 'array-contains', uid).get()];
+    if(email) queries.push(playlistsRef.where('memberEmails', 'array-contains', email).get());
+    const snaps = await Promise.all(queries);
+    const map = {};
+    snaps.forEach(snap => snap.docs.forEach(d => { map[d.id] = { id: d.id, ...d.data() }; }));
+    userPlaylists = Object.values(map);
+
+    // Jointure automatique : une playlist trouvée via l'e-mail (partagée
+    // avant que ce compte existe, ou depuis un autre appareil) mais dont
+    // l'uid courant n'est pas encore dans memberUids se voit ajouter cet
+    // uid, pour un accès cohérent partout ailleurs dans le code (qui
+    // s'appuie sur memberUids).
+    for(const pl of userPlaylists){
+      if(!(pl.memberUids || []).includes(uid)){
+        try{
+          await playlistsRef.doc(pl.id).update({
+            memberUids: firebase.firestore.FieldValue.arrayUnion(uid),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          pl.memberUids = [...(pl.memberUids || []), uid];
+        }catch(e){ console.warn('Jointure automatique de playlist impossible :', e); }
+      }
+    }
+
     lsSet(cacheKey, { ts: Date.now(), data: userPlaylists });
     playlistsInitialized = true;
   }catch(e){
@@ -2373,6 +2267,7 @@ async function createPlaylist(name, videoIdToAdd){
     name: trimmed,
     ownerUid: user.uid,
     memberUids: [user.uid],
+    memberEmails: user.email ? [user.email.toLowerCase()] : [],
     videoIds: videoIdToAdd ? [videoIdToAdd] : [],
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2425,7 +2320,7 @@ async function toggleVideoInPlaylist(playlistId, videoId, shouldAdd){
       if(shouldAdd){ if(!pl.videoIds.includes(videoId)) pl.videoIds.push(videoId); }
       else{ pl.videoIds = pl.videoIds.filter(id => id !== videoId); }
     }
-    delete playlistVideosCache[playlistId]; // force le rechargement la prochaine fois qu'elle est ouverte
+    delete playlistVideosCache[playlistId];
     persistPlaylistsCache();
     renderAllSections();
   }catch(e){
@@ -2436,24 +2331,43 @@ async function toggleVideoInPlaylist(playlistId, videoId, shouldAdd){
   }
 }
 
+// Partage la playlist avec N'IMPORTE QUELLE adresse e-mail : elle n'a plus
+// besoin de correspondre à un compte RIJOUL existant. Si un compte existe
+// déjà avec cette adresse, il obtient un accès immédiat (memberUids mis à
+// jour tout de suite) ; sinon, l'accès se met en place automatiquement dès
+// que cette adresse se connecte un jour (voir loadUserPlaylists).
 async function sharePlaylistWithEmail(playlistId, email){
   const trimmed = (email || '').trim().toLowerCase();
   if(!trimmed) return { error: "Merci d'entrer une adresse e-mail." };
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return { error: "Adresse e-mail invalide." };
   if(auth.currentUser && trimmed === (auth.currentUser.email || '').toLowerCase()){
     return { error: "Tu ne peux pas te partager une playlist à toi-même." };
   }
   try{
-    const snap = await usersRef.where('email', '==', trimmed).limit(1).get();
-    if(snap.empty) return { error: "Aucun compte RIJOUL ne correspond à cette adresse e-mail." };
-    const targetUid = snap.docs[0].id;
-    await playlistsRef.doc(playlistId).update({
-      memberUids: firebase.firestore.FieldValue.arrayUnion(targetUid),
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
     const pl = userPlaylists.find(p => p.id === playlistId);
+    if(pl && (pl.memberEmails || []).includes(trimmed)){
+      return { error: "Cette playlist est déjà partagée avec cette adresse." };
+    }
+
+    const updates = {
+      memberEmails: firebase.firestore.FieldValue.arrayUnion(trimmed),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    // Accès immédiat si un compte RIJOUL existant correspond déjà à cet
+    // e-mail (sinon la jointure automatique prendra le relais à la
+    // prochaine connexion de cette adresse).
+    try{
+      const snap = await usersRef.where('email', '==', trimmed).limit(1).get();
+      if(!snap.empty){
+        updates.memberUids = firebase.firestore.FieldValue.arrayUnion(snap.docs[0].id);
+      }
+    }catch(e){ /* pas bloquant */ }
+
+    await playlistsRef.doc(playlistId).update(updates);
+
     if(pl){
-      pl.memberUids = pl.memberUids || [];
-      if(!pl.memberUids.includes(targetUid)) pl.memberUids.push(targetUid);
+      pl.memberEmails = pl.memberEmails || [];
+      if(!pl.memberEmails.includes(trimmed)) pl.memberEmails.push(trimmed);
     }
     persistPlaylistsCache();
     return { success: true };
@@ -2463,8 +2377,6 @@ async function sharePlaylistWithEmail(playlistId, email){
   }
 }
 
-/* Récupère des vidéos par identifiant : réutilise celles déjà chargées en
-   mémoire quand c'est possible, sinon lit Firestore par lots de 10. */
 async function fetchVideosByIds(ids){
   const result = {};
   const missing = [];
@@ -2492,7 +2404,7 @@ async function fetchPlaylistVideos(playlistId){
   cache.loading = true;
   renderAllSections();
   try{
-    const ids = (pl.videoIds || []).slice().reverse(); // la plus récemment ajoutée en premier
+    const ids = (pl.videoIds || []).slice().reverse();
     const map = await fetchVideosByIds(ids);
     cache.videos = ids.map(id => map[id]).filter(Boolean);
   }catch(e){
@@ -2530,7 +2442,7 @@ function renderPlaylistsSection(){
     intro.textContent = `Tu as accès à ${sorted.length} playlist${sorted.length > 1 ? 's' : ''}. Clique sur une playlist pour voir ses vidéos.`;
     listEl.innerHTML = sorted.map(pl=>{
       const isOwner = pl.ownerUid === uid;
-      const isShared = (pl.memberUids || []).length > 1;
+      const isShared = (pl.memberEmails || []).length > 1 || (pl.memberUids || []).length > 1;
       const count = (pl.videoIds || []).length;
       const isSelected = pl.id === selectedPlaylistId;
       return `
@@ -2609,8 +2521,9 @@ function renderPlaylistShareMembers(id){
   const pl = userPlaylists.find(p => p.id === id);
   const el = document.getElementById('playlist-share-members');
   if(!pl){ el.textContent = ''; return; }
-  const count = (pl.memberUids || []).length;
-  el.textContent = count > 1 ? `Déjà partagée avec ${count - 1} autre compte${count - 1 > 1 ? 's' : ''}.` : "Pas encore partagée.";
+  const myEmail = ((auth.currentUser && auth.currentUser.email) || '').toLowerCase();
+  const emails = (pl.memberEmails || []).filter(e => e !== myEmail);
+  el.textContent = emails.length > 0 ? `Déjà partagée avec : ${emails.join(', ')}` : "Pas encore partagée.";
 }
 
 function openPlaylistPicker(v){
@@ -2740,23 +2653,7 @@ document.getElementById('playlist-share-submit').addEventListener('click', async
 });
 
 /* =========================================================
-   CORRECTIF — chargement des vidéos d'une chaîne sélectionnée
-   dans la section Abonnements.
-
-   Bug corrigé : le clic sur une chaîne pré-initialisait le cache
-   de cette chaîne avec `loading: true` (pour afficher immédiatement
-   le message "Chargement…" sans flash de "Aucune vidéo trouvée"),
-   PUIS appelait cette fonction. Or cette fonction utilisait ce même
-   flag `loading` comme garde anti-double-appel ("if(cache.loading)
-   return;") : elle se retrouvait donc à retourner immédiatement à
-   chaque clic, sans jamais interroger Firestore ni afficher aucune
-   vidéo — d'où l'écran qui restait vide (ou bloqué sur "Chargement…")
-   quel que soit le nombre de vidéos réellement présentes.
-
-   Correctif : on utilise désormais un Set dédié
-   (`channelVideosFetchInFlight`) pour savoir si une requête est
-   réellement en cours pour cette chaîne, complètement indépendant
-   du flag `loading` utilisé uniquement pour l'affichage.
+   Chargement des vidéos d'une chaîne sélectionnée (section Abonnements)
    ========================================================= */
 async function fetchChannelRecentVideos(cdId, channelName){
   if(!cdId || !channelName) return;
@@ -2770,9 +2667,6 @@ async function fetchChannelRecentVideos(cdId, channelName){
   cache.error = false;
   renderAllSections();
   try{
-    // Requête à égalité simple uniquement : ne nécessite aucun index
-    // composite Firestore, contrairement à l'ancienne requête qui
-    // combinait author + isShort + orderBy(sortDate).
     const snap = await videosRef.where('author', '==', channelName).limit(200).get();
     const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -2798,10 +2692,7 @@ async function fetchChannelRecentVideos(cdId, channelName){
 }
 
 /* =========================================================
-   Tri de l'accueil : tri par popularité (likes) + personnalisation
-   (chaînes abonnées et vidéos likées par le compte connecté).
-   Ce tri est calculé localement, uniquement sur les vidéos déjà chargées :
-   aucune lecture Firestore supplémentaire.
+   Tri de l'accueil
    ========================================================= */
 function likedChannelKeysSet(){
   const set = new Set();
@@ -2822,27 +2713,23 @@ function homeVideoScore(v, likedChannels){
   let score = likes - dislikes * 2;
   const key = channelKeyOf(v);
   if(key){
-    // Grosse priorité aux vidéos des chaînes auxquelles le compte est abonné
     if(userSubscribedKeys.has(channelDocId(key))) score += 1000;
-    // Léger bonus pour les chaînes dont l'utilisateur a déjà aimé une vidéo
     if(likedChannels.has(key)) score += 300;
   }
   return score;
 }
 function sortForHome(docs){
-  // Étape 1 : les 5 plus récentes, toujours en tête, dans l'ordre chronologique.
   const byRecency = docs.slice().sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
   const top5 = byRecency.slice(0, 5);
   const top5Ids = new Set(top5.map(v => v.id));
 
-  // Étape 2 : le reste garde l'ancien système (popularité + personnalisation).
   const likedChannels = likedChannelKeysSet();
   const rest = docs
     .filter(v => !top5Ids.has(v.id))
     .sort((a, b)=>{
       const diff = homeVideoScore(b, likedChannels) - homeVideoScore(a, likedChannels);
       if(diff !== 0) return diff;
-      return effectiveMillis(b) - effectiveMillis(a); // égalité : la plus récente d'abord
+      return effectiveMillis(b) - effectiveMillis(a);
     });
 
   return top5.concat(rest);
@@ -2850,10 +2737,6 @@ function sortForHome(docs){
 
 /* =========================================================
    PARTAGE — lien direct vers une vidéo sur ce site.
-   Le lien utilise l'identifiant de document Firestore (déterministe,
-   basé sur platform+videoId) sous forme de paramètre ?v=... . À
-   l'ouverture du site, ce paramètre est lu (voir handleSharedVideoLink)
-   pour rouvrir automatiquement le lecteur sur la bonne vidéo.
    ========================================================= */
 function buildVideoShareUrl(v){
   const url = new URL(location.href);
@@ -2870,15 +2753,10 @@ async function shareVideo(v){
   if(navigator.share){
     try{
       await navigator.share(shareData);
-    }catch(e){
-      // Fenêtre de partage annulée par l'utilisateur ou erreur : rien à faire.
-    }
+    }catch(e){}
     return;
   }
 
-  // Pas de menu de partage natif disponible (navigateur de bureau, etc.) :
-  // on copie le lien dans le presse-papiers, avec un repli sur une invite
-  // texte si l'accès au presse-papiers est refusé.
   try{
     await navigator.clipboard.writeText(shareUrl);
     alert('Lien de la vidéo copié dans le presse-papiers !');
@@ -2887,9 +2765,6 @@ async function shareVideo(v){
   }
 }
 
-/* Ouvre automatiquement le lecteur sur la vidéo pointée par le paramètre
-   ?v=... de l'URL (lien partagé), qu'elle soit déjà chargée localement ou
-   non (dans ce dernier cas, une seule lecture Firestore ciblée par id). */
 async function handleSharedVideoLink(){
   const params = new URLSearchParams(location.search);
   const sharedId = params.get('v');
@@ -3077,10 +2952,7 @@ function renderAllSections(){
 
   if(longState.initialized){
     const emptyMsg = isAdmin ? "Aucune vidéo pour l'instant. Clique sur le bouton + pour ajouter la première." : "Aucune vidéo pour l'instant. Revenez bientôt.";
-    // Accueil : uniquement les vidéos (pas les shorts). Les 5 premières sont
-    // toujours les plus récentes, le reste suit le tri popularité/personnalisation.
     renderVideoGrid('video-grid-home', 'video-count-home', sortForHome(longState.docs), emptyMsg, 'load-more-home', longState.hasMore);
-    // Vidéothèque : ordre chronologique classique (le plus récent en premier).
     renderVideoGrid('video-grid', 'video-count', longState.docs, emptyMsg, 'load-more-videos', longState.hasMore);
   }
   if(shortState.initialized){
@@ -3089,6 +2961,7 @@ function renderAllSections(){
   }
   renderSubsSection();
   renderPlaylistsSection();
+  updatePlayerActionButtons();
 }
 
 function renderSubsSection(){
@@ -3140,11 +3013,6 @@ function renderSubsSection(){
         const wasSelected = selectedSubChannelCdId === cdId;
         selectedSubChannelCdId = wasSelected ? null : cdId;
 
-        // Pré-initialise l'état de chargement AVANT le rendu suivant, pour
-        // éviter le flash "Aucune vidéo trouvée" qui apparaissait un court
-        // instant avant que le message "Chargement…" ne s'affiche. Ce simple
-        // pré-remplissage n'empêche plus fetchChannelRecentVideos de faire
-        // son travail (voir le correctif du garde-fou plus haut).
         if(!wasSelected){
           const entry = channelsCache[cdId];
           const name = entry && entry.data && entry.data.name;
@@ -3179,11 +3047,6 @@ function renderSubsSection(){
   const selectedName = (selectedEntry && selectedEntry.data && selectedEntry.data.name) || 'cette chaîne';
   if(subtitleEl) subtitleEl.textContent = `Vidéos de ${selectedName}`;
 
-  // Les vidéos (format long) et les shorts de la chaîne sélectionnée sont
-  // chargés directement depuis Firestore (voir fetchChannelRecentVideos, qui
-  // utilise désormais une requête à égalité simple sur `author`, sans index
-  // composite requis), et non plus filtrés parmi les vidéos déjà paginées
-  // dans les sections Vidéos/Shorts.
   const channelCache = subsChannelVideosCache[selectedSubChannelCdId];
   const loadingChannel = !!(channelCache && channelCache.loading);
   const errorChannel = !!(channelCache && channelCache.error);
@@ -3234,11 +3097,34 @@ let currentPlayingVideo = null;
 document.getElementById('player-share-btn').addEventListener('click', ()=>{
   if(currentPlayingVideo) shareVideo(currentPlayingVideo);
 });
+document.getElementById('player-like-btn').addEventListener('click', ()=>{
+  if(currentPlayingVideo) toggleReaction(currentPlayingVideo.id, 'like');
+});
+document.getElementById('player-dislike-btn').addEventListener('click', ()=>{
+  if(currentPlayingVideo) toggleReaction(currentPlayingVideo.id, 'dislike');
+});
+document.getElementById('player-playlist-btn').addEventListener('click', ()=>{
+  if(currentPlayingVideo) openPlaylistPicker(currentPlayingVideo);
+});
+// Met à jour l'état visuel (actif/inactif) des boutons like/dislike du
+// lecteur, en fonction de la vidéo en cours de lecture. Appelée après
+// chaque playVideo() et après chaque renderAllSections() (donc après
+// toute réaction, pour rester synchronisé avec les cartes de la galerie).
+function updatePlayerActionButtons(){
+  const likeBtn = document.getElementById('player-like-btn');
+  const dislikeBtn = document.getElementById('player-dislike-btn');
+  if(!likeBtn || !dislikeBtn || !currentPlayingVideo) return;
+  const v = findLoadedVideoById(currentPlayingVideo.id) || currentPlayingVideo;
+  const myReaction = userReactions[v.id] || null;
+  likeBtn.classList.toggle('player-action-active-like', myReaction === 'like');
+  dislikeBtn.classList.toggle('player-action-active-dislike', myReaction === 'dislike');
+}
 
 function playVideo(v){
   const { videoId, platform, twitchType, title, author, description, isShort } = v;
   currentPlayingVideo = v;
   markVideoWatched(v.id);
+  updatePlayerActionButtons();
   const iframe = document.getElementById('player-iframe');
   const wrapper = iframe.parentElement;
   const customControls = document.getElementById('custom-controls');
@@ -3371,6 +3257,8 @@ document.querySelector('[data-close="player-overlay"]').addEventListener('click'
   document.getElementById('custom-controls').style.display = 'none';
   document.getElementById('player-media').classList.remove('direct-mode');
   document.getElementById('player-media').classList.remove('short-media');
+  document.getElementById('player-like-btn').classList.remove('player-action-active-like');
+  document.getElementById('player-dislike-btn').classList.remove('player-action-active-dislike');
   currentPlayingVideo = null;
 });
 
@@ -3443,12 +3331,6 @@ function fetchDirectVideoRatio(url){
     probe.src = url;
   });
 }
-// Détection à l'affichage (blur/paste sur le champ lien) : essaie d'abord la
-// DURÉE réelle (règle prioritaire des 3 min 10) ; si elle est indisponible
-// (Twitch, lien générique, ou YouTube sans clé API / quota dépassé), retombe
-// sur la détection par ratio d'image (oEmbed, y compris pour YouTube) comme
-// filet de sécurité, avant de retomber en tout dernier recours sur la case
-// à cocher manuelle.
 async function autoDetectShortFormat(url){
   const myToken = ++addLinkDetectToken;
   const detected = detectVideo(url);
@@ -3462,13 +3344,11 @@ async function autoDetectShortFormat(url){
   if(duration != null){
     const isShort = duration < SHORT_MAX_DURATION_SECONDS;
     addIsShortCheckbox.checked = isShort;
-    addIsShortManuallySet = false; // la durée réelle prime toujours à l'enregistrement
+    addIsShortManuallySet = false;
     setAddIsShortLabel(`Vidéo courte (format vertical 9:16 / Shorts) — durée détectée : ${formatSeconds(duration)} (${isShort ? 'classée en short' : 'classée en vidéo'})`);
     return;
   }
 
-  // Durée indisponible : on retombe sur la détection par format d'image
-  // (portrait / paysage) via oEmbed, y compris pour YouTube désormais.
   if(detected.platform === 'youtube' && detected.isShort){
     if(!addIsShortManuallySet) addIsShortCheckbox.checked = true;
     setAddIsShortLabel('Vidéo courte (format vertical 9:16 / Shorts) — détecté automatiquement');
@@ -3519,15 +3399,6 @@ document.getElementById('add-link').addEventListener('paste', ()=>{
   }, 0);
 });
 
-/* Ajoute un document vidéo dans Firestore ET répercute le résultat
-   localement (mise à jour de l'état + du cache), sans relire Firestore.
-
-   IMPORTANT anti-doublons : le document est écrit à un identifiant
-   déterministe (platform + videoId). Si la vidéo existe déjà, on
-   récupère son id existant et on n'écrit rien (aucun doublon créé),
-   sauf pour les liens "génériques" ou "directs" où l'identifiant
-   n'est pas garanti unique (dans ce cas on vérifie explicitement
-   l'existence avant d'écrire). */
 async function addVideoDoc(payload){
   const docId = makeVideoDocId(payload.platform, payload.videoId);
   const docRef = videosRef.doc(docId);
@@ -3589,11 +3460,6 @@ async function submitVideo(){
   submitBtn.textContent = 'Ajout…';
   submitBtn.disabled = true;
 
-  // Règle prioritaire : si la durée réelle de la vidéo est connue, elle
-  // détermine SEULE si la vidéo est un short (< 3 min 10), quelle que soit
-  // la case cochée. Sinon on retombe sur la détection par ratio d'image
-  // (oEmbed), puis en tout dernier recours sur la case (éventuellement
-  // pré-remplie par cette même détection).
   const autoDuration = await fetchAutoDurationSeconds(detected);
   let finalIsShort;
   if(autoDuration != null){
@@ -3645,13 +3511,6 @@ async function submitVideo(){
   }
 }
 
-/* =========================================================
-   Recherche de doublons SANS lire toute la collection : on
-   interroge Firestore uniquement par lots de 10 videoId ('in'),
-   ce qui ne coûte que le nombre de documents réellement trouvés.
-   (Conservé pour compatibilité avec les anciens documents dont
-   l'id Firestore n'est pas encore l'id déterministe.)
-   ========================================================= */
 async function findExistingVideoIds(videoIds){
   const existing = new Set();
   const unique = [...new Set(videoIds)];
@@ -3666,15 +3525,6 @@ async function findExistingVideoIds(videoIds){
   return existing;
 }
 
-/* =========================================================
-   Admin : recalcule le classement Vidéo / Short des vidéos déjà
-   chargées à partir de leur durée réelle (ou, à défaut, du ratio
-   d'image via oEmbed pour YouTube). Corrige les vidéos courtes
-   qui avaient été importées comme "longues" à cause d'un échec
-   ponctuel de récupération de durée (clé API YouTube absente ou
-   quota dépassé au moment de l'import), qui les faisait retomber
-   par défaut dans Vidéos/Accueil au lieu de Shorts.
-   ========================================================= */
 document.getElementById('recalc-short-link').addEventListener('click', async (e)=>{
   e.preventDefault();
   const link = e.currentTarget;
@@ -3736,18 +3586,6 @@ document.getElementById('recalc-short-link').addEventListener('click', async (e)
   link.style.opacity = '';
 });
 
-/* =========================================================
-   Mise à jour automatique des chaînes suivies :
-   - se déclenche à la connexion admin (comme avant)
-   - ET se répète désormais toutes les AUTO_CHECK_INTERVAL_MS tant
-     que l'admin reste connecté avec l'onglet ouvert, pour que les
-     nouvelles vidéos apparaissent sans action manuelle.
-   Rappel : ceci nécessite que la session admin reste ouverte (les
-   règles Firestore n'autorisent que l'admin à écrire des vidéos).
-   Pour une vraie automatisation même hors ligne, il faudrait une
-   Cloud Function planifiée côté serveur — ce que cette page seule
-   ne peut pas faire.
-   ========================================================= */
 async function fetchLatestUploads(playlistId, maxResults = 25){
   const data = await ytApiGet('playlistItems', { part: 'snippet,contentDetails', playlistId, maxResults });
   return (data.items || []).map(item=>{
@@ -3780,18 +3618,13 @@ async function checkTrackedChannelsForNewVideos(){
         continue;
       }
 
-      // Récupère la durée réelle de chaque vidéo trouvée pour la classer
-      // automatiquement en "short" si elle dure moins de 3 min 10. Si le lot
-      // échoue entièrement (quota API dépassé, etc.), on ne classera plus
-      // aveuglément en "long" : un filet de sécurité par ratio d'image
-      // (oEmbed, sans clé API) est utilisé juste en dessous.
       const durationsMap = await fetchDurationsMapYouTube(latest.map(v => v.videoId));
 
       for(const v of latest){
         const docId = makeVideoDocId('youtube', v.videoId);
         const docRef = videosRef.doc(docId);
         const existing = await docRef.get();
-        if(existing.exists) continue; // déjà importée : jamais de doublon possible
+        if(existing.exists) continue;
 
         const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
         const sortDate = v.publishedAt ? firebase.firestore.Timestamp.fromDate(v.publishedAt) : firebase.firestore.Timestamp.now();
@@ -3845,16 +3678,6 @@ document.getElementById('check-now-link').addEventListener('click', async (e)=>{
   link.textContent = original;
 });
 
-/* =========================================================
-   Admin : suppression des vidéos en double déjà présentes dans
-   Firestore (créées avant la mise en place des identifiants
-   déterministes, ou créées par une course entre deux requêtes
-   concurrentes). Regroupe par (platform + videoId), garde le
-   document le plus ancien (addedAt le plus petit, ou celui qui a
-   le plus de likes en cas d'égalité) et supprime les autres.
-   Lecture complète et ponctuelle de la collection, comme la
-   migration de tri : à ne lancer qu'une fois de temps en temps.
-   ========================================================= */
 document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
   e.preventDefault();
   const link = e.currentTarget;
@@ -3864,7 +3687,7 @@ document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
   const original = link.textContent;
   link.textContent = 'Recherche des doublons…';
   try{
-    const snap = await videosRef.get(); // lecture complète unique et volontaire
+    const snap = await videosRef.get();
     const groups = {};
     snap.docs.forEach(d=>{
       const data = d.data();
@@ -3879,8 +3702,6 @@ document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
       const items = groups[key];
       if(items.length < 2) continue;
       groupsWithDupes++;
-      // Garde le document dont l'id correspond déjà au format déterministe
-      // s'il existe, sinon le plus ancien (addedAt le plus petit).
       items.sort((a, b)=>{
         const aIsCanonical = a.id === makeVideoDocId(a.data.platform || 'youtube', a.data.videoId) ? 0 : 1;
         const bIsCanonical = b.id === makeVideoDocId(b.data.platform || 'youtube', b.data.videoId) ? 0 : 1;
@@ -3921,17 +3742,6 @@ document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
   }
 });
 
-/* =========================================================
-   Admin : fusion des fiches "channels" en double (compteurs
-   d'abonnés) qui correspondent en réalité à la même chaîne mais
-   avaient été enregistrées sous des identifiants différents
-   (une fois via channelId, une fois via le nom d'auteur, avec une
-   casse ou des espaces différents). Regroupe par nom d'auteur
-   normalisé (même règle que channelKeyOf), additionne les
-   compteurs d'abonnés dans une fiche unique et supprime les autres.
-   Lecture ponctuelle et volontaire de toute la collection "channels"
-   (généralement petite), à ne lancer qu'une fois de temps en temps.
-   ========================================================= */
 document.getElementById('merge-channels-link').addEventListener('click', async (e)=>{
   e.preventDefault();
   const link = e.currentTarget;
@@ -3941,7 +3751,7 @@ document.getElementById('merge-channels-link').addEventListener('click', async (
   const original = link.textContent;
   link.textContent = 'Fusion en cours…';
   try{
-    const snap = await channelsRef.get(); // lecture complète unique et volontaire (petite collection)
+    const snap = await channelsRef.get();
     const groups = {};
     snap.forEach(doc=>{
       const data = doc.data();
@@ -3993,9 +3803,6 @@ document.getElementById('merge-channels-link').addEventListener('click', async (
   }
 });
 
-/* =========================================================
-   Admin : voir / gérer la liste des chaînes YouTube suivies
-   ========================================================= */
 document.getElementById('open-channels-list').addEventListener('click', async (e)=>{
   e.preventDefault();
   closeOverlay('add-overlay');
@@ -4048,12 +3855,6 @@ async function renderChannelsList(){
   }
 }
 
-/* =========================================================
-   Admin : rafraîchir la date de publication réelle des vidéos
-   YouTube déjà chargées qui ne l'ont pas encore. Nécessite
-   YOUTUBE_API_KEY. Ne traite que les vidéos actuellement en
-   mémoire (pas toute la collection) pour limiter les lectures.
-   ========================================================= */
 document.getElementById('refresh-dates-link').addEventListener('click', async (e)=>{
   e.preventDefault();
   const link = e.currentTarget;
@@ -4111,13 +3912,6 @@ document.getElementById('refresh-dates-link').addEventListener('click', async (e
   link.style.opacity = '';
 });
 
-/* =========================================================
-   Admin : migration ponctuelle — ajoute le champ "sortDate" aux
-   vidéos plus anciennes qui ne l'ont pas encore (créées avant la
-   mise en place de la pagination optimisée). Action MANUELLE et
-   UNIQUE : elle lit toute la collection une seule fois (coût
-   ponctuel accepté), puis n'a plus jamais besoin d'être relancée.
-   ========================================================= */
 document.getElementById('migrate-sortdate-link').addEventListener('click', async (e)=>{
   e.preventDefault();
   const link = e.currentTarget;
@@ -4127,7 +3921,7 @@ document.getElementById('migrate-sortdate-link').addEventListener('click', async
   const original = link.textContent;
   link.textContent = 'Migration en cours…';
   try{
-    const snap = await videosRef.get(); // lecture complète unique et volontaire
+    const snap = await videosRef.get();
     const toFix = snap.docs.filter(d => !d.data().sortDate);
     if(toFix.length === 0){
       alert('Toutes les vidéos ont déjà un champ de tri à jour. Rien à faire.');
@@ -4155,7 +3949,6 @@ document.getElementById('migrate-sortdate-link').addEventListener('click', async
   }
 });
 
-// Reconnaît /channel/UC..., /@handle, /c/NomPerso et /user/NomLegacy
 function parseChannelRef(url){
   if(!url) return null;
   url = url.trim();
@@ -4276,15 +4069,9 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
       return;
     }
 
-    // Récupère la durée réelle de toutes les vidéos importées (par lots de
-    // 50) afin de classer automatiquement en "short" celles de moins de
-    // 3 min 10. Un filet de sécurité par ratio d'image (oEmbed) est utilisé
-    // ci-dessous vidéo par vidéo si la durée reste indéterminée (échec API).
     setAddChannelProgress(`Analyse des durées de ${uploads.length} vidéo(s)…`, 38);
     const durationsMap = await fetchDurationsMapYouTube(uploads.map(u => u.videoId));
 
-    // Dédoublonnage : écriture à l'id déterministe, aucune vidéo déjà
-    // présente n'est jamais réécrite/dupliquée.
     let done = 0, imported = 0, skipped = 0;
     for(const u of uploads){
       const docId = makeVideoDocId('youtube', u.videoId);
@@ -4352,9 +4139,6 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
   }
 });
 
-/* =========================================================
-   Admin : modification des infos d'une vidéo
-   ========================================================= */
 function openEditVideo(id){
   const v = findLoadedVideoById(id);
   if(!v) return;
@@ -4416,25 +4200,11 @@ document.getElementById('edit-submit').addEventListener('click', async ()=>{
 });
 
 /* =========================================================
-   RECHERCHE — barre de recherche vidéo tout en haut du site.
-
-   Système de recherche « intelligente » par mots-clés élargis :
-   ce n'est PAS une IA sémantique (pas d'appel serveur), mais un
-   dictionnaire de synonymes/catégories qui permet à un mot-clé
-   comme "fruit" de retrouver aussi des chaînes/vidéos de cuisine,
-   de nourriture, etc., même si le mot exact n'apparaît pas.
-   Le tout reste calculé localement, uniquement parmi les vidéos et
-   shorts déjà chargés, sans lecture Firestore supplémentaire.
+   RECHERCHE
    ========================================================= */
 function normalizeSearchText(s){
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
-
-// Dictionnaire de catégories : chaque entrée relie un mot-clé à un ensemble
-// de termes proches (aliments, thèmes, activités...). Un mot tapé par
-// l'utilisateur qui appartient à un groupe fait remonter TOUS les termes du
-// groupe dans la recherche (ex: "fruit" élargit vers "cuisine", "recette",
-// "nourriture"...), pour retrouver du contenu relié même sans le mot exact.
 const SEARCH_SYNONYMS = {
   'fruit': ['fruits','pomme','pommes','poire','poires','banane','bananes','orange','oranges','mandarine','fraise','fraises','framboise','framboises','cerise','cerises','raisin','raisins','citron','citrons','citron vert','mangue','mangues','ananas','pasteque','melon','kiwi','abricot','abricots','peche','peches','prune','prunes','fruits rouges','fruits exotiques','vitamine','vitamines','nourriture','cuisine','recette','recettes','alimentation','manger','cuisiner','aliment','aliments','sain','healthy'],
   'legume': ['legumes','carotte','carottes','tomate','tomates','pomme de terre','patate','patates','salade','courgette','courgettes','poivron','poivrons','oignon','oignons','ail','brocoli','epinard','epinards','cuisine','nourriture','recette','recettes','alimentation'],
@@ -4455,10 +4225,6 @@ const SEARCH_SYNONYMS = {
   'mode': ['fashion','vetement','vetements','look','style','tenue','shopping'],
   'education': ['apprendre','cours','tuto','tutoriel','formation','ecole','etude','etudes']
 };
-
-// À partir d'une requête tapée par l'utilisateur, renvoie :
-// - words : les mots exacts tapés (normalisés, sans accents)
-// - expanded : words + tous les termes des catégories associées
 function expandSearchTerms(rawQuery){
   const words = normalizeSearchText(rawQuery).split(/\s+/).filter(Boolean);
   const expanded = new Set(words);
@@ -4473,10 +4239,6 @@ function expandSearchTerms(rawQuery){
   });
   return { words, expanded: [...expanded] };
 }
-
-// Score de correspondance d'un texte donné (titre, auteur, description ou
-// nom de chaîne) : phrase exacte > mot tapé littéralement > terme élargi
-// (synonyme/catégorie). Renvoie 0 si aucune correspondance.
 function scoreTextMatch(text, words, expandedTerms){
   if(!text) return 0;
   const norm = normalizeSearchText(text);
@@ -4485,16 +4247,11 @@ function scoreTextMatch(text, words, expandedTerms){
   if(fullQuery && norm.includes(fullQuery)) score += 100;
   words.forEach(w=>{ if(w && norm.includes(w)) score += 40; });
   expandedTerms.forEach(t=>{
-    if(words.includes(t)) return; // déjà compté comme mot exact ci-dessus
+    if(words.includes(t)) return;
     if(norm.includes(t)) score += 15;
   });
   return score;
 }
-
-// Score global d'une vidéo : le titre compte le plus, puis l'auteur, puis
-// la description — pour que "fruit" fasse remonter en priorité une vidéo
-// dont le titre parle de fruits, tout en retrouvant aussi les chaînes de
-// cuisine ou les vidéos dont seule la description mentionne le thème.
 function scoreVideoMatch(v, words, expandedTerms){
   let score = 0;
   score += scoreTextMatch(v.title, words, expandedTerms) * 1.4;
@@ -4502,12 +4259,6 @@ function scoreVideoMatch(v, words, expandedTerms){
   score += scoreTextMatch(v.description, words, expandedTerms) * 0.7;
   return Math.round(score);
 }
-
-// Construit la liste des chaînes connues (déduites des vidéos déjà chargées,
-// sans lecture Firestore supplémentaire) et renvoie celles dont le nom
-// correspond au mot-clé recherché OU à l'un de ses termes élargis (ex:
-// "fruit" retrouve une chaîne nommée "Cuisine de Julie" via la catégorie
-// nourriture/cuisine).
 function findMatchingChannels(words, expandedTerms){
   if(!words || words.length === 0) return [];
   const pool = videoSections.long.docs.concat(videoSections.short.docs);
@@ -4571,7 +4322,6 @@ async function performGlobalSearch(rawQuery){
     return;
   }
 
-  // S'assure que les vidéos/shorts sont au moins chargés une première fois.
   await Promise.all([loadFirstPage('long'), loadFirstPage('short')]);
 
   const { words, expanded } = expandSearchTerms(trimmed);
@@ -4603,17 +4353,11 @@ globalSearchInput.addEventListener('keydown', (e)=>{
     performGlobalSearch(globalSearchInput.value);
   }
 });
-// Recherche en direct : dès que l'utilisateur tape, la recherche se relance
-// automatiquement (avec un léger anti-rebond pour éviter de re-filtrer à
-// chaque frappe individuelle), sans avoir besoin d'appuyer sur Entrée ou de
-// cliquer sur la loupe.
 globalSearchInput.addEventListener('input', ()=>{
   const value = globalSearchInput.value;
   globalSearchClear.classList.toggle('visible', !!value);
   clearTimeout(globalSearchDebounce);
   if(!value.trim()){
-    // Champ vidé : on nettoie les résultats sans forcer la navigation vers
-    // la section Recherche si l'utilisateur ne s'y trouvait pas déjà.
     performGlobalSearch('');
     return;
   }
@@ -4629,9 +4373,6 @@ globalSearchClear.addEventListener('click', ()=>{
 
 /* =========================================================
    COMPTE — Firebase Authentication + profil partagé Firestore
-   (le profil reste en écoute temps réel : un seul petit document,
-   utile pour la synchronisation instantanée entre les sites RIJOUL/
-   ASSTTF/ONYX ; coût négligeable comparé à la collection de vidéos)
    ========================================================= */
 const accountBtn = document.getElementById('account-btn');
 const userChip = document.getElementById('user-chip');
@@ -4650,10 +4391,6 @@ document.getElementById('dd-logout').addEventListener('click', async ()=>{
   userChip.classList.remove('open');
 });
 
-/* Téléchargement des données personnelles de l'utilisateur connecté (profil,
-   réactions, vidéos vues, abonnements) sous forme d'un fichier JSON, sans
-   lecture Firestore supplémentaire au-delà de ce qui est strictement
-   nécessaire pour constituer l'export. */
 document.getElementById('dd-export-data').addEventListener('click', async ()=>{
   userChip.classList.remove('open');
   const user = auth.currentUser;
@@ -4701,10 +4438,6 @@ document.getElementById('dd-export-data').addEventListener('click', async ()=>{
   }
 });
 
-/* Suppression définitive du compte utilisateur : efface le profil partagé,
-   les réactions, les vidéos vues et les abonnements de l'utilisateur, puis
-   supprime le compte Firebase Authentication lui-même. Double confirmation
-   requise avant toute suppression. */
 document.getElementById('dd-delete-account').addEventListener('click', async ()=>{
   userChip.classList.remove('open');
   const user = auth.currentUser;
@@ -4942,7 +4675,6 @@ document.getElementById('forgot-link').addEventListener('click', async ()=>{
   }
 });
 
-/* Réagit à l'état de connexion : profil partagé + statut admin + réactions/abonnements (chargés une fois, pas en écoute permanente) */
 auth.onAuthStateChanged(async (user)=>{
   const wasAdmin = isAdmin;
   const realUser = user && !user.isAnonymous ? user : null;
@@ -4951,9 +4683,6 @@ auth.onAuthStateChanged(async (user)=>{
   document.body.classList.toggle('admin-mode', isAdmin);
 
   if(isAdmin && !wasAdmin){
-    // Vérifie les nouvelles vidéos des chaînes suivies à la connexion admin,
-    // puis répète la vérification périodiquement tant que cette session
-    // admin reste ouverte (voir AUTO_CHECK_INTERVAL_MS plus haut).
     checkTrackedChannelsForNewVideos();
     if(trackedChannelsCheckInterval) clearInterval(trackedChannelsCheckInterval);
     trackedChannelsCheckInterval = setInterval(checkTrackedChannelsForNewVideos, AUTO_CHECK_INTERVAL_MS);
@@ -5004,8 +4733,7 @@ auth.onAuthStateChanged(async (user)=>{
 });
 
 /* =========================================================
-   Section initiale : Accueil (déclenche automatiquement le
-   chargement paresseux de la première page de vidéos longues)
+   Section initiale
    ========================================================= */
 (function initialSection(){
   const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-playlists', 'section-subs', 'section-search'];
@@ -5013,8 +4741,6 @@ auth.onAuthStateChanged(async (user)=>{
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
 
-// Si l'URL contient un lien de partage (?v=...), rouvre automatiquement le
-// lecteur sur la vidéo correspondante.
 handleSharedVideoLink();
 </script>
 </body>
