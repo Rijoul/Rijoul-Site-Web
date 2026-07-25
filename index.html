@@ -2872,8 +2872,8 @@ function buildVideoShareUrl(v){
 }
 async function shareVideo(v){
   const shareUrl = buildVideoShareUrl(v);
-  const shareText = v.title ? `Regarde « ${v.title} » sur RIJOUL` : 'Regarde cette vidéo sur RIJOUL';
-  const shareData = { title: v.title || 'Vidéo RIJOUL', text: shareText, url: shareUrl };
+  const shareText = v.title ? `Regarde « ${v.title} » sur RIJOUL VISION` : 'Regarde cette vidéo sur RIJOUL VISION';
+  const shareData = { title: v.title || 'Vidéo RIJOUL VISION', text: shareText, url: shareUrl };
 
   if(navigator.share){
     try{
@@ -4621,7 +4621,7 @@ document.getElementById('dd-delete-account').addEventListener('click', async ()=
   if(!user || user.isAnonymous){ clearAuthErrors(); openOverlay('account-overlay'); return; }
 
   if(!confirm("Supprimer définitivement ton compte ? Cette action est irréversible : ton profil, tes réactions, tes vidéos vues et tes abonnements seront effacés.")) return;
-  if(!confirm("Dernière confirmation : ton compte RIJOUL va être supprimé définitivement. Continuer ?")) return;
+  if(!confirm("Dernière confirmation : ton compte RIJOUL VISION va être supprimé définitivement. Continuer ?")) return;
 
   const btn = document.getElementById('dd-delete-account');
   const originalText = btn.textContent;
