@@ -272,6 +272,8 @@
   .card-flag-badge.badge-new{ background: var(--red); }
   .card-flag-badge.badge-watched{ background:#1d63ff; }
   body.admin-mode .card-flag-badge{ top:46px; }
+  .card-flag-badge.badge-views{ background:#14141a; top:auto; bottom:10px; right:10px; text-transform:none; letter-spacing:0.02em; }
+  body.admin-mode .card-flag-badge.badge-views{ top:auto; bottom:10px; }
 
   .card.is-new{
     background: linear-gradient(160deg, var(--red) 0%, var(--red-dim) 100%);
@@ -1664,6 +1666,23 @@ async function fetchDurationsMapYouTube(videoIds){
   }
   return map;
 }
+async function fetchViewCountsMapYouTube(videoIds){
+  const map = {};
+  if(!YOUTUBE_API_KEY) return map;
+  const unique = [...new Set(videoIds)].filter(Boolean);
+  for(let i = 0; i < unique.length; i += 50){
+    const chunk = unique.slice(i, i + 50);
+    if(chunk.length === 0) continue;
+    try{
+      const data = await ytApiGet('videos', { part: 'statistics', id: chunk.join(','), fields: 'items(id,statistics(viewCount))' });
+      (data.items || []).forEach(it=>{
+        const vc = it.statistics && it.statistics.viewCount;
+        map[it.id] = vc != null ? parseInt(vc, 10) : null;
+      });
+    }catch(e){ console.warn('Nombre de vues indisponible pour un lot de vidéos :', e); }
+  }
+  return map;
+}
 
 function toMillisAny(ts){
   if(!ts) return 0;
@@ -2958,6 +2977,24 @@ function cardFlagBadgeHtml(v){
   }
   return '';
 }
+function formatViewCount(n){
+  if(n == null) return null;
+  if(n >= 1000000){
+    const val = Math.round(n / 100000) / 10;
+    return (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + 'M';
+  }
+  if(n >= 1000){
+    const val = Math.round(n / 100) / 10;
+    return (val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)) + 'k';
+  }
+  return String(n);
+}
+function viewsBadgeHtml(v){
+  if(v.viewCount == null) return '';
+  const formatted = formatViewCount(v.viewCount);
+  if(formatted == null) return '';
+  return `<span class="card-flag-badge badge-views"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>${formatted} vues</span>`;
+}
 function cardHtml(v, i){
   const thumb = thumbForVideo(v);
   const watched = !!userWatched[v.id];
@@ -2980,6 +3017,7 @@ function cardHtml(v, i){
           : `<span style="font-family:'Fredoka';font-weight:700;color:var(--cream);font-size:1rem;letter-spacing:0.05em;opacity:0.6;text-align:center;padding:0 1rem;">${escapeHtml(platformLabel(v))}</span>`
         }
         <div class="play-badge"><div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
+        ${viewsBadgeHtml(v)}
       </div>
       <div class="card-body">
         <p class="card-title">${escapeHtml(v.title)}</p>
@@ -3591,6 +3629,16 @@ async function submitVideo(){
   }
   if(!title) title = 'Vidéo sans titre';
 
+  let initialViewCount = null;
+  if(detected.platform === 'youtube'){
+    try{
+      const vcMap = await fetchViewCountsMapYouTube([detected.id]);
+      initialViewCount = vcMap[detected.id] != null ? vcMap[detected.id] : null;
+    }catch(e){
+      console.warn('Nombre de vues indisponible à l\'ajout :', e);
+    }
+  }
+
   try{
     const payload = {
       platform: detected.platform,
@@ -3607,6 +3655,7 @@ async function submitVideo(){
       payload.publishedAt = firebase.firestore.Timestamp.fromDate(publishedAtDate);
       payload.sortDate = payload.publishedAt;
     }
+    if(initialViewCount != null) payload.viewCount = initialViewCount;
     await addVideoDoc(payload);
   }catch(e){
     alert("Erreur lors de l'ajout de la vidéo.");
@@ -3710,6 +3759,7 @@ async function fetchLatestUploads(playlistId, maxResults = 25){
 async function checkTrackedChannelsForNewVideos(){
   if(!YOUTUBE_API_KEY) return;
   let addedAny = false;
+  let updatedViewsAny = false;
   try{
     const snap = await trackedChannelsRef.get();
     if(snap.empty) return;
@@ -3725,12 +3775,30 @@ async function checkTrackedChannelsForNewVideos(){
       }
 
       const durationsMap = await fetchDurationsMapYouTube(latest.map(v => v.videoId));
+      const viewCountsMap = await fetchViewCountsMapYouTube(latest.map(v => v.videoId));
 
       for(const v of latest){
         const docId = makeVideoDocId('youtube', v.videoId);
         const docRef = videosRef.doc(docId);
         const existing = await docRef.get();
-        if(existing.exists) continue;
+        const newViewCount = viewCountsMap[v.videoId] != null ? viewCountsMap[v.videoId] : null;
+
+        if(existing.exists){
+          // Mise à jour du nombre de vues des vidéos déjà présentes, à
+          // chaque fois qu'une vérification des nouvelles vidéos est lancée
+          // (manuellement par l'admin ou via le contrôle automatique).
+          if(newViewCount != null && existing.data().viewCount !== newViewCount){
+            try{
+              await docRef.update({ viewCount: newViewCount });
+              const local = findLoadedVideoById(docId);
+              if(local){ local.viewCount = newViewCount; }
+              updatedViewsAny = true;
+            }catch(err){
+              console.warn('Mise à jour du nombre de vues impossible pour', docId, err);
+            }
+          }
+          continue;
+        }
 
         const shortDesc = (v.description || '').split('\n')[0].slice(0, 200) || null;
         const sortDate = v.publishedAt ? firebase.firestore.Timestamp.fromDate(v.publishedAt) : firebase.firestore.Timestamp.now();
@@ -3744,7 +3812,8 @@ async function checkTrackedChannelsForNewVideos(){
           description: shortDesc,
           isShort: isShortFinal,
           likeCount: 0,
-          dislikeCount: 0
+          dislikeCount: 0,
+          viewCount: newViewCount
         };
         try{
           await docRef.set({
@@ -3766,7 +3835,7 @@ async function checkTrackedChannelsForNewVideos(){
         }
       }
     }
-    if(addedAny){
+    if(addedAny || updatedViewsAny){
       persistSectionFirstPageCache('long');
       persistSectionFirstPageCache('short');
     }
@@ -4177,6 +4246,7 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
 
     setAddChannelProgress(`Analyse des durées de ${uploads.length} vidéo(s)…`, 38);
     const durationsMap = await fetchDurationsMapYouTube(uploads.map(u => u.videoId));
+    const viewCountsMap = await fetchViewCountsMapYouTube(uploads.map(u => u.videoId));
 
     let done = 0, imported = 0, skipped = 0;
     for(const u of uploads){
@@ -4203,7 +4273,8 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
         description: shortDesc,
         isShort: isShortAuto,
         likeCount: 0,
-        dislikeCount: 0
+        dislikeCount: 0,
+        viewCount: viewCountsMap[u.videoId] != null ? viewCountsMap[u.videoId] : null
       };
       await docRef.set({
         ...docPayload,
