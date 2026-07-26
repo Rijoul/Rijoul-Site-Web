@@ -299,6 +299,25 @@
   .card.is-watched .card-desc{ color:#6e6e6e; }
   .card.is-watched .card-author{ color:#7a7a7a; }
 
+  /* ---------- Progression de visionnage ---------- */
+  .card.in-progress{
+    border-color:#ff9d3d;
+    background: linear-gradient(160deg, #fff3e2 0%, var(--panel) 65%);
+  }
+  .thumb-progress-track{
+    position:absolute; left:0; right:0; bottom:0; height:4px;
+    background: rgba(0,0,0,0.35); z-index:2; pointer-events:none;
+  }
+  .thumb-progress-fill{ height:100%; background: var(--red); }
+  .thumb-progress-badge{
+    position:absolute; bottom:10px; left:10px; z-index:3;
+    font-family:'Fredoka', sans-serif; font-weight:700; font-size:0.64rem; letter-spacing:0.02em;
+    color:#fff; background: rgba(0,0,0,0.72); border-radius:999px; padding:0.3rem 0.62rem;
+    pointer-events:none;
+  }
+  .card-flag-badge.badge-progress{ background:#ff9d3d; }
+  #yt-player-mount{ width:100% !important; height:100% !important; border:0; }
+
   .card-author{ font-size:0.76rem; color: var(--red-dim); font-weight:700; margin: 0.15rem 0 0.3rem; }
   .card-desc{
     font-size:0.8rem; color:#6b5644; line-height:1.4; margin:0.3rem 0 0;
@@ -1457,6 +1476,11 @@ let userReactions = {};
 let reactionInFlight = new Set();
 let userWatched = {};
 
+let ytPlayerInstance = null;
+let ytProgressInterval = null;
+let ytCurrentVideoId = null;
+let currentDirectVideoTag = null;
+
 let channelsCache = {};
 let userSubscribedKeys = new Set();
 let subscribeInFlight = new Set();
@@ -1716,7 +1740,11 @@ document.querySelectorAll('[data-close]').forEach(btn=>{
   btn.addEventListener('click', ()=>{ closeOverlay(btn.dataset.close); });
 });
 document.querySelectorAll('.overlay').forEach(ov=>{
-  ov.addEventListener('click', (e)=>{ if(e.target === ov) ov.classList.remove('open'); });
+  ov.addEventListener('click', (e)=>{
+    if(e.target !== ov) return;
+    if(ov.id === 'player-overlay'){ closePlayerOverlay(); }
+    else{ ov.classList.remove('open'); }
+  });
 });
 
 /* =========================================================
@@ -1988,20 +2016,50 @@ async function loadUserWatched(uid){
   }
 }
 
-async function markVideoWatched(videoId){
-  if(!videoId || userWatched[videoId]) return;
-  userWatched[videoId] = true;
+/* userWatched[id] = { seconds, duration, completed } */
+function watchRatio(entry){
+  if(!entry || !entry.duration) return 0;
+  return Math.max(0, Math.min(1, (entry.seconds || 0) / entry.duration));
+}
+function isVideoCompleted(id){
+  const e = userWatched[id];
+  if(!e) return false;
+  if(e.completed) return true;
+  return watchRatio(e) >= 0.9;
+}
+function isVideoInProgress(id){
+  const e = userWatched[id];
+  if(!e || isVideoCompleted(id)) return false;
+  return !!(e.duration && e.seconds > 3);
+}
+
+async function saveWatchProgress(videoId, seconds, duration){
+  if(!videoId) return;
+  let entry;
+  if(duration && duration > 0){
+    const clamped = Math.max(0, Math.min(seconds || 0, duration));
+    entry = { seconds: clamped, duration, completed: (clamped / duration) >= 0.9 };
+  }else{
+    entry = { seconds: null, duration: null, completed: true };
+  }
+  const prev = userWatched[videoId];
+  if(prev && prev.completed === entry.completed && Math.floor(prev.seconds||0) === Math.floor(entry.seconds||0) && prev.duration === entry.duration) return;
+
+  userWatched[videoId] = entry;
   renderAllSections();
   try{
     const user = await ensureAnyAuth();
     lsSet('watched_' + user.uid, { ts: Date.now(), data: userWatched });
     await userWatchedRef.doc(user.uid).set({
-      watched: { [videoId]: true },
+      watched: { [videoId]: entry },
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
   }catch(e){
-    console.warn("Impossible d'enregistrer la vidéo comme vue :", e);
+    console.warn("Impossible d'enregistrer la progression de visionnage :", e);
   }
+}
+async function markVideoFullyWatchedNoProgress(videoId){
+  await saveWatchProgress(videoId, null, null);
 }
 
 async function toggleReaction(videoId, type){
@@ -2968,9 +3026,13 @@ function subsCountHtml(v){
   return ` <span class="subs-count">· ${count} abonné${count > 1 ? 's' : ''}</span>`;
 }
 function cardFlagBadgeHtml(v){
-  const watched = !!userWatched[v.id];
-  if(watched){
+  if(isVideoCompleted(v.id)){
     return '<span class="card-flag-badge badge-watched"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>VU</span>';
+  }
+  if(isVideoInProgress(v.id)){
+    const e = userWatched[v.id];
+    const label = (e && e.seconds != null) ? `À CONTINUER · ${formatSeconds(e.seconds)}` : 'À CONTINUER';
+    return `<span class="card-flag-badge badge-progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>${label}</span>`;
   }
   if(isNewVideo(v)){
     return '<span class="card-flag-badge badge-new"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.8L20 9.3l-5 3.8L16.5 20 12 16.3 7.5 20l1.5-6.9-5-3.8 6.1-1.5z"/></svg>NEW</span>';
@@ -2995,15 +3057,26 @@ function viewsBadgeHtml(v){
   if(formatted == null) return '';
   return `<span class="card-flag-badge badge-views"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>${formatted} vues</span>`;
 }
+function thumbProgressHtml(v){
+  const e = userWatched[v.id];
+  if(!e || e.seconds == null || !e.duration) return '';
+  const ratio = watchRatio(e);
+  return `
+    <div class="thumb-progress-track"><div class="thumb-progress-fill" style="width:${Math.round(ratio * 100)}%"></div></div>
+    <span class="thumb-progress-badge">${formatSeconds(e.seconds)} / ${formatSeconds(e.duration)}</span>
+  `;
+}
 function cardHtml(v, i){
   const thumb = thumbForVideo(v);
-  const watched = !!userWatched[v.id];
-  const fresh = !watched && isNewVideo(v);
+  const completed = isVideoCompleted(v.id);
+  const inProgress = !completed && isVideoInProgress(v.id);
+  const fresh = !completed && !inProgress && isNewVideo(v);
   const cardClasses = [
     'card',
     v.isShort ? 'short' : '',
     fresh ? 'is-new' : '',
-    watched ? 'is-watched' : ''
+    completed ? 'is-watched' : '',
+    inProgress ? 'in-progress' : ''
   ].filter(Boolean).join(' ');
   return `
     <div class="${cardClasses}" data-id="${v.id}" data-video-id="${escapeHtml(v.videoId)}" data-platform="${v.platform || 'youtube'}" data-twitch-type="${v.twitchType || ''}">
@@ -3018,6 +3091,7 @@ function cardHtml(v, i){
         }
         <div class="play-badge"><div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
         ${viewsBadgeHtml(v)}
+        ${thumbProgressHtml(v)}
       </div>
       <div class="card-body">
         <p class="card-title">${escapeHtml(v.title)}</p>
@@ -3264,19 +3338,148 @@ function updatePlayerActionButtons(){
   dislikeBtn.classList.toggle('player-action-active-dislike', myReaction === 'dislike');
 }
 
+let ytApiReadyPromise = null;
+function loadYouTubeIframeAPI(){
+  if(window.YT && window.YT.Player) return Promise.resolve();
+  if(ytApiReadyPromise) return ytApiReadyPromise;
+  ytApiReadyPromise = new Promise((resolve)=>{
+    const prevCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = ()=>{
+      if(typeof prevCallback === 'function') prevCallback();
+      resolve();
+    };
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  });
+  return ytApiReadyPromise;
+}
+
+function mountYouTubePlayer(wrapper, customControls, videoId, docId, startSeconds){
+  const mount = document.createElement('div');
+  mount.id = 'yt-player-mount';
+  wrapper.insertBefore(mount, customControls);
+  loadYouTubeIframeAPI().then(()=>{
+    if(!document.getElementById('yt-player-mount')) return;
+    if(!currentPlayingVideo || currentPlayingVideo.id !== docId) return;
+    ytCurrentVideoId = docId;
+    try{
+      ytPlayerInstance = new YT.Player('yt-player-mount', {
+        videoId,
+        width: '100%',
+        height: '100%',
+        playerVars: { autoplay: 1, rel: 0, start: Math.floor(startSeconds || 0), playsinline: 1, modestbranding: 1 },
+        events: {
+          onStateChange: (e)=>{
+            try{
+              if(!ytPlayerInstance) return;
+              const dur = ytPlayerInstance.getDuration();
+              const cur = ytPlayerInstance.getCurrentTime();
+              if(dur) saveWatchProgress(docId, cur, dur);
+            }catch(err){}
+            if(ytProgressInterval){ clearInterval(ytProgressInterval); ytProgressInterval = null; }
+            if(e.data === YT.PlayerState.PLAYING){
+              ytProgressInterval = setInterval(()=>{
+                try{
+                  if(!ytPlayerInstance) return;
+                  const dur = ytPlayerInstance.getDuration();
+                  const cur = ytPlayerInstance.getCurrentTime();
+                  if(dur) saveWatchProgress(docId, cur, dur);
+                }catch(err){}
+              }, 5000);
+            }
+          }
+        }
+      });
+    }catch(err){ console.warn('Lecteur YouTube indisponible :', err); }
+  });
+}
+
+function stopYtProgressTracking(){
+  if(ytProgressInterval){ clearInterval(ytProgressInterval); ytProgressInterval = null; }
+  if(ytPlayerInstance){
+    try{
+      if(ytCurrentVideoId && ytPlayerInstance.getDuration){
+        const dur = ytPlayerInstance.getDuration();
+        const cur = ytPlayerInstance.getCurrentTime();
+        if(dur) saveWatchProgress(ytCurrentVideoId, cur, dur);
+      }
+    }catch(e){}
+    try{ ytPlayerInstance.destroy(); }catch(e){}
+    ytPlayerInstance = null;
+  }
+  ytCurrentVideoId = null;
+}
+
+function setupDirectVideoProgressTracking(videoTag, videoId){
+  let lastSaved = 0;
+  videoTag.addEventListener('timeupdate', ()=>{
+    if(!videoTag.duration) return;
+    const now = Date.now();
+    if(now - lastSaved < 4000) return;
+    lastSaved = now;
+    saveWatchProgress(videoId, videoTag.currentTime, videoTag.duration);
+  });
+  videoTag.addEventListener('pause', ()=>{
+    if(videoTag.duration) saveWatchProgress(videoId, videoTag.currentTime, videoTag.duration);
+  });
+  videoTag.addEventListener('ended', ()=>{
+    if(videoTag.duration) saveWatchProgress(videoId, videoTag.duration, videoTag.duration);
+  });
+}
+
+function closePlayerOverlay(){
+  if(currentDirectVideoTag){
+    try{
+      if(currentPlayingVideo && currentDirectVideoTag.duration){
+        saveWatchProgress(currentPlayingVideo.id, currentDirectVideoTag.currentTime, currentDirectVideoTag.duration);
+      }
+      currentDirectVideoTag.pause();
+    }catch(e){}
+  }
+  stopYtProgressTracking();
+
+  const iframe = document.getElementById('player-iframe');
+  iframe.src = '';
+  iframe.style.display = 'block';
+  const wrapper = iframe.parentElement;
+  const videoTag = wrapper.querySelector('video');
+  if(videoTag) videoTag.remove();
+  const fallback = wrapper.querySelector('.generic-fallback');
+  if(fallback) fallback.remove();
+  const ytMount = document.getElementById('yt-player-mount');
+  if(ytMount) ytMount.remove();
+  document.getElementById('custom-controls').style.display = 'none';
+  document.getElementById('player-media').classList.remove('direct-mode');
+  document.getElementById('player-media').classList.remove('short-media');
+  document.getElementById('player-like-btn').classList.remove('player-action-active-like');
+  document.getElementById('player-dislike-btn').classList.remove('player-action-active-dislike');
+  currentPlayingVideo = null;
+  currentDirectVideoTag = null;
+  closeOverlay('player-overlay');
+}
+
 function playVideo(v){
   const { videoId, platform, twitchType, title, author, description, isShort } = v;
   currentPlayingVideo = v;
-  markVideoWatched(v.id);
+  currentDirectVideoTag = null;
   updatePlayerActionButtons();
+
+  const watchEntry = userWatched[v.id];
+  const alreadyCompleted = isVideoCompleted(v.id);
+  const resumeSeconds = (watchEntry && watchEntry.duration && !alreadyCompleted && watchEntry.seconds > 5) ? watchEntry.seconds : 0;
+
   const iframe = document.getElementById('player-iframe');
   const wrapper = iframe.parentElement;
   const customControls = document.getElementById('custom-controls');
 
+  stopYtProgressTracking();
   const existingVideoTag = wrapper.querySelector('video');
   if(existingVideoTag) existingVideoTag.remove();
   const existingFallback = wrapper.querySelector('.generic-fallback');
   if(existingFallback) existingFallback.remove();
+  const existingYtMount = document.getElementById('yt-player-mount');
+  if(existingYtMount) existingYtMount.remove();
   customControls.style.display = 'none';
 
   const infoBar = document.getElementById('player-info-bar');
@@ -3308,6 +3511,19 @@ function playVideo(v){
     wrapper.insertBefore(videoTag, customControls);
     setupCustomControls(videoTag);
     customControls.style.display = 'flex';
+    currentDirectVideoTag = videoTag;
+    if(resumeSeconds > 0){
+      videoTag.addEventListener('loadedmetadata', ()=>{
+        if(videoTag.duration && resumeSeconds < videoTag.duration - 2){
+          videoTag.currentTime = resumeSeconds;
+        }
+      }, { once:true });
+    }
+    setupDirectVideoProgressTracking(videoTag, v.id);
+  }else if(platform === 'youtube'){
+    iframe.style.display = 'none';
+    iframe.src = '';
+    mountYouTubePlayer(wrapper, customControls, videoId, v.id, resumeSeconds);
   }else if(platform === 'generic'){
     iframe.style.display = 'block';
     iframe.src = videoId;
@@ -3315,6 +3531,7 @@ function playVideo(v){
     fallback.className = 'generic-fallback';
     fallback.innerHTML = `Si la vidéo ne s'affiche pas ci-dessus (certains sites bloquent l'intégration), <a href="${videoId}" target="_blank" rel="noopener">ouvre le lien directement</a>.`;
     wrapper.insertBefore(fallback, customControls);
+    markVideoFullyWatchedNoProgress(v.id);
   }else{
     iframe.style.display = 'block';
     if(platform === 'vimeo'){
@@ -3328,9 +3545,8 @@ function playVideo(v){
       }else{
         iframe.src = `https://player.twitch.tv/?video=${videoId}&parent=${parent}&autoplay=true`;
       }
-    }else{
-      iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
     }
+    markVideoFullyWatchedNoProgress(v.id);
   }
   openOverlay('player-overlay');
 }
@@ -3389,21 +3605,19 @@ function setupCustomControls(videoTag){
   };
 }
 
-document.querySelector('[data-close="player-overlay"]').addEventListener('click', ()=>{
-  const iframe = document.getElementById('player-iframe');
-  iframe.src = '';
-  iframe.style.display = 'block';
-  const wrapper = iframe.parentElement;
-  const videoTag = wrapper.querySelector('video');
-  if(videoTag) videoTag.remove();
-  const fallback = wrapper.querySelector('.generic-fallback');
-  if(fallback) fallback.remove();
-  document.getElementById('custom-controls').style.display = 'none';
-  document.getElementById('player-media').classList.remove('direct-mode');
-  document.getElementById('player-media').classList.remove('short-media');
-  document.getElementById('player-like-btn').classList.remove('player-action-active-like');
-  document.getElementById('player-dislike-btn').classList.remove('player-action-active-dislike');
-  currentPlayingVideo = null;
+document.querySelector('[data-close="player-overlay"]').addEventListener('click', closePlayerOverlay);
+
+window.addEventListener('beforeunload', ()=>{
+  if(!currentPlayingVideo) return;
+  try{
+    if(currentDirectVideoTag && currentDirectVideoTag.duration){
+      saveWatchProgress(currentPlayingVideo.id, currentDirectVideoTag.currentTime, currentDirectVideoTag.duration);
+    }else if(ytPlayerInstance && ytCurrentVideoId && ytPlayerInstance.getDuration){
+      const dur = ytPlayerInstance.getDuration();
+      const cur = ytPlayerInstance.getCurrentTime();
+      if(dur) saveWatchProgress(currentPlayingVideo.id, cur, dur);
+    }
+  }catch(e){}
 });
 
 async function deleteVideo(id){
