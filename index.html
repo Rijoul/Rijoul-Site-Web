@@ -458,9 +458,6 @@
     margin-top:0.2rem;
   }
   .player-info-actions{ flex-shrink:0; display:flex; align-items:center; gap:0.5rem; }
-  /* Boutons like/dislike/playlist/partager du lecteur : plus compacts que
-     les boutons verre par défaut, pour que 4 boutons tiennent côte à côte
-     sans déborder à côté du titre/auteur. */
   .player-info-actions .glass-btn{ width:36px; height:36px; }
   .player-info-actions .glass-btn svg{ width:16px; height:16px; }
   .player-info-actions .glass-btn.player-action-active-like{ background: var(--red); border-color: var(--red); }
@@ -3071,12 +3068,17 @@ function viewsBadgeHtml(v){
 }
 function thumbProgressHtml(v){
   const e = userWatched[v.id];
-  if(!e || e.seconds == null || !e.duration) return '';
-  const ratio = watchRatio(e);
-  return `
-    <div class="thumb-progress-track"><div class="thumb-progress-fill" style="width:${Math.round(ratio * 100)}%"></div></div>
-    <span class="thumb-progress-badge">${formatSeconds(e.seconds)} / ${formatSeconds(e.duration)}</span>
-  `;
+  if(e && e.seconds != null && e.duration){
+    const ratio = watchRatio(e);
+    return `
+      <div class="thumb-progress-track"><div class="thumb-progress-fill" style="width:${Math.round(ratio * 100)}%"></div></div>
+      <span class="thumb-progress-badge">${formatSeconds(e.seconds)} / ${formatSeconds(e.duration)}</span>
+    `;
+  }
+  if(v.duration){
+    return `<span class="thumb-progress-badge">${formatSeconds(v.duration)}</span>`;
+  }
+  return '';
 }
 function cardHtml(v, i){
   const thumb = thumbForVideo(v);
@@ -3896,6 +3898,7 @@ async function submitVideo(){
       likeCount: 0,
       dislikeCount: 0
     };
+    if(autoDuration != null) payload.duration = autoDuration;
     if(detected.twitchType) payload.twitchType = detected.twitchType;
     if(publishedAtDate){
       payload.publishedAt = firebase.firestore.Timestamp.fromDate(publishedAtDate);
@@ -3958,6 +3961,13 @@ document.getElementById('recalc-short-link').addEventListener('click', async (e)
       }else if(v.platform === 'youtube'){
         const ratio = await fetchYouTubeOEmbedRatio(v.videoId);
         if(ratio != null) newIsShort = ratio < 1;
+      }
+
+      if(duration != null && v.duration !== duration){
+        try{
+          await videosRef.doc(v.id).update({ duration });
+          v.duration = duration;
+        }catch(err){}
       }
 
       if(newIsShort != null && newIsShort !== !!v.isShort){
@@ -4059,7 +4069,8 @@ async function checkTrackedChannelsForNewVideos(){
           isShort: isShortFinal,
           likeCount: 0,
           dislikeCount: 0,
-          viewCount: newViewCount
+          viewCount: newViewCount,
+          duration: durationsMap[v.videoId] != null ? durationsMap[v.videoId] : null
         };
         try{
           await docRef.set({
@@ -4520,7 +4531,8 @@ document.getElementById('add-channel-submit').addEventListener('click', async ()
         isShort: isShortAuto,
         likeCount: 0,
         dislikeCount: 0,
-        viewCount: viewCountsMap[u.videoId] != null ? viewCountsMap[u.videoId] : null
+        viewCount: viewCountsMap[u.videoId] != null ? viewCountsMap[u.videoId] : null,
+        duration: durationsMap[u.videoId] != null ? durationsMap[u.videoId] : null
       };
       await docRef.set({
         ...docPayload,
