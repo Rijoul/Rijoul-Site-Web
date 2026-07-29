@@ -843,6 +843,15 @@
     .top-search-bar{ padding:0.55rem 0.8rem; }
     .top-search-inner{ padding:0.35rem 0.35rem 0.35rem 0.9rem; }
   }
+
+  /* ---------- Lives (badge "EN DIRECT" + point qui pulse) ---------- */
+  .card-flag-badge.badge-live{ background:#e0122c; }
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:#fff; flex-shrink:0;
+    animation: livePulse 1.4s ease-in-out infinite;
+  }
+  @keyframes livePulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+  .badge-live-viewers{ background:#14141a; top:auto; bottom:10px; right:10px; text-transform:none; letter-spacing:0.02em; }
 </style>
 </head>
 <body>
@@ -888,6 +897,7 @@
     <button class="site-nav-btn" data-section="section-home">Accueil</button>
     <button class="site-nav-btn" data-section="section-videos">Vidéos</button>
     <button class="site-nav-btn" data-section="section-shorts">Shorts</button>
+    <button class="site-nav-btn" data-section="section-lives">Lives</button>
     <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
     <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
   </nav>
@@ -942,6 +952,19 @@
     </div>
     <div class="load-more-row">
       <button class="btn primary load-more-btn" id="load-more-shorts">Afficher plus</button>
+    </div>
+  </section>
+
+  <section class="page-section" id="section-lives">
+    <div class="section-head">
+      <div class="section-title">Lives en cours</div>
+      <div class="section-count-row">
+        <div class="section-count" id="lives-count">chargement…</div>
+        <a class="refresh-link" id="refresh-lives-link">↻ Actualiser</a>
+      </div>
+    </div>
+    <div class="grid" id="lives-grid">
+      <div class="empty-state">Chargement des lives…</div>
     </div>
   </section>
 
@@ -1085,6 +1108,8 @@
     <h2>Ajouter une vidéo</h2>
 
     <div class="import-link-row"><a id="open-channels-list">Gérer les chaînes suivies (ajouter / retirer) →</a></div>
+    <div class="import-link-row"><a id="open-twitch-channels-list">Gérer les chaînes Twitch suivies (Lives) →</a></div>
+    <div class="import-link-row"><a id="check-lives-now-link">Vérifier maintenant les lives en cours →</a></div>
     <div class="import-link-row"><a id="refresh-dates-link">Rafraîchir les dates de publication des vidéos déjà chargées →</a></div>
     <div class="import-link-row"><a id="recalc-short-link">Recalculer le classement Vidéo / Short (durée réelle) des vidéos déjà chargées →</a></div>
     <div class="import-link-row"><a id="check-now-link">Vérifier maintenant les nouvelles vidéos des chaînes suivies →</a></div>
@@ -1138,6 +1163,29 @@
     </div>
     <div class="modal-actions">
       <button class="btn" data-close="channels-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tracked Twitch channels modal (Lives) -->
+<div class="overlay" id="twitch-channels-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="twitch-channels-overlay">&times;</button>
+    <h2>Chaînes Twitch suivies (Lives)</h2>
+    <div class="modal-hint">Ajoute le nom d'utilisateur Twitch d'une chaîne (ex : "ninja" ou https://www.twitch.tv/ninja) à surveiller. Dès que cette chaîne est en direct, son live apparaît automatiquement dans le menu "Lives" pour tous les visiteurs du site — et disparaît automatiquement dès que le live se termine.</div>
+
+    <label for="add-twitch-channel-link">Ajouter une chaîne Twitch</label>
+    <div class="add-channel-row">
+      <input type="text" id="add-twitch-channel-link" placeholder="https://www.twitch.tv/nomdelachaine ou nomdelachaine">
+      <button class="btn primary" id="add-twitch-channel-submit">Ajouter</button>
+    </div>
+    <div class="modal-error" id="add-twitch-channel-error"></div>
+
+    <div id="twitch-channels-list-container" style="margin-top:1.4rem;">
+      <div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" data-close="twitch-channels-overlay">Fermer</button>
     </div>
   </div>
 </div>
@@ -1357,7 +1405,7 @@
           <div class="player-info-title" id="player-info-title"></div>
           <div class="player-info-author" id="player-info-author"></div>
         </div>
-        <div class="player-info-actions">
+        <div class="player-info-actions" id="player-info-actions">
           <button class="glass-btn" id="player-like-btn" title="J'aime">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>
           </button>
@@ -1403,6 +1451,15 @@ const CACHE_TTL_MS = 5 * 60 * 1000;          // 5 minutes : première page de vi
 const CHANNELS_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes : compteurs d'abonnés
 const AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
+// Identifiants Twitch (console.twitch.tv → "Applications") : nécessaires
+// uniquement pour la détection automatique des lives Twitch. Comme pour
+// YOUTUBE_API_KEY ci-dessus, ces identifiants restent visibles dans le code
+// source de la page pour n'importe quel visiteur : n'utilise que des
+// identifiants dédiés à cet usage, sans droits sensibles.
+const TWITCH_CLIENT_ID = "TON_CLIENT_ID_TWITCH";
+const TWITCH_CLIENT_SECRET = "TON_CLIENT_SECRET_TWITCH";
+const LIVE_CHECK_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes : vérification des lives
+
 /* =========================================================
    Firebase init
    ========================================================= */
@@ -1411,6 +1468,8 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
 const trackedChannelsRef = db.collection('trackedChannels');
+const trackedTwitchChannelsRef = db.collection('trackedTwitchChannels');
+const liveStreamsRef = db.collection('liveStreams');
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 const ONYX_APP_ID = "onyx-pro-chat";
@@ -1475,6 +1534,7 @@ function compressImageToDataURL(file, maxDim = 256, quality = 0.82){
 let isAdmin = false;
 let isConnected = false;
 let trackedChannelsCheckInterval = null;
+let liveCheckInterval = null;
 
 const videoSections = {
   long:  { docs: [], lastDocMillis: null, hasMore: true, loading: false, initialized: false },
@@ -1506,6 +1566,9 @@ let playlistOpInFlight = new Set();
 let playlistListenerUnsubs = [];
 let playlistListenerUid = null;
 let playlistDeleteChoiceId = null;
+
+let currentLiveStreams = [];
+let liveStreamsUnsub = null;
 
 /* =========================================================
    Utilitaires : détection de plateforme / format
@@ -1584,6 +1647,14 @@ function detectVideo(url){
   if(twitch) return { platform: 'twitch', id: twitch.id, twitchType: twitch.type };
   if(isDirectVideoFile(url)) return { platform: 'direct', id: url };
   if(isValidHttpUrl(url)) return { platform: 'generic', id: url };
+  return null;
+}
+function parseTwitchLogin(input){
+  if(!input) return null;
+  input = input.trim();
+  let m = input.match(/twitch\.tv\/([a-zA-Z0-9_]{3,25})/);
+  if(m) return m[1].toLowerCase();
+  if(/^[a-zA-Z0-9_]{3,25}$/.test(input)) return input.toLowerCase();
   return null;
 }
 async function fetchYouTubeTitle(videoId){
@@ -1858,6 +1929,8 @@ function showSection(id){
     loadFirstPage('long');
   }else if(id === 'section-playlists'){
     if(isConnected) loadUserPlaylists(auth.currentUser.uid);
+  }else if(id === 'section-lives'){
+    attachLiveStreamsListener();
   }
 }
 document.querySelectorAll('.site-nav-btn').forEach(btn=>{
@@ -1961,6 +2034,7 @@ document.getElementById('load-more-shorts').addEventListener('click', ()=> loadM
 document.getElementById('refresh-home-link').addEventListener('click', ()=> loadFirstPage('long', true));
 document.getElementById('refresh-videos-link').addEventListener('click', ()=> loadFirstPage('long', true));
 document.getElementById('refresh-shorts-link').addEventListener('click', ()=> loadFirstPage('short', true));
+document.getElementById('refresh-lives-link').addEventListener('click', ()=> checkLiveStreams());
 
 /* =========================================================
    Réactions (like / dislike) et abonnements
@@ -3193,6 +3267,7 @@ function renderAllSections(){
   }
   renderSubsSection();
   renderPlaylistsSection();
+  renderLivesSection();
   updatePlayerActionButtons();
 }
 
@@ -3292,6 +3367,228 @@ function renderSubsSection(){
     loadingChannel ? loadingMsg : errorChannel ? errorMsg : "Aucune vidéo (format long) trouvée pour cette chaîne.", null, false);
   renderVideoGrid('subs-shorts-grid', 'subs-shorts-count', shortVideos,
     loadingChannel ? loadingMsg : errorChannel ? errorMsg : "Aucun short trouvé pour cette chaîne.", null, false);
+}
+
+/* =========================================================
+   LIVES — Twitch et YouTube, mis à jour en temps réel via Firestore
+   ========================================================= */
+function attachLiveStreamsListener(){
+  if(liveStreamsUnsub) return;
+  liveStreamsUnsub = liveStreamsRef.orderBy('startedAt', 'desc').onSnapshot((snap)=>{
+    currentLiveStreams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderLivesSection();
+  }, (e)=>{
+    console.error('Lives indisponibles :', e);
+    const grid = document.getElementById('lives-grid');
+    if(grid) grid.innerHTML = `<div class="empty-state">Impossible de charger les lives pour le moment.</div>`;
+  });
+}
+function liveCardHtml(l){
+  const thumb = l.thumbnail || (l.platform === 'youtube' ? `https://i.ytimg.com/vi/${l.videoId}/hqdefault.jpg` : null);
+  const platformLabelText = l.platform === 'twitch' ? 'TWITCH' : 'YOUTUBE';
+  return `
+    <div class="card live-card" data-id="${l.id}">
+      <span class="card-flag-badge badge-live"><span class="live-dot"></span>EN DIRECT</span>
+      ${l.viewerCount != null ? `<span class="card-flag-badge badge-live-viewers">${formatViewCount(l.viewerCount)} spectateurs</span>` : ''}
+      <div class="thumb-wrap" ${thumb ? '' : 'style="display:flex;align-items:center;justify-content:center;background:#1a1a1a;"'}>
+        ${thumb
+          ? `<img src="${thumb}" alt="${escapeHtml(l.title)}" loading="lazy">`
+          : `<span style="font-family:'Fredoka';font-weight:700;color:var(--cream);font-size:1rem;letter-spacing:0.05em;opacity:0.6;text-align:center;padding:0 1rem;">${platformLabelText}</span>`
+        }
+        <div class="play-badge"><div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
+      </div>
+      <div class="card-body">
+        <p class="card-title">${escapeHtml(l.title || 'Live')}</p>
+        ${l.author ? `<div class="card-author">${escapeHtml(l.author)}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+function renderLivesSection(){
+  const grid = document.getElementById('lives-grid');
+  const count = document.getElementById('lives-count');
+  if(!grid) return;
+  if(count) count.textContent = currentLiveStreams.length + (currentLiveStreams.length > 1 ? ' lives en cours' : ' live en cours');
+
+  if(currentLiveStreams.length === 0){
+    grid.innerHTML = `<div class="empty-state">Aucun live en cours pour l'instant. Reviens plus tard !</div>`;
+    return;
+  }
+
+  grid.innerHTML = currentLiveStreams.map(l => liveCardHtml(l)).join('');
+  grid.querySelectorAll('.live-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const l = currentLiveStreams.find(x => x.id === card.dataset.id);
+      if(l) playLiveStream(l);
+    });
+  });
+}
+
+/* --- Twitch : jeton d'application (client_credentials) --- */
+let twitchAppToken = null;
+let twitchAppTokenExpiry = 0;
+async function getTwitchAppToken(){
+  if(twitchAppToken && Date.now() < twitchAppTokenExpiry - 60000) return twitchAppToken;
+  if(!TWITCH_CLIENT_ID || !TWITCH_CLIENT_SECRET || TWITCH_CLIENT_ID === 'TON_CLIENT_ID_TWITCH') return null;
+  try{
+    const res = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${encodeURIComponent(TWITCH_CLIENT_ID)}&client_secret=${encodeURIComponent(TWITCH_CLIENT_SECRET)}&grant_type=client_credentials`, { method: 'POST' });
+    const data = await res.json();
+    if(data.access_token){
+      twitchAppToken = data.access_token;
+      twitchAppTokenExpiry = Date.now() + (data.expires_in || 3600) * 1000;
+      return twitchAppToken;
+    }
+  }catch(e){ console.warn('Jeton Twitch indisponible :', e); }
+  return null;
+}
+async function twitchHelixGetUsers(logins){
+  const token = await getTwitchAppToken();
+  if(!token) throw new Error("Twitch non configuré : ajoute TWITCH_CLIENT_ID et TWITCH_CLIENT_SECRET dans le code de la page.");
+  const usp = new URLSearchParams();
+  logins.forEach(l => usp.append('login', l));
+  const res = await fetch(`https://api.twitch.tv/helix/users?${usp.toString()}`, {
+    headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${token}` }
+  });
+  const data = await res.json();
+  if(!res.ok) throw new Error((data && data.message) || `Erreur API Twitch (${res.status})`);
+  return data.data || [];
+}
+async function fetchTwitchStreamsByLogins(logins){
+  const map = {};
+  if(!logins || logins.length === 0) return map;
+  const token = await getTwitchAppToken();
+  if(!token) return map;
+  for(let i = 0; i < logins.length; i += 100){
+    const chunk = logins.slice(i, i + 100);
+    const usp = new URLSearchParams();
+    chunk.forEach(l => usp.append('user_login', l.toLowerCase()));
+    try{
+      const res = await fetch(`https://api.twitch.tv/helix/streams?${usp.toString()}`, {
+        headers: { 'Client-ID': TWITCH_CLIENT_ID, 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      (data.data || []).forEach(s=>{ map[s.user_login.toLowerCase()] = s; });
+    }catch(e){ console.warn('Erreur streams Twitch :', e); }
+  }
+  return map;
+}
+
+/* --- Vérification globale des lives (YouTube + Twitch), lancée
+   périodiquement par le navigateur admin, et dont le résultat est
+   partagé à tous les visiteurs via la collection Firestore "liveStreams". --- */
+async function checkLiveStreams(){
+  const stillLiveIds = new Set();
+
+  // --- YouTube : eventType=live sur les chaînes déjà suivies pour les vidéos ---
+  try{
+    const trackedSnap = await trackedChannelsRef.get();
+    for(const doc of trackedSnap.docs){
+      const ch = doc.data();
+      try{
+        const data = await ytApiGet('search', { part: 'snippet', channelId: ch.channelId, eventType: 'live', type: 'video', maxResults: 1 });
+        const item = data.items && data.items[0];
+        if(item){
+          const liveDocId = 'youtube_' + item.id.videoId;
+          stillLiveIds.add(liveDocId);
+          const thumbs = item.snippet.thumbnails || {};
+          const thumbUrl = (thumbs.high || thumbs.medium || thumbs.default || {}).url || null;
+          await liveStreamsRef.doc(liveDocId).set({
+            platform: 'youtube',
+            videoId: item.id.videoId,
+            title: item.snippet.title,
+            author: ch.channelTitle,
+            thumbnail: thumbUrl,
+            startedAt: item.snippet.publishedAt ? firebase.firestore.Timestamp.fromDate(new Date(item.snippet.publishedAt)) : firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      }catch(err){ console.warn('Vérification live YouTube impossible pour', ch.channelTitle, err); }
+    }
+  }catch(e){ console.error('Erreur vérification lives YouTube :', e); }
+
+  // --- Twitch : chaînes suivies via trackedTwitchChannels ---
+  try{
+    const twitchSnap = await trackedTwitchChannelsRef.get();
+    const logins = twitchSnap.docs.map(d => d.data().loginName).filter(Boolean);
+    const liveMap = await fetchTwitchStreamsByLogins(logins);
+    for(const doc of twitchSnap.docs){
+      const ch = doc.data();
+      const login = (ch.loginName || '').toLowerCase();
+      const stream = liveMap[login];
+      if(stream){
+        const liveDocId = 'twitch_' + login;
+        stillLiveIds.add(liveDocId);
+        const thumb = (stream.thumbnail_url || '').replace('{width}', '440').replace('{height}', '248');
+        try{
+          await liveStreamsRef.doc(liveDocId).set({
+            platform: 'twitch',
+            videoId: login,
+            title: stream.title || 'Live Twitch',
+            author: ch.displayName || stream.user_name || login,
+            thumbnail: thumb || null,
+            viewerCount: stream.viewer_count != null ? stream.viewer_count : null,
+            startedAt: stream.started_at ? firebase.firestore.Timestamp.fromDate(new Date(stream.started_at)) : firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }catch(err){ console.warn("Impossible d'enregistrer le live Twitch de", login, err); }
+      }
+    }
+  }catch(e){ console.error('Erreur vérification lives Twitch :', e); }
+
+  // --- Nettoyage : retire les lives qui ne sont plus en cours ---
+  try{
+    const allLiveSnap = await liveStreamsRef.get();
+    let batch = db.batch();
+    let ops = 0;
+    for(const doc of allLiveSnap.docs){
+      if(!stillLiveIds.has(doc.id)){
+        batch.delete(doc.ref);
+        ops++;
+        if(ops % 400 === 0){ await batch.commit(); batch = db.batch(); }
+      }
+    }
+    if(ops % 400 !== 0) await batch.commit();
+  }catch(e){ console.error('Erreur nettoyage des lives obsolètes :', e); }
+}
+
+/* --- Lecture d'un live (YouTube ou Twitch) dans le lecteur du site --- */
+function playLiveStream(l){
+  currentPlayingVideo = null;
+  currentDirectVideoTag = null;
+  stopYtProgressTracking();
+
+  const iframe = document.getElementById('player-iframe');
+  const wrapper = iframe.parentElement;
+  const customControls = document.getElementById('custom-controls');
+  document.getElementById('player-loading-overlay').classList.remove('visible');
+
+  const existingVideoTag = wrapper.querySelector('video');
+  if(existingVideoTag) existingVideoTag.remove();
+  const existingFallback = wrapper.querySelector('.generic-fallback');
+  if(existingFallback) existingFallback.remove();
+  const existingYtMount = document.getElementById('yt-player-mount');
+  if(existingYtMount) existingYtMount.remove();
+  customControls.style.display = 'none';
+
+  document.getElementById('player-info-bar').style.display = 'flex';
+  document.getElementById('player-info-title').textContent = l.title || 'Live';
+  document.getElementById('player-info-author').textContent = l.author || '';
+  document.getElementById('player-info-desc').textContent = '';
+  resetDescToggle();
+  document.getElementById('player-info-avatar').textContent = (l.author || l.title || '?').trim().charAt(0).toUpperCase();
+  document.getElementById('player-info-actions').style.display = 'none';
+
+  document.getElementById('player-media').classList.remove('direct-mode');
+  document.getElementById('player-media').classList.remove('short-media');
+
+  iframe.style.display = 'block';
+  if(l.platform === 'youtube'){
+    iframe.src = `https://www.youtube.com/embed/${l.videoId}?autoplay=1`;
+  }else if(l.platform === 'twitch'){
+    const parent = window.location.hostname || 'localhost';
+    iframe.src = `https://player.twitch.tv/?channel=${encodeURIComponent(l.videoId)}&parent=${parent}&autoplay=true`;
+  }
+  openOverlay('player-overlay');
 }
 
 function escapeHtml(str){
@@ -3480,6 +3777,7 @@ function closePlayerOverlay(){
   document.getElementById('player-loading-overlay').classList.remove('visible');
   document.getElementById('player-media').classList.remove('direct-mode');
   document.getElementById('player-media').classList.remove('short-media');
+  document.getElementById('player-info-actions').style.display = '';
   document.getElementById('player-like-btn').classList.remove('player-action-active-like');
   document.getElementById('player-dislike-btn').classList.remove('player-action-active-dislike');
   currentPlayingVideo = null;
@@ -3491,6 +3789,7 @@ function playVideo(v){
   const { videoId, platform, twitchType, title, author, description, isShort } = v;
   currentPlayingVideo = v;
   currentDirectVideoTag = null;
+  document.getElementById('player-info-actions').style.display = '';
   updatePlayerActionButtons();
 
   const watchEntry = userWatched[v.id];
@@ -4110,6 +4409,15 @@ document.getElementById('check-now-link').addEventListener('click', async (e)=>{
   link.textContent = original;
 });
 
+document.getElementById('check-lives-now-link').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const link = e.currentTarget;
+  const original = link.textContent;
+  link.textContent = 'Vérification en cours…';
+  await checkLiveStreams();
+  link.textContent = original;
+});
+
 document.getElementById('dedupe-link').addEventListener('click', async (e)=>{
   e.preventDefault();
   const link = e.currentTarget;
@@ -4286,6 +4594,103 @@ async function renderChannelsList(){
     container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes.</div>`;
   }
 }
+
+/* --- Gestion des chaînes Twitch suivies (Lives) --- */
+document.getElementById('open-twitch-channels-list').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  closeOverlay('add-overlay');
+  document.getElementById('add-twitch-channel-error').style.display = 'none';
+  openOverlay('twitch-channels-overlay');
+  await renderTwitchChannelsList();
+});
+
+async function renderTwitchChannelsList(){
+  const container = document.getElementById('twitch-channels-list-container');
+  container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>`;
+  try{
+    const snap = await trackedTwitchChannelsRef.orderBy('loginName').get();
+    if(snap.empty){
+      container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Aucune chaîne Twitch suivie pour l'instant. Utilise le champ ci-dessus pour en ajouter une.</div>`;
+      return;
+    }
+    container.innerHTML = snap.docs.map(doc=>{
+      const ch = doc.data();
+      return `
+        <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
+          <span class="channel-row-name">${escapeHtml(ch.displayName || ch.loginName)}</span>
+          <button class="channel-row-untrack" data-untrack-twitch-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
+        </div>
+      `;
+    }).join('');
+    container.querySelectorAll('[data-untrack-twitch-id]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.untrackTwitchId;
+        const row = btn.closest('.channel-row');
+        const name = row.querySelector('.channel-row-name').textContent;
+        if(!confirm(`Arrêter de suivre « ${name} » sur Twitch ? (le live en cours, s'il y en a un, disparaîtra du menu Lives)`)) return;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try{
+          await trackedTwitchChannelsRef.doc(id).delete();
+          await liveStreamsRef.doc('twitch_' + id).delete().catch(()=>{});
+          row.remove();
+        }catch(err){
+          console.error(err);
+          alert("Impossible de retirer cette chaîne Twitch.");
+          btn.disabled = false;
+          btn.textContent = 'Ne plus suivre';
+        }
+      });
+    });
+  }catch(err){
+    console.error(err);
+    container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes Twitch.</div>`;
+  }
+}
+
+document.getElementById('add-twitch-channel-submit').addEventListener('click', async ()=>{
+  const linkInput = document.getElementById('add-twitch-channel-link');
+  const errorEl = document.getElementById('add-twitch-channel-error');
+  const submitBtn = document.getElementById('add-twitch-channel-submit');
+  errorEl.style.display = 'none';
+
+  const login = parseTwitchLogin(linkInput.value);
+  if(!login){
+    errorEl.textContent = "Nom de chaîne Twitch non reconnu.";
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = '…';
+  try{
+    let displayName = login;
+    try{
+      const users = await twitchHelixGetUsers([login]);
+      const u = users[0];
+      if(u) displayName = u.display_name || login;
+    }catch(err){
+      console.warn('Impossible de récupérer le nom affiché Twitch :', err);
+    }
+
+    await trackedTwitchChannelsRef.doc(login).set({
+      loginName: login,
+      displayName,
+      addedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    linkInput.value = '';
+    await renderTwitchChannelsList();
+    checkLiveStreams();
+  }catch(err){
+    console.error(err);
+    errorEl.textContent = err.message || "Erreur pendant l'ajout de la chaîne Twitch.";
+    errorEl.style.display = 'block';
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Ajouter';
+  }
+});
 
 document.getElementById('refresh-dates-link').addEventListener('click', async (e)=>{
   e.preventDefault();
@@ -5119,10 +5524,14 @@ auth.onAuthStateChanged(async (user)=>{
 
   if(isAdmin && !wasAdmin){
     checkTrackedChannelsForNewVideos();
+    checkLiveStreams();
     if(trackedChannelsCheckInterval) clearInterval(trackedChannelsCheckInterval);
     trackedChannelsCheckInterval = setInterval(checkTrackedChannelsForNewVideos, AUTO_CHECK_INTERVAL_MS);
+    if(liveCheckInterval) clearInterval(liveCheckInterval);
+    liveCheckInterval = setInterval(checkLiveStreams, LIVE_CHECK_INTERVAL_MS);
   }else if(!isAdmin && wasAdmin){
     if(trackedChannelsCheckInterval){ clearInterval(trackedChannelsCheckInterval); trackedChannelsCheckInterval = null; }
+    if(liveCheckInterval){ clearInterval(liveCheckInterval); liveCheckInterval = null; }
   }
 
   if(realUser){
@@ -5172,10 +5581,14 @@ auth.onAuthStateChanged(async (user)=>{
    Section initiale
    ========================================================= */
 (function initialSection(){
-  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-playlists', 'section-subs', 'section-search'];
+  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-lives', 'section-playlists', 'section-subs', 'section-search'];
   const hash = (location.hash || '').replace('#','');
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
+
+// Les lives sont visibles par tout le monde (pas besoin d'être connecté),
+// donc on branche l'écouteur temps réel dès le chargement de la page.
+attachLiveStreamsListener();
 
 handleSharedVideoLink();
 </script>
