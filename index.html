@@ -563,6 +563,36 @@
     .player-info-bar, .player-info-desc-wrap{ padding-left:1.1rem; padding-right:1.1rem; }
     .player-info-bar::before{ left:1.1rem; right:1.1rem; }
     .custom-controls{ bottom:12px; width: calc(100% - 20px); padding:0.5rem 0.8rem 0.5rem 0.5rem; }
+
+    /* Mise en page compacte spécifique au tchat Twitch natif sur téléphone :
+       sans cela, la vidéo (au format 16/9 pleine largeur) et le reste des
+       infos prenaient presque toute la hauteur de l'écran, et le tchat se
+       retrouvait comprimé à quasi rien, voire coupé par l'overflow:hidden
+       du lecteur. Ici on réduit la vidéo à une hauteur fixe raisonnable et
+       on laisse le tchat occuper tout le reste de l'écran, avec son propre
+       défilement interne. Activée via la classe "twitch-chat-mode" posée
+       sur #player-overlay par playLiveStream() quand le live est un live
+       Twitch (voir le script en bas de page). */
+    .player-overlay.twitch-chat-mode{ padding:0.5rem; }
+    .player-overlay.twitch-chat-mode .player-shell{
+      height: calc(100vh - 1rem);
+      height: calc(100dvh - 1rem);
+      max-height: calc(100vh - 1rem);
+      max-height: calc(100dvh - 1rem);
+    }
+    .player-overlay.twitch-chat-mode .player-modal{ height:100%; }
+    .player-overlay.twitch-chat-mode .player-media{
+      flex:0 0 auto; width:100%; aspect-ratio:16/9; height:auto;
+      max-height:30vh; max-height:30dvh;
+    }
+    .player-overlay.twitch-chat-mode .player-info-bar{ padding:0.65rem 1.1rem 0.35rem; }
+    .player-overlay.twitch-chat-mode .player-info-title{ font-size:0.9rem; }
+    .player-overlay.twitch-chat-mode .player-info-author{ font-size:0.7rem; }
+    .player-overlay.twitch-chat-mode .player-info-desc-wrap{ display:none; }
+    .player-overlay.twitch-chat-mode .player-live-chat{ flex:1; min-height:0; }
+    .player-overlay.twitch-chat-mode .twitch-chat-iframe{
+      flex:1; min-height:0; width:100%; height:100%; max-height:none;
+    }
   }
 
   @media (max-height:500px) and (orientation:landscape){
@@ -665,8 +695,38 @@
   .add-channel-row{
     display:flex; gap:0.6rem; margin-bottom:0.4rem; align-items:flex-start;
   }
-  .add-channel-row input{ margin-bottom:0; flex:1; }
+  .add-channel-row input{ margin-bottom:0; flex:1; min-width:0; }
   .add-channel-row button{ flex-shrink:0; padding:0.8rem 1.2rem; font-size:0.8rem; white-space:nowrap; }
+
+  /* ---------- Modale "Chaînes suivies" (admin) ----------
+     Avec beaucoup de chaînes, la liste rendait la modale bien plus haute
+     que l'écran ; comme les modales ne défilent pas par défaut et sont
+     centrées verticalement, le haut (donc la barre "Ajouter une chaîne")
+     se retrouvait poussé hors de l'écran, aussi bien sur PC que sur
+     smartphone. On transforme la modale en colonne flex avec une hauteur
+     maximale : le titre, la barre d'ajout et le bouton Fermer restent
+     toujours visibles, seule la liste des chaînes défile à l'intérieur. */
+  #channels-overlay .modal,
+  #twitch-channels-overlay .modal{
+    display:flex; flex-direction:column;
+    max-height: calc(100vh - 4rem);
+    max-height: calc(100dvh - 4rem);
+  }
+  #channels-overlay .modal > *:not(#channels-list-container),
+  #twitch-channels-overlay .modal > *:not(#twitch-channels-list-container){ flex-shrink:0; }
+  #channels-list-container,
+  #twitch-channels-list-container{
+    flex:1 1 0; min-height:0; overflow-y:auto;
+    margin-left:-0.4rem; padding-left:0.4rem; margin-right:-0.4rem; padding-right:0.4rem;
+  }
+  @media (max-width:640px){
+    #channels-overlay .modal,
+    #twitch-channels-overlay .modal{
+      max-height: calc(100vh - 1.6rem);
+      max-height: calc(100dvh - 1.6rem);
+      padding: 1.5rem 1.3rem;
+    }
+  }
 
   .channel-row{
     display:flex; align-items:center; justify-content:space-between; gap:0.8rem;
@@ -3913,17 +3973,23 @@ function playLiveStream(l){
   document.getElementById('player-live-chat').classList.add('visible');
   const twitchChatIframe = document.getElementById('twitch-chat-iframe');
   const customChatContainer = document.getElementById('custom-chat-container');
+  const playerOverlayEl = document.getElementById('player-overlay');
   if(l.platform === 'twitch'){
     const parent = window.location.hostname || 'localhost';
     twitchChatIframe.src = `https://www.twitch.tv/embed/${encodeURIComponent(l.videoId)}/chat?parent=${parent}&darkpopout`;
     twitchChatIframe.classList.add('visible');
     customChatContainer.style.display = 'none';
     detachLiveChatListener();
+    // Sur smartphone, on bascule vers une mise en page compacte dédiée
+    // (voir CSS ".twitch-chat-mode") pour que le tchat Twitch natif reste
+    // pleinement lisible et utilisable malgré l'espace vertical réduit.
+    playerOverlayEl.classList.add('twitch-chat-mode');
   }else{
     twitchChatIframe.classList.remove('visible');
     twitchChatIframe.src = '';
     customChatContainer.style.display = '';
     attachLiveChatListener(l.id);
+    playerOverlayEl.classList.remove('twitch-chat-mode');
   }
   loadMyLiveReactionFor(l.id).then(type=>{
     if(currentPlayingLive && currentPlayingLive.id === l.id){
@@ -4135,6 +4201,7 @@ function closePlayerOverlay(){
   document.getElementById('player-playlist-btn').style.display = '';
   document.getElementById('player-share-btn').style.display = '';
   document.getElementById('player-live-chat').classList.remove('visible');
+  document.getElementById('player-overlay').classList.remove('twitch-chat-mode');
   const twitchChatIframeEl = document.getElementById('twitch-chat-iframe');
   if(twitchChatIframeEl){ twitchChatIframeEl.src = ''; twitchChatIframeEl.classList.remove('visible'); }
   const customChatContainerEl = document.getElementById('custom-chat-container');
@@ -4155,6 +4222,7 @@ function playVideo(v){
   currentLiveMyReaction = null;
   detachLiveChatListener();
   document.getElementById('player-live-chat').classList.remove('visible');
+  document.getElementById('player-overlay').classList.remove('twitch-chat-mode');
   const twitchChatIframeInVideo = document.getElementById('twitch-chat-iframe');
   if(twitchChatIframeInVideo){ twitchChatIframeInVideo.src = ''; twitchChatIframeInVideo.classList.remove('visible'); }
   const customChatContainerInVideo = document.getElementById('custom-chat-container');
