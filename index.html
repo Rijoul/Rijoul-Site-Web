@@ -1598,6 +1598,12 @@
 </div>
 
 <script>
+// Capturé tout en haut, avant que quoi que ce soit ne touche à l'URL
+// (showSection() réécrit l'URL avec history.replaceState) : sert à ouvrir
+// une page légale directement quand on arrive via un lien du type
+// tonsite.com/#cgu (voir openLegalFromHash tout en bas du script).
+const INITIAL_HASH = (location.hash || '').replace('#', '');
+
 /* =========================================================
    CONFIGURATION — à personnaliser
    ========================================================= */
@@ -6210,13 +6216,15 @@ auth.onAuthStateChanged(async (user)=>{
 // Permet un lien direct vers n'importe quelle page légale (utile pour les
 // remplir dans des formulaires externes, ex : écran de consentement OAuth
 // Google) : tonsite.com/#cgu, /#mentions ou /#confidentialite ouvre la
-// bonne fenêtre automatiquement au chargement de la page.
+// bonne fenêtre automatiquement au chargement de la page. Le hash est
+// capturé AVANT initialSection() ci-dessus, car showSection() réécrit
+// l'URL (history.replaceState) et effacerait sinon /#cgu etc. avant qu'on
+// ait pu le lire.
 (async function openLegalFromHash(){
-  const hash = (location.hash || '').replace('#','');
-  const page = LEGAL_PAGES[hash];
+  const page = LEGAL_PAGES[INITIAL_HASH];
   if(!page) return;
   openOverlay(page.overlayId);
-  await applyLegalContent(hash, page.bodyElId);
+  await applyLegalContent(INITIAL_HASH, page.bodyElId);
 })();
 
 // Les lives sont visibles par tout le monde (pas besoin d'être connecté),
