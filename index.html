@@ -33,20 +33,22 @@
   }
 
   /* ---------- Mode sombre ----------
-     Remplace uniquement le dégradé de fond du site (jaune/rose à
-     l'origine) par un dégradé noir/gris, ainsi que le dégradé du titre
-     "RIJOUL VISION", qui suit désormais les mêmes teintes. Le reste de
-     l'interface (cartes, boutons, menus...) n'est pas modifié.
+     Remplace le dégradé de fond du site (jaune/rose à l'origine) par un
+     dégradé noir "braise" (léger camaïeu rouge/marron très sombre en bas),
+     ainsi que le dégradé du titre "RIJOUL VISION" qui devient une teinte
+     rouge néon assortie à l'identité de la marque. Le reste de l'interface
+     (cartes, boutons, menus...) garde sa structure ; seuls des accents
+     (lueurs, ombres) sont ajoutés plus bas pour un rendu plus premium.
      Le premier point du dégradé (#000000) est un noir pur, pensé pour les
      écrans AMOLED/OLED : les pixels correspondants s'éteignent complètement
      au lieu d'émettre de la lumière, ce qui économise la batterie et donne
      un contraste maximal. */
   body.dark-mode{
     --bg-top: #000000;
-    --bg-mid: #0a0a0c;
-    --bg-bottom: #17181c;
-    --title-top: #9a9aa2;
-    --title-bottom: #000000;
+    --bg-mid: #0c0708;
+    --bg-bottom: #200c11;
+    --title-top: #ff5470;
+    --title-bottom: #1a0006;
   }
 
   *{ box-sizing: border-box; }
@@ -68,6 +70,15 @@
   .vignette{
     position: fixed; inset:0; pointer-events:none; z-index:0;
     background: radial-gradient(ellipse at top, rgba(255,255,255,0.12) 0%, transparent 55%);
+    transition: background .5s ease;
+  }
+  /* En mode sombre, on remplace le voile blanc par une lueur "braise"
+     rouge/marine assortie à l'identité RIJOUL, pour une ambiance plus
+     immersive qu'un simple fondu au noir. */
+  body.dark-mode .vignette{
+    background:
+      radial-gradient(ellipse at top, rgba(238,28,60,0.22) 0%, transparent 55%),
+      radial-gradient(ellipse at bottom, rgba(23,35,94,0.16) 0%, transparent 60%);
   }
   /* Texture "roche craquelée" affichée uniquement en mode sombre : un réseau
      de fines lignes grises (dessinées à la main, façon fissures) tuilé en
@@ -80,6 +91,33 @@
     background-repeat: repeat; background-size: 560px 560px;
   }
   body.dark-mode .crack-overlay{ opacity:0.55; }
+
+  /* ---------- Finitions "hyper stylées" du mode sombre ----------
+     Petites touches de lueur rouge (brand) ajoutées sur les éléments clés
+     sans changer la structure ni les couleurs de base de l'interface. */
+  body.dark-mode .card{
+    box-shadow: 0 16px 34px -16px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  body.dark-mode .card:hover{
+    box-shadow: 0 24px 46px -16px rgba(238,28,60,0.5), 0 0 0 1px rgba(238,28,60,0.3);
+  }
+  body.dark-mode .theme-toggle-track{
+    box-shadow: 0 6px 18px -4px rgba(0,0,0,0.7), 0 0 14px rgba(238,28,60,0.3), inset 0 1px 2px rgba(0,0,0,0.5);
+  }
+  body.dark-mode .account-btn,
+  body.dark-mode .user-chip{
+    box-shadow: 0 8px 20px -4px rgba(0,0,0,0.7), 0 0 16px rgba(238,28,60,0.22);
+  }
+  body.dark-mode .fab{
+    box-shadow: 0 16px 34px -8px rgba(0,0,0,0.75), 0 0 20px rgba(238,28,60,0.35);
+  }
+  body.dark-mode .site-nav-btn{
+    border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.05);
+  }
+  body.dark-mode .site-nav-btn:hover{ background: rgba(238,28,60,0.18); border-color: rgba(238,28,60,0.5); }
+  body.dark-mode .site-nav-btn.active{
+    box-shadow: 0 6px 18px -4px rgba(238,28,60,0.5);
+  }
 
   /* ---------- Top account bar ---------- */
   .account-bar{
@@ -118,6 +156,10 @@
   @media (max-width:640px){
     .theme-bar{ top: 4.1rem; left: 1rem; }
     .account-bar{ top: 4.1rem; right: 1rem; }
+    /* Sur mobile, les boutons Connexion / mode sombre sont en position fixe
+       au-dessus du header. On pousse donc le contenu du header (dont le
+       titre RIJOUL VISION) plus bas pour qu'il ne passe plus dessous. */
+    header{ padding: 8.5rem 6vw 5vh; }
   }
   .account-btn{
     font-family:'Fredoka'; font-weight:600; font-size:0.85rem; letter-spacing:0.02em; text-transform:uppercase;
@@ -190,6 +232,17 @@
     -webkit-text-stroke: 3px var(--cream);
     paint-order: stroke fill;
     filter: drop-shadow(0 6px 0 rgba(0,0,0,0.06));
+    transition: filter .4s ease, -webkit-text-stroke-color .4s ease;
+  }
+  /* Version "néon braise" du titre en mode sombre : contour plus discret
+     et double lueur rouge (proche + diffuse) façon enseigne lumineuse,
+     assortie à la couleur de marque. */
+  body.dark-mode h1.brand{
+    -webkit-text-stroke: 2px rgba(255,84,112,0.35);
+    filter:
+      drop-shadow(0 0 14px rgba(238,28,60,0.65))
+      drop-shadow(0 0 38px rgba(238,28,60,0.35))
+      drop-shadow(0 8px 18px rgba(0,0,0,0.7));
   }
   .rule{ display:none; }
   .tagline{
