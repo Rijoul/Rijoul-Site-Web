@@ -12,6 +12,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <!-- Firebase -->
+<script>
+  // Génère et attache dynamiquement un manifeste web (PWA) minimal, en
+  // réutilisant l'icône déjà embarquée dans la page, afin que les
+  // navigateurs compatibles (Chrome/Edge/Android) puissent proposer une
+  // vraie installation via l'événement "beforeinstallprompt".
+  (function attachWebManifest(){
+    try{
+      var iconHref = document.querySelector('link[rel="apple-touch-icon"]').href;
+      var manifest = {
+        name: "RIJOUL — Chaîne officielle",
+        short_name: "RIJOUL",
+        start_url: "./",
+        display: "standalone",
+        background_color: "#fd2f62",
+        theme_color: "#17235e",
+        icons: [
+          { src: iconHref, sizes: "180x180", type: "image/png" },
+          { src: iconHref, sizes: "192x192", type: "image/png" },
+          { src: iconHref, sizes: "512x512", type: "image/png" }
+        ]
+      };
+      var blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = URL.createObjectURL(blob);
+      document.head.appendChild(link);
+    }catch(e){}
+  })();
+</script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -1361,6 +1390,43 @@
 <div class="grain"></div>
 <div class="crack-overlay"></div>
 <div class="vignette"></div>
+
+<!-- Popup d'installation / partage du site (PWA) -->
+<div class="install-banner" id="install-banner" role="dialog" aria-live="polite" aria-label="Installer ou partager RIJOUL">
+  <div class="install-banner-icon">
+    <img src="data:image/png;base64,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" alt="RIJOUL">
+  </div>
+  <div class="install-banner-body">
+    <p class="install-banner-title">Installer RIJOUL</p>
+    <p class="install-banner-text">Ajoute le site à ton écran d'accueil pour un accès plus rapide, ou partage-le avec tes proches.</p>
+    <div class="install-banner-actions">
+      <button type="button" class="ib-install" id="install-banner-install-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        Installer
+      </button>
+      <button type="button" class="ib-share" id="install-banner-share-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5l-6.8 4"/></svg>
+        Partager
+      </button>
+    </div>
+  </div>
+  <button type="button" class="install-banner-close" id="install-banner-close-btn" aria-label="Fermer">&times;</button>
+</div>
+
+<div class="install-toast" id="install-toast"></div>
+
+<!-- Modale d'instructions manuelles (iOS Safari, ou navigateurs sans invite native) -->
+<div class="overlay" id="install-instructions-overlay">
+  <div class="modal install-instructions">
+    <button class="modal-close" data-close="install-instructions-overlay">&times;</button>
+    <h2 id="install-instructions-title">Installer RIJOUL</h2>
+    <div class="modal-hint" id="install-instructions-text"></div>
+    <ol id="install-instructions-steps"></ol>
+    <div class="modal-actions">
+      <button class="btn primary" data-close="install-instructions-overlay">J'ai compris</button>
+    </div>
+  </div>
+</div>
 
 <!-- Barre de recherche vidéo — tout en haut du site -->
 <div class="top-search-bar">
@@ -6546,6 +6612,163 @@ auth.onAuthStateChanged(async (user)=>{
 attachLiveStreamsListener();
 
 handleSharedVideoLink();
+
+/* =========================================================
+   Popup d'installation (PWA) et de partage du site
+   ========================================================= */
+(function installAndShareBanner(){
+  const banner = document.getElementById('install-banner');
+  const toastEl = document.getElementById('install-toast');
+  if(!banner) return;
+
+  const STORAGE_KEY = 'rijoulInstallBannerDismissedAt';
+  const REAPPEAR_AFTER_MS = 14 * 24 * 60 * 60 * 1000; // 14 jours
+  const SHOW_DELAY_MS = 2200;
+  const SITE_URL = 'https://rijoul.com/'; // Lien affiché/partagé si l'URL réelle n'est pas disponible (fichier local, etc.)
+
+  let deferredInstallPrompt = null;
+  let toastTimer = null;
+
+  function currentShareUrl(){
+    // Si la page est servie normalement (http/https), on partage son URL réelle.
+    // Sinon (ouverture locale du fichier), on retombe sur l'URL publique du site.
+    return /^https?:/i.test(location.href) ? location.href : SITE_URL;
+  }
+
+  function isStandalone(){
+    try{
+      return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true; // Safari iOS
+    }catch(e){ return false; }
+  }
+
+  function isIOS(){
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  function wasDismissedRecently(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return false;
+      const dismissedAt = parseInt(raw, 10);
+      if(Number.isNaN(dismissedAt)) return false;
+      return (Date.now() - dismissedAt) < REAPPEAR_AFTER_MS;
+    }catch(e){ return false; }
+  }
+
+  function markDismissed(){
+    try{ localStorage.setItem(STORAGE_KEY, String(Date.now())); }catch(e){}
+  }
+
+  function showBanner(){
+    if(isStandalone() || wasDismissedRecently()) return;
+    banner.classList.add('visible');
+  }
+
+  function hideBanner(){
+    banner.classList.remove('visible');
+  }
+
+  function showToast(message){
+    if(!toastEl) return;
+    toastEl.textContent = message;
+    toastEl.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> toastEl.classList.remove('visible'), 2600);
+  }
+
+  function openManualInstructions(){
+    const titleEl = document.getElementById('install-instructions-title');
+    const textEl = document.getElementById('install-instructions-text');
+    const stepsEl = document.getElementById('install-instructions-steps');
+    if(!titleEl || !textEl || !stepsEl) return;
+
+    if(isIOS()){
+      titleEl.textContent = "Installer RIJOUL sur iPhone / iPad";
+      textEl.textContent = "Safari ne propose pas d'installation automatique : suis ces étapes pour ajouter RIJOUL à ton écran d'accueil.";
+      stepsEl.innerHTML =
+        '<li>Ouvre RIJOUL dans <b>Safari</b> (pas un autre navigateur).</li>'+
+        '<li>Touche l\'icône <b>Partager</b> (le carré avec la flèche vers le haut).</li>'+
+        '<li>Sélectionne <b>« Sur l\'écran d\'accueil »</b>.</li>'+
+        '<li>Confirme en touchant <b>Ajouter</b>.</li>';
+    } else {
+      titleEl.textContent = "Installer RIJOUL";
+      textEl.textContent = "Ton navigateur ne propose pas encore l'installation automatique ici. Tu peux l'ajouter manuellement :";
+      stepsEl.innerHTML =
+        '<li>Ouvre le menu de ton navigateur (souvent en haut à droite, icône <b>⋮</b> ou <b>☰</b>).</li>'+
+        '<li>Cherche l\'option <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.</li>'+
+        '<li>Confirme l\'installation.</li>';
+    }
+    openOverlay('install-instructions-overlay');
+  }
+
+  // Capture l'événement natif Chrome/Edge/Android permettant de déclencher
+  // le vrai prompt d'installation.
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    setTimeout(showBanner, SHOW_DELAY_MS);
+  });
+
+  // Si le navigateur ne supporte pas beforeinstallprompt (iOS Safari, Firefox…),
+  // on propose quand même la bannière (avec instructions manuelles au clic).
+  setTimeout(()=>{
+    if(!isStandalone() && !wasDismissedRecently()){
+      showBanner();
+    }
+  }, SHOW_DELAY_MS + 800);
+
+  // Une fois l'app installée, on masque définitivement la bannière.
+  window.addEventListener('appinstalled', ()=>{
+    hideBanner();
+    markDismissed();
+    deferredInstallPrompt = null;
+  });
+
+  document.getElementById('install-banner-install-btn').addEventListener('click', async ()=>{
+    if(deferredInstallPrompt){
+      hideBanner();
+      deferredInstallPrompt.prompt();
+      try{
+        await deferredInstallPrompt.userChoice;
+      }catch(e){}
+      deferredInstallPrompt = null;
+      markDismissed();
+    } else {
+      openManualInstructions();
+    }
+  });
+
+  document.getElementById('install-banner-share-btn').addEventListener('click', async ()=>{
+    const url = currentShareUrl();
+    const shareData = {
+      title: 'RIJOUL — Chaîne officielle',
+      text: 'Découvre RIJOUL, la chaîne officielle !',
+      url
+    };
+    if(navigator.share){
+      try{
+        await navigator.share(shareData);
+      }catch(e){
+        // L'utilisateur a annulé ou une erreur est survenue : rien à faire.
+      }
+      return;
+    }
+    // Pas de Web Share API disponible (desktop, anciens navigateurs) :
+    // on copie le lien dans le presse-papiers.
+    try{
+      await navigator.clipboard.writeText(url);
+      showToast('Lien copié dans le presse-papiers !');
+    }catch(e){
+      showToast(url);
+    }
+  });
+
+  document.getElementById('install-banner-close-btn').addEventListener('click', ()=>{
+    hideBanner();
+    markDismissed();
+  });
+})();
 </script>
 </body>
 </html>
