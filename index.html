@@ -681,6 +681,30 @@
   }
   .channel-row-untrack:hover{ background:#ff2d4d; }
 
+  /* ---------- Comptes liés (Twitch / YouTube) ---------- */
+  .linked-account-row{
+    display:flex; align-items:center; gap:0.9rem;
+    background:#fffaf1; border:2px solid var(--cream-2); border-radius:14px;
+    padding:0.8rem 1rem; margin-bottom:0.7rem;
+  }
+  .linked-account-icon{
+    flex-shrink:0; width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+  }
+  .linked-account-icon svg{ width:20px; height:20px; }
+  .linked-account-icon-twitch{ background:#9146ff; }
+  .linked-account-icon-youtube{ background:#ff0000; }
+  .linked-account-info{ flex:1; min-width:0; }
+  .linked-account-platform{ font-family:'Fredoka'; font-weight:700; font-size:0.9rem; color: var(--dark-text); }
+  .linked-account-status{ font-family:'Baloo 2'; font-size:0.78rem; color:#8a7a6a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .linked-account-btn{ flex-shrink:0; padding:0.55rem 1.1rem; font-size:0.75rem; }
+
+  /* Couleur du nom d'auteur dans le tchat interne selon le compte lié
+     utilisé pour envoyer le message, pour qu'on distingue en un coup d'œil
+     un message signé d'un compte lié Twitch ou YouTube. */
+  .live-chat-author.linked-twitch{ color:#c9a2ff; }
+  .live-chat-author.linked-youtube{ color:#ff8080; }
+
   footer{
     position:relative; z-index:1; text-align:center; padding: 3rem 1rem 4rem;
     font-family:'Baloo 2', sans-serif; font-weight:600; color: var(--text); opacity:0.85; font-size:0.9rem;
@@ -852,6 +876,15 @@
   }
   @keyframes livePulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
   .badge-live-viewers{ background:#14141a; top:auto; bottom:10px; right:10px; text-transform:none; letter-spacing:0.02em; }
+  /* Les cartes de live n'ont pas de boutons modifier/supprimer, donc leurs
+     badges ne doivent jamais être déplacés/étirés en mode admin : on les
+     force à garder exactement la même position que pour un visiteur normal.
+     Sans ce correctif, le badge "spectateurs" se retrouvait avec un top ET
+     un bottom fixés en même temps (à cause de la règle générale
+     body.admin-mode .card-flag-badge), ce qui l'étirait sur toute la
+     hauteur de la carte — d'où l'effet "badge énorme" vu par les admins. */
+  body.admin-mode .live-card .card-flag-badge{ top:10px; }
+  body.admin-mode .live-card .card-flag-badge.badge-live-viewers{ top:auto; bottom:10px; }
 
   /* ---------- Tchat en direct (sous le lecteur, pour les lives) ---------- */
   .player-live-chat{
@@ -939,6 +972,7 @@
     <div class="user-dropdown">
       <div class="dd-mail" id="user-email-label">—</div>
       <button id="dd-edit-profile">Modifier le profil</button>
+      <button id="dd-linked-accounts">Comptes liés</button>
       <button id="dd-export-data">Télécharger mes données</button>
       <button id="dd-delete-account" class="dd-danger">Supprimer mon compte</button>
       <button id="dd-logout">Se déconnecter</button>
@@ -1421,6 +1455,44 @@
   </div>
 </div>
 
+<!-- Comptes liés (Twitch / YouTube) -->
+<div class="overlay" id="linked-accounts-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="linked-accounts-overlay">&times;</button>
+    <h2>Comptes liés</h2>
+    <div class="modal-hint">Lie ton compte Twitch et/ou YouTube pour que tes messages dans le tchat des lives soient envoyés sous le nom de ce compte, au lieu de ton nom de profil du site. Tu peux délier un compte à tout moment.</div>
+
+    <div class="linked-account-row">
+      <div class="linked-account-icon linked-account-icon-twitch">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 2 2 6.5V20h6v2h3.5l2-2H18l4-4V2H4Zm16 12-3 3h-4.5l-2 2v-2H6V4h14v10Z"/><path d="M15.5 7h2v5h-2zM10 7h2v5h-2z"/></svg>
+      </div>
+      <div class="linked-account-info">
+        <div class="linked-account-platform">Twitch</div>
+        <div class="linked-account-status" id="linked-status-twitch">Non lié</div>
+      </div>
+      <button class="btn primary linked-account-btn" id="linked-connect-twitch">Lier</button>
+      <button class="channel-row-untrack linked-account-btn" id="linked-disconnect-twitch" style="display:none;">Délier</button>
+    </div>
+
+    <div class="linked-account-row">
+      <div class="linked-account-icon linked-account-icon-youtube">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.6-.46-5.3a3 3 0 0 0-2.1-2.1C18.7 4 12 4 12 4s-6.7 0-8.44.6a3 3 0 0 0-2.1 2.1C1 8.4 1 12 1 12s0 3.6.46 5.3a3 3 0 0 0 2.1 2.1C5.3 20 12 20 12 20s6.7 0 8.44-.6a3 3 0 0 0 2.1-2.1C23 15.6 23 12 23 12ZM9.75 15.5v-7l6 3.5-6 3.5Z"/></svg>
+      </div>
+      <div class="linked-account-info">
+        <div class="linked-account-platform">YouTube</div>
+        <div class="linked-account-status" id="linked-status-youtube">Non lié</div>
+      </div>
+      <button class="btn primary linked-account-btn" id="linked-connect-youtube">Lier</button>
+      <button class="channel-row-untrack linked-account-btn" id="linked-disconnect-youtube" style="display:none;">Délier</button>
+    </div>
+
+    <div class="modal-error" id="linked-accounts-error"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="linked-accounts-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <!-- Player modal -->
 <div class="overlay player-overlay" id="player-overlay">
   <div class="player-shell">
@@ -1528,6 +1600,24 @@ const AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const TWITCH_CLIENT_ID = "ydnga5hvex93w41zfsnuc0lkizq9yx";
 const TWITCH_CLIENT_SECRET = "bcqw2lqj8iz50koty0unnupgk8azs2";
 const LIVE_CHECK_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes : vérification des lives
+
+// Comptes liés (Twitch / YouTube) : permet à chaque utilisateur de lier son
+// propre compte Twitch et/ou YouTube depuis son menu de gestion de compte,
+// afin que ses messages envoyés dans le tchat des lives soient signés du nom
+// de ce compte lié plutôt que de son nom de profil du site.
+// - Twitch : réutilise TWITCH_CLIENT_ID ci-dessus via un flux OAuth
+//   "implicite", 100% côté navigateur (aucun secret nécessaire pour cette
+//   partie). Il faut déclarer l'URL exacte de cette page comme "Redirect
+//   URI" dans console.twitch.tv → Applications → ta création, sinon Twitch
+//   refusera la connexion.
+// - YouTube : nécessite un identifiant client OAuth Google dédié (différent
+//   de YOUTUBE_API_KEY ci-dessus, qui ne sert qu'en lecture publique). À
+//   créer sur https://console.cloud.google.com/apis/credentials (type
+//   "ID client OAuth" → "Application Web", en ajoutant l'URL de ce site dans
+//   "Origines JavaScript autorisées"). Tant que ce champ reste vide, le
+//   bouton "Lier YouTube" affiche un message explicite au lieu d'échouer
+//   silencieusement.
+const GOOGLE_OAUTH_CLIENT_ID = ""; // ex : "123456789-abc123.apps.googleusercontent.com"
 
 /* =========================================================
    Firebase init
@@ -1637,6 +1727,9 @@ let playlistOpInFlight = new Set();
 let playlistListenerUnsubs = [];
 let playlistListenerUid = null;
 let playlistDeleteChoiceId = null;
+
+let currentLinkedAccounts = {};
+let gisTokenClient = null;
 
 let currentLiveStreams = [];
 let liveStreamsUnsub = null;
@@ -3668,7 +3761,7 @@ function renderLiveChatMessages(messages){
   }
   const wasNearBottom = (messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight) < 60;
   messagesEl.innerHTML = messages.map(m=>`
-    <div class="live-chat-msg"><span class="live-chat-author">${escapeHtml(m.displayName || 'Anonyme')}</span>${escapeHtml(m.text || '')}</div>
+    <div class="live-chat-msg"><span class="live-chat-author${m.linkedPlatform ? ' linked-' + m.linkedPlatform : ''}">${escapeHtml(m.displayName || 'Anonyme')}</span>${escapeHtml(m.text || '')}</div>
   `).join('');
   if(wasNearBottom) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -3681,16 +3774,38 @@ async function sendLiveChatMessage(){
   try{
     const user = await ensureAnyAuth();
     let displayName = 'Spectateur anonyme';
+    let linkedAccounts = {};
     if(!user.isAnonymous){
       try{
         const profileSnap = await usersRef.doc(user.uid).get();
-        displayName = (profileSnap.exists && profileSnap.data().displayName) || user.displayName || (user.email ? user.email.split('@')[0] : displayName);
+        const profileData = (profileSnap.exists && profileSnap.data()) || {};
+        linkedAccounts = profileData.linkedAccounts || {};
+        displayName = profileData.displayName || user.displayName || (user.email ? user.email.split('@')[0] : displayName);
       }catch(e){ displayName = user.displayName || displayName; }
+    }
+    // Si l'utilisateur a lié un compte Twitch et/ou YouTube (menu "Comptes
+    // liés"), son message est envoyé sous le nom de ce compte lié plutôt que
+    // sous son nom de profil du site — en priorité celui qui correspond à la
+    // plateforme du live en cours, sinon le premier compte lié disponible.
+    let linkedPlatform = null;
+    if(currentPlayingLive.platform === 'youtube' && linkedAccounts.youtube){
+      displayName = linkedAccounts.youtube.title || displayName;
+      linkedPlatform = 'youtube';
+    }else if(currentPlayingLive.platform === 'twitch' && linkedAccounts.twitch){
+      displayName = linkedAccounts.twitch.displayName || displayName;
+      linkedPlatform = 'twitch';
+    }else if(linkedAccounts.youtube){
+      displayName = linkedAccounts.youtube.title || displayName;
+      linkedPlatform = 'youtube';
+    }else if(linkedAccounts.twitch){
+      displayName = linkedAccounts.twitch.displayName || displayName;
+      linkedPlatform = 'twitch';
     }
     await liveChatMessagesRef.add({
       liveId: currentPlayingLive.id,
       uid: user.uid,
       displayName,
+      linkedPlatform,
       text: text.slice(0, 300),
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -5631,6 +5746,8 @@ function subscribeToProfile(uid){
     document.getElementById('profile-name').value = label;
     currentProfilePhoto = data.photoURL || null;
     updateProfilePreview(label, data.photoURL || null);
+    currentLinkedAccounts = data.linkedAccounts || {};
+    renderLinkedAccountsUI();
   });
 }
 function updateProfilePreview(label, photoURL){
@@ -5693,6 +5810,197 @@ document.getElementById('profile-save').addEventListener('click', async ()=>{
     errEl.style.display = 'block';
   }finally{
     btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+});
+
+/* =========================================================
+   Comptes liés (Twitch / YouTube) — permet à un utilisateur de lier son
+   propre compte Twitch et/ou YouTube depuis son menu de gestion de compte.
+   Une fois lié, ses messages envoyés dans le tchat interne des lives sont
+   signés du nom de ce compte lié (voir sendLiveChatMessage) plutôt que de
+   son nom de profil du site. Note : pour les lives Twitch, le site utilise
+   le tchat natif Twitch (embed officiel) qui reste géré par le vrai compte
+   Twitch de chaque spectateur dans son propre navigateur — la liaison
+   décrite ici s'applique au tchat interne du site (utilisé pour les lives
+   YouTube).
+   ========================================================= */
+function renderLinkedAccountsUI(){
+  const twitch = currentLinkedAccounts.twitch;
+  const youtube = currentLinkedAccounts.youtube;
+
+  const tStatus = document.getElementById('linked-status-twitch');
+  const tConnect = document.getElementById('linked-connect-twitch');
+  const tDisconnect = document.getElementById('linked-disconnect-twitch');
+  if(tStatus){
+    tStatus.textContent = twitch ? `Lié en tant que ${twitch.displayName || twitch.login}` : 'Non lié';
+    tConnect.style.display = twitch ? 'none' : '';
+    tDisconnect.style.display = twitch ? '' : 'none';
+  }
+
+  const yStatus = document.getElementById('linked-status-youtube');
+  const yConnect = document.getElementById('linked-connect-youtube');
+  const yDisconnect = document.getElementById('linked-disconnect-youtube');
+  if(yStatus){
+    yStatus.textContent = youtube ? `Lié en tant que ${youtube.title}` : 'Non lié';
+    yConnect.style.display = youtube ? 'none' : '';
+    yDisconnect.style.display = youtube ? '' : 'none';
+  }
+}
+function showLinkedAccountsError(msg){
+  const el = document.getElementById('linked-accounts-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+document.getElementById('dd-linked-accounts').addEventListener('click', ()=>{
+  userChip.classList.remove('open');
+  document.getElementById('linked-accounts-error').style.display = 'none';
+  renderLinkedAccountsUI();
+  openOverlay('linked-accounts-overlay');
+});
+
+/* --- Twitch : liaison via flux OAuth "implicite" (100% côté navigateur,
+   sans secret) : on redirige vers Twitch, qui renvoie l'utilisateur sur
+   cette même page avec un jeton d'accès dans le fragment de l'URL (voir
+   handleTwitchOAuthRedirect ci-dessous). --- */
+function twitchRedirectUri(){
+  return window.location.origin + window.location.pathname;
+}
+document.getElementById('linked-connect-twitch').addEventListener('click', ()=>{
+  if(!auth.currentUser || auth.currentUser.isAnonymous){
+    showLinkedAccountsError("Connecte-toi d'abord à ton compte du site.");
+    return;
+  }
+  const redirect = encodeURIComponent(twitchRedirectUri());
+  const state = encodeURIComponent('twitch_link_' + auth.currentUser.uid);
+  const url = `https://id.twitch.tv/oauth2/authorize?client_id=${encodeURIComponent(TWITCH_CLIENT_ID)}&redirect_uri=${redirect}&response_type=token&scope=&state=${state}`;
+  window.location.href = url;
+});
+document.getElementById('linked-disconnect-twitch').addEventListener('click', async ()=>{
+  const user = auth.currentUser;
+  if(!user) return;
+  try{
+    await usersRef.doc(user.uid).set({
+      linkedAccounts: { twitch: firebase.firestore.FieldValue.delete() }
+    }, { merge: true });
+  }catch(e){
+    console.error('Erreur déliaison Twitch :', e);
+    showLinkedAccountsError("Impossible de délier le compte Twitch pour le moment.");
+  }
+});
+// Appelée au chargement de la page : si l'URL contient un jeton d'accès
+// Twitch renvoyé par la redirection OAuth ci-dessus, on récupère le profil
+// Twitch correspondant et on l'enregistre sur le compte du site.
+async function handleTwitchOAuthRedirect(){
+  const hash = window.location.hash || '';
+  if(!hash.includes('access_token=')) return;
+  const params = new URLSearchParams(hash.slice(1));
+  const accessToken = params.get('access_token');
+  const state = params.get('state') || '';
+  if(!accessToken || !state.startsWith('twitch_link_')) return;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  try{
+    const user = await ensureAnyAuth();
+    const res = await fetch('https://api.twitch.tv/helix/users', {
+      headers: { Authorization: `Bearer ${accessToken}`, 'Client-Id': TWITCH_CLIENT_ID }
+    });
+    const data = await res.json();
+    const twUser = data.data && data.data[0];
+    if(!twUser) throw new Error('Profil Twitch introuvable.');
+    await usersRef.doc(user.uid).set({
+      linkedAccounts: {
+        twitch: {
+          login: twUser.login,
+          displayName: twUser.display_name || twUser.login,
+          avatarUrl: twUser.profile_image_url || null,
+          linkedAt: Date.now()
+        }
+      }
+    }, { merge: true });
+    openOverlay('linked-accounts-overlay');
+  }catch(e){
+    console.error('Erreur liaison Twitch :', e);
+    alert("Impossible de lier ton compte Twitch pour le moment. Réessaie dans un instant.");
+  }
+}
+
+/* --- YouTube : liaison via un jeton OAuth Google obtenu avec Google
+   Identity Services (indépendant de la connexion principale au site, qui
+   peut être par e-mail/mot de passe ou par un autre compte Google). --- */
+function loadGoogleIdentityServices(){
+  return new Promise((resolve, reject)=>{
+    if(window.google && window.google.accounts && window.google.accounts.oauth2){ resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.onload = resolve;
+    script.onerror = ()=> reject(new Error('Script Google Identity Services indisponible.'));
+    document.head.appendChild(script);
+  });
+}
+document.getElementById('linked-connect-youtube').addEventListener('click', async ()=>{
+  document.getElementById('linked-accounts-error').style.display = 'none';
+  if(!GOOGLE_OAUTH_CLIENT_ID){
+    showLinkedAccountsError("Liaison YouTube non configurée : ajoute GOOGLE_OAUTH_CLIENT_ID dans le code de la page (voir les commentaires en haut du script).");
+    return;
+  }
+  const user = auth.currentUser;
+  if(!user || user.isAnonymous){
+    showLinkedAccountsError("Connecte-toi d'abord à ton compte du site.");
+    return;
+  }
+  try{
+    await loadGoogleIdentityServices();
+    if(!gisTokenClient){
+      gisTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/youtube.readonly',
+        callback: async (resp)=>{
+          if(!resp || resp.error){
+            showLinkedAccountsError("Connexion Google annulée ou refusée.");
+            return;
+          }
+          try{
+            const res = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+              headers: { Authorization: `Bearer ${resp.access_token}` }
+            });
+            const data = await res.json();
+            const channel = data.items && data.items[0];
+            if(!channel){
+              showLinkedAccountsError("Aucune chaîne YouTube trouvée sur ce compte Google.");
+              return;
+            }
+            await usersRef.doc(user.uid).set({
+              linkedAccounts: {
+                youtube: {
+                  channelId: channel.id,
+                  title: channel.snippet.title,
+                  avatarUrl: (channel.snippet.thumbnails && channel.snippet.thumbnails.default && channel.snippet.thumbnails.default.url) || null,
+                  linkedAt: Date.now()
+                }
+              }
+            }, { merge: true });
+          }catch(e){
+            console.error('Erreur liaison YouTube :', e);
+            showLinkedAccountsError("Impossible de récupérer la chaîne YouTube pour le moment.");
+          }
+        }
+      });
+    }
+    gisTokenClient.requestAccessToken({ prompt: 'consent' });
+  }catch(e){
+    console.error('Erreur chargement Google Identity Services :', e);
+    showLinkedAccountsError("Impossible de charger la connexion Google pour le moment.");
+  }
+});
+document.getElementById('linked-disconnect-youtube').addEventListener('click', async ()=>{
+  const user = auth.currentUser;
+  if(!user) return;
+  try{
+    await usersRef.doc(user.uid).set({
+      linkedAccounts: { youtube: firebase.firestore.FieldValue.delete() }
+    }, { merge: true });
+  }catch(e){
+    console.error('Erreur déliaison YouTube :', e);
+    showLinkedAccountsError("Impossible de délier le compte YouTube pour le moment.");
   }
 });
 
@@ -5828,6 +6136,8 @@ auth.onAuthStateChanged(async (user)=>{
     userChip.classList.remove('visible');
     userChip.classList.remove('open');
     if(profileUnsub){ profileUnsub(); profileUnsub = null; }
+    currentLinkedAccounts = {};
+    renderLinkedAccountsUI();
   }
 
   if(user){
@@ -5871,6 +6181,7 @@ auth.onAuthStateChanged(async (user)=>{
 attachLiveStreamsListener();
 
 handleSharedVideoLink();
+handleTwitchOAuthRedirect();
 </script>
 </body>
 </html>
