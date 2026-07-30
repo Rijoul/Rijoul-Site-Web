@@ -1148,6 +1148,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn edit-legal-btn" data-edit-legal="cgu">✎ Modifier</button>
+      <button class="btn" data-share-legal="cgu">↗ Partager</button>
       <button class="btn primary" data-close="cgu-overlay">Fermer</button>
     </div>
   </div>
@@ -1172,6 +1173,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn edit-legal-btn" data-edit-legal="mentions">✎ Modifier</button>
+      <button class="btn" data-share-legal="mentions">↗ Partager</button>
       <button class="btn primary" data-close="mentions-overlay">Fermer</button>
     </div>
   </div>
@@ -1198,6 +1200,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn edit-legal-btn" data-edit-legal="confidentialite">✎ Modifier</button>
+      <button class="btn" data-share-legal="confidentialite">↗ Partager</button>
       <button class="btn primary" data-close="confidentialite-overlay">Fermer</button>
     </div>
   </div>
@@ -2071,6 +2074,49 @@ document.querySelectorAll('[data-open-legal]').forEach(link=>{
     if(!page) return;
     openOverlay(page.overlayId);
     await applyLegalContent(key, page.bodyElId);
+  });
+});
+
+// Bouton "Partager" présent dans chaque modale légale : génère un lien
+// direct (tonsite.com/#cgu, /#mentions, /#confidentialite) qui, une fois
+// ouvert, réaffiche automatiquement la bonne fenêtre (voir openLegalFromHash
+// plus bas). Utilise le partage natif du navigateur si disponible, sinon
+// copie le lien dans le presse-papiers.
+const LEGAL_SHARE_TITLES = {
+  cgu: "Conditions Générales d'Utilisation",
+  mentions: 'Mentions légales',
+  confidentialite: 'Politique de confidentialité'
+};
+function buildLegalShareUrl(key){
+  const url = new URL(location.href);
+  url.search = '';
+  url.hash = key;
+  return url.toString();
+}
+async function shareLegalPage(key){
+  const shareUrl = buildLegalShareUrl(key);
+  const title = LEGAL_SHARE_TITLES[key] || 'Page légale';
+  const shareData = { title, text: title + ' — RIJOUL', url: shareUrl };
+
+  if(navigator.share){
+    try{
+      await navigator.share(shareData);
+    }catch(e){}
+    return;
+  }
+
+  try{
+    await navigator.clipboard.writeText(shareUrl);
+    alert('Lien copié dans le presse-papiers !');
+  }catch(e){
+    window.prompt('Copie ce lien pour partager cette page :', shareUrl);
+  }
+}
+document.querySelectorAll('[data-share-legal]').forEach(btn=>{
+  btn.addEventListener('click', (e)=>{
+    e.preventDefault();
+    e.stopPropagation();
+    shareLegalPage(btn.dataset.shareLegal);
   });
 });
 document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
