@@ -1114,9 +1114,11 @@
 <footer>
   Une production <span class="gold-word">RIJOUL</span>
   <div class="footer-legal-row">
-    <button type="button" class="footer-legal-btn" id="open-cgu-link">CGU</button>
+    <button type="button" class="footer-legal-btn" id="open-cgu-link" data-open-legal="cgu">CGU</button>
     <span class="footer-legal-sep">•</span>
-    <button type="button" class="footer-legal-btn" id="open-mentions-link">Mentions légales</button>
+    <button type="button" class="footer-legal-btn" id="open-mentions-link" data-open-legal="mentions">Mentions légales</button>
+    <span class="footer-legal-sep">•</span>
+    <button type="button" class="footer-legal-btn" id="open-confidentialite-link" data-open-legal="confidentialite">Politique de confidentialité</button>
   </div>
 </footer>
 
@@ -1170,6 +1172,32 @@
     <div class="modal-actions">
       <button class="btn edit-legal-btn" data-edit-legal="mentions">✎ Modifier</button>
       <button class="btn primary" data-close="mentions-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Politique de confidentialité -->
+<div class="overlay" id="confidentialite-overlay">
+  <div class="modal legal-modal">
+    <button class="modal-close" data-close="confidentialite-overlay">&times;</button>
+    <h2>Politique de confidentialité</h2>
+    <div class="legal-body" id="confidentialite-legal-body">
+      <h3>Données collectées</h3>
+      <p>Lors de la création d'un compte, RIJOUL collecte une adresse e-mail, un nom affiché et, si tu le fournis, une photo de profil. En utilisant le site, tu génères aussi des données liées à ton usage : réactions (j'aime/je n'aime pas), abonnements à des chaînes, vidéos regardées, playlists, et messages envoyés dans le tchat des lives.</p>
+      <h3>Comptes liés (Twitch / YouTube)</h3>
+      <p>Si tu choisis de lier ton compte Twitch et/ou YouTube depuis le menu de gestion de compte, RIJOUL enregistre le nom d'utilisateur, le nom affiché et la photo de profil associés à ce compte, afin que tes messages dans le tchat des lives soient signés de ce nom. Aucune autre information de ces comptes n'est collectée. Tu peux délier un compte à tout moment depuis le même menu.</p>
+      <h3>Utilisation des données</h3>
+      <p>Ces données sont utilisées uniquement pour faire fonctionner le site (affichage de ton profil, historique de visionnage, personnalisation) et ne sont ni vendues ni transmises à des tiers à des fins commerciales.</p>
+      <h3>Hébergement et sous-traitants</h3>
+      <p>Les données sont hébergées via Firebase (Google Ireland Limited). La liaison de comptes fait appel aux services d'authentification Twitch et Google, qui appliquent leurs propres politiques de confidentialité.</p>
+      <h3>Durée de conservation</h3>
+      <p>Les données sont conservées tant que le compte existe. La suppression du compte depuis le menu de gestion de compte entraîne la suppression du profil, des réactions, des vidéos vues et des abonnements associés.</p>
+      <h3>Tes droits</h3>
+      <p>Conformément à la réglementation en vigueur, tu disposes d'un droit d'accès, de rectification et de suppression de tes données, exerçable en contactant l'administrateur du site ou directement depuis ton menu de compte.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn edit-legal-btn" data-edit-legal="confidentialite">✎ Modifier</button>
+      <button class="btn primary" data-close="confidentialite-overlay">Fermer</button>
     </div>
   </div>
 </div>
@@ -2016,34 +2044,37 @@ async function applyLegalContent(key, bodyElId){
     document.getElementById(bodyElId).innerHTML = html;
   }
 }
-document.getElementById('open-cgu-link').addEventListener('click', async ()=>{
-  openOverlay('cgu-overlay');
-  await applyLegalContent('cgu', 'cgu-legal-body');
-});
-document.getElementById('open-mentions-link').addEventListener('click', async ()=>{
-  openOverlay('mentions-overlay');
-  await applyLegalContent('mentions', 'mentions-legal-body');
-});
+// Pages "légales" affichées en bas du site (CGU, mentions légales,
+// politique de confidentialité, etc.), modifiables par l'administrateur et
+// accessibles chacune par un lien direct (tonsite.com/#cle). Pour ajouter
+// une nouvelle page légale : ajoute une entrée ici, plus le bloc HTML de la
+// modale correspondante (copie une modale existante), plus un bouton dans
+// le footer avec data-open-legal="cle".
+const LEGAL_PAGES = {
+  cgu: { overlayId: 'cgu-overlay', bodyElId: 'cgu-legal-body', editTitle: "Modifier les CGU" },
+  mentions: { overlayId: 'mentions-overlay', bodyElId: 'mentions-legal-body', editTitle: "Modifier les mentions légales" },
+  confidentialite: { overlayId: 'confidentialite-overlay', bodyElId: 'confidentialite-legal-body', editTitle: "Modifier la politique de confidentialité" }
+};
 document.querySelectorAll('[data-open-legal]').forEach(link=>{
   link.addEventListener('click', async (e)=>{
     e.preventDefault();
     e.stopPropagation();
     const key = link.dataset.openLegal;
-    const bodyElId = key === 'cgu' ? 'cgu-legal-body' : 'mentions-legal-body';
-    const overlayId = key === 'cgu' ? 'cgu-overlay' : 'mentions-overlay';
-    openOverlay(overlayId);
-    await applyLegalContent(key, bodyElId);
+    const page = LEGAL_PAGES[key];
+    if(!page) return;
+    openOverlay(page.overlayId);
+    await applyLegalContent(key, page.bodyElId);
   });
 });
 document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     if(!isAdmin) return;
     const key = btn.dataset.editLegal;
-    const bodyElId = key === 'cgu' ? 'cgu-legal-body' : 'mentions-legal-body';
-    const titleLabel = key === 'cgu' ? "Modifier les CGU" : "Modifier les mentions légales";
-    document.getElementById('legal-edit-title').textContent = titleLabel;
+    const page = LEGAL_PAGES[key];
+    if(!page) return;
+    document.getElementById('legal-edit-title').textContent = page.editTitle;
     document.getElementById('legal-edit-key').value = key;
-    document.getElementById('legal-edit-textarea').value = document.getElementById(bodyElId).innerHTML.trim();
+    document.getElementById('legal-edit-textarea').value = document.getElementById(page.bodyElId).innerHTML.trim();
     document.getElementById('legal-edit-error').style.display = 'none';
     openOverlay('legal-edit-overlay');
   });
@@ -2051,10 +2082,11 @@ document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
 document.getElementById('legal-edit-save').addEventListener('click', async ()=>{
   if(!isAdmin) return;
   const key = document.getElementById('legal-edit-key').value;
+  const page = LEGAL_PAGES[key];
   const html = document.getElementById('legal-edit-textarea').value;
   const errorEl = document.getElementById('legal-edit-error');
   errorEl.style.display = 'none';
-  if(!key) return;
+  if(!key || !page) return;
 
   const btn = document.getElementById('legal-edit-save');
   btn.disabled = true; btn.textContent = 'Enregistrement…';
@@ -2065,8 +2097,7 @@ document.getElementById('legal-edit-save').addEventListener('click', async ()=>{
       updatedBy: (auth.currentUser && auth.currentUser.uid) || null
     }, { merge: true });
     legalContentCache[key] = html;
-    const bodyElId = key === 'cgu' ? 'cgu-legal-body' : 'mentions-legal-body';
-    document.getElementById(bodyElId).innerHTML = html;
+    document.getElementById(page.bodyElId).innerHTML = html;
     closeOverlay('legal-edit-overlay');
   }catch(e){
     console.error(e);
@@ -6176,19 +6207,16 @@ auth.onAuthStateChanged(async (user)=>{
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
 
-// Permet un lien direct vers les CGU ou les mentions légales (utile pour
-// les remplir dans des formulaires externes, ex : écran de consentement
-// OAuth Google) : tonsite.com/#cgu ou tonsite.com/#mentions ouvre la bonne
-// fenêtre automatiquement au chargement de la page.
+// Permet un lien direct vers n'importe quelle page légale (utile pour les
+// remplir dans des formulaires externes, ex : écran de consentement OAuth
+// Google) : tonsite.com/#cgu, /#mentions ou /#confidentialite ouvre la
+// bonne fenêtre automatiquement au chargement de la page.
 (async function openLegalFromHash(){
   const hash = (location.hash || '').replace('#','');
-  if(hash === 'cgu'){
-    openOverlay('cgu-overlay');
-    await applyLegalContent('cgu', 'cgu-legal-body');
-  }else if(hash === 'mentions'){
-    openOverlay('mentions-overlay');
-    await applyLegalContent('mentions', 'mentions-legal-body');
-  }
+  const page = LEGAL_PAGES[hash];
+  if(!page) return;
+  openOverlay(page.overlayId);
+  await applyLegalContent(hash, page.bodyElId);
 })();
 
 // Les lives sont visibles par tout le monde (pas besoin d'être connecté),
