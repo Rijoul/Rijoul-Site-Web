@@ -5468,16 +5468,21 @@ async function renderChannelsList(){
   const container = document.getElementById('channels-list-container');
   container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>`;
   try{
-    const snap = await trackedChannelsRef.orderBy('channelTitle').get();
+    const snap = await trackedChannelsRef.get();
     if(snap.empty){
       container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Aucune chaîne suivie pour l'instant. Utilise le champ ci-dessus pour en ajouter une.</div>`;
       return;
     }
-    container.innerHTML = snap.docs.map(doc=>{
+    const docsSorted = snap.docs.slice().sort((a,b)=>{
+      const nameA = (a.data().channelTitle || a.id).toLowerCase();
+      const nameB = (b.data().channelTitle || b.id).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    container.innerHTML = docsSorted.map(doc=>{
       const ch = doc.data();
       return `
         <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
-          <span class="channel-row-name">${escapeHtml(ch.channelTitle || 'Chaîne sans nom')}</span>
+          <span class="channel-row-name">${escapeHtml(ch.channelTitle || ('Chaîne sans nom (' + doc.id + ')'))}</span>
           <button class="channel-row-untrack" data-untrack-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
         </div>
       `;
@@ -5520,16 +5525,21 @@ async function renderTwitchChannelsList(){
   const container = document.getElementById('twitch-channels-list-container');
   container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>`;
   try{
-    const snap = await trackedTwitchChannelsRef.orderBy('loginName').get();
+    const snap = await trackedTwitchChannelsRef.get();
     if(snap.empty){
       container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Aucune chaîne Twitch suivie pour l'instant. Utilise le champ ci-dessus pour en ajouter une.</div>`;
       return;
     }
-    container.innerHTML = snap.docs.map(doc=>{
+    const docsSorted = snap.docs.slice().sort((a,b)=>{
+      const nameA = (a.data().loginName || a.id).toLowerCase();
+      const nameB = (b.data().loginName || b.id).toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    container.innerHTML = docsSorted.map(doc=>{
       const ch = doc.data();
       return `
         <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
-          <span class="channel-row-name">${escapeHtml(ch.displayName || ch.loginName)}</span>
+          <span class="channel-row-name">${escapeHtml(ch.displayName || ch.loginName || ('Chaîne sans nom (' + doc.id + ')'))}</span>
           <button class="channel-row-untrack" data-untrack-twitch-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
         </div>
       `;
