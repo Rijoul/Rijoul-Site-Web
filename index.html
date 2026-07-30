@@ -6176,6 +6176,21 @@ auth.onAuthStateChanged(async (user)=>{
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
 
+// Permet un lien direct vers les CGU ou les mentions légales (utile pour
+// les remplir dans des formulaires externes, ex : écran de consentement
+// OAuth Google) : tonsite.com/#cgu ou tonsite.com/#mentions ouvre la bonne
+// fenêtre automatiquement au chargement de la page.
+(async function openLegalFromHash(){
+  const hash = (location.hash || '').replace('#','');
+  if(hash === 'cgu'){
+    openOverlay('cgu-overlay');
+    await applyLegalContent('cgu', 'cgu-legal-body');
+  }else if(hash === 'mentions'){
+    openOverlay('mentions-overlay');
+    await applyLegalContent('mentions', 'mentions-legal-body');
+  }
+})();
+
 // Les lives sont visibles par tout le monde (pas besoin d'être connecté),
 // donc on branche l'écouteur temps réel dès le chargement de la page.
 attachLiveStreamsListener();
