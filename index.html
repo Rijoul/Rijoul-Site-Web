@@ -1570,7 +1570,7 @@
       <input type="password" id="signup-password" placeholder="6 caractères minimum" autocomplete="new-password">
       <div class="auth-terms-row">
         <input type="checkbox" id="signup-terms">
-        <label for="signup-terms">J'ai lu et j'accepte les <a data-open-legal="cgu">CGU</a> et les <a data-open-legal="mentions">mentions légales</a> du site.</label>
+        <label for="signup-terms">J'ai lu et j'accepte les <a data-open-legal="cgu">CGU</a>, les <a data-open-legal="mentions">mentions légales</a> et la <a data-open-legal="confidentialite">politique de confidentialité</a> du site.</label>
       </div>
       <div class="modal-error" id="signup-error"></div>
       <button class="btn primary auth-submit" id="signup-submit">Créer mon compte</button>
@@ -6004,7 +6004,7 @@ document.getElementById('signup-submit').addEventListener('click', async ()=>{
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
   if(!document.getElementById('signup-terms').checked){
-    showAuthError('signup-error', "Tu dois accepter les CGU et les mentions légales pour créer un compte.");
+    showAuthError('signup-error', "Tu dois accepter les CGU, les mentions légales et la politique de confidentialité pour créer un compte.");
     return;
   }
   if(!email || !password){ showAuthError('signup-error', "Merci de remplir tous les champs."); return; }
@@ -6036,7 +6036,7 @@ async function googleAuth(){
 document.getElementById('google-login-btn').addEventListener('click', googleAuth);
 document.getElementById('google-signup-btn').addEventListener('click', ()=>{
   if(!document.getElementById('signup-terms').checked){
-    showAuthError('signup-error', "Tu dois accepter les CGU et les mentions légales pour créer un compte.");
+    showAuthError('signup-error', "Tu dois accepter les CGU, les mentions légales et la politique de confidentialité pour créer un compte.");
     return;
   }
   googleAuth();
