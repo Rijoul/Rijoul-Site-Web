@@ -888,6 +888,16 @@
     .live-chat-messages{ padding-left:1.1rem; padding-right:1.1rem; }
     .live-chat-input-row{ padding-left:1.1rem; padding-right:1.1rem; }
   }
+
+  /* ---------- Tchat Twitch natif (embed officiel) ---------- */
+  .twitch-chat-iframe{
+    display:none;
+    width:100%;
+    height:340px;
+    border:none;
+    background:#18181b;
+  }
+  .twitch-chat-iframe.visible{ display:block; }
 </style>
 </head>
 <body>
@@ -1461,14 +1471,17 @@
         <button type="button" class="desc-toggle" id="desc-toggle">Voir plus</button>
       </div>
       <div class="player-live-chat" id="player-live-chat">
-        <div class="live-chat-messages" id="live-chat-messages">
-          <div class="live-chat-empty">Sois le premier à commenter ce live !</div>
-        </div>
-        <div class="live-chat-input-row">
-          <input type="text" id="live-chat-input" placeholder="Écris un commentaire…" maxlength="300" autocomplete="off">
-          <button class="live-chat-send-btn" id="live-chat-send-btn" title="Envoyer">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
+        <iframe id="twitch-chat-iframe" class="twitch-chat-iframe" src="" title="Tchat Twitch"></iframe>
+        <div id="custom-chat-container">
+          <div class="live-chat-messages" id="live-chat-messages">
+            <div class="live-chat-empty">Sois le premier à commenter ce live !</div>
+          </div>
+          <div class="live-chat-input-row">
+            <input type="text" id="live-chat-input" placeholder="Écris un commentaire…" maxlength="300" autocomplete="off">
+            <button class="live-chat-send-btn" id="live-chat-send-btn" title="Envoyer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -3613,9 +3626,11 @@ async function checkLiveStreams(){
 }
 
 /* --- Tchat en direct : messages synchronisés en temps réel entre tous
-   les spectateurs d'un même live, stockés dans la collection
-   "liveChatMessages" (un document par message, avec le champ liveId
-   pour les regrouper par live). --- */
+   les spectateurs d'un même live (utilisé uniquement pour les lives
+   YouTube — les lives Twitch utilisent le tchat natif Twitch, voir
+   playLiveStream), stockés dans la collection "liveChatMessages" (un
+   document par message, avec le champ liveId pour les regrouper par
+   live). --- */
 function attachLiveChatListener(liveId){
   detachLiveChatListener();
   const messagesEl = document.getElementById('live-chat-messages');
@@ -3790,8 +3805,24 @@ function playLiveStream(l){
     iframe.src = `https://player.twitch.tv/?channel=${encodeURIComponent(l.videoId)}&parent=${parent}&autoplay=true`;
   }
 
+  // Tchat : pour Twitch on utilise l'embed officiel Twitch (tchat natif,
+  // avec vrais comptes Twitch et modération native) ; pour YouTube on garde
+  // le tchat interne Firestore.
   document.getElementById('player-live-chat').classList.add('visible');
-  attachLiveChatListener(l.id);
+  const twitchChatIframe = document.getElementById('twitch-chat-iframe');
+  const customChatContainer = document.getElementById('custom-chat-container');
+  if(l.platform === 'twitch'){
+    const parent = window.location.hostname || 'localhost';
+    twitchChatIframe.src = `https://www.twitch.tv/embed/${encodeURIComponent(l.videoId)}/chat?parent=${parent}&darkpopout`;
+    twitchChatIframe.classList.add('visible');
+    customChatContainer.style.display = 'none';
+    detachLiveChatListener();
+  }else{
+    twitchChatIframe.classList.remove('visible');
+    twitchChatIframe.src = '';
+    customChatContainer.style.display = '';
+    attachLiveChatListener(l.id);
+  }
   loadMyLiveReactionFor(l.id).then(type=>{
     if(currentPlayingLive && currentPlayingLive.id === l.id){
       currentLiveMyReaction = type;
@@ -4002,6 +4033,10 @@ function closePlayerOverlay(){
   document.getElementById('player-playlist-btn').style.display = '';
   document.getElementById('player-share-btn').style.display = '';
   document.getElementById('player-live-chat').classList.remove('visible');
+  const twitchChatIframeEl = document.getElementById('twitch-chat-iframe');
+  if(twitchChatIframeEl){ twitchChatIframeEl.src = ''; twitchChatIframeEl.classList.remove('visible'); }
+  const customChatContainerEl = document.getElementById('custom-chat-container');
+  if(customChatContainerEl) customChatContainerEl.style.display = '';
   document.getElementById('player-like-btn').classList.remove('player-action-active-like');
   document.getElementById('player-dislike-btn').classList.remove('player-action-active-dislike');
   currentPlayingVideo = null;
@@ -4018,6 +4053,10 @@ function playVideo(v){
   currentLiveMyReaction = null;
   detachLiveChatListener();
   document.getElementById('player-live-chat').classList.remove('visible');
+  const twitchChatIframeInVideo = document.getElementById('twitch-chat-iframe');
+  if(twitchChatIframeInVideo){ twitchChatIframeInVideo.src = ''; twitchChatIframeInVideo.classList.remove('visible'); }
+  const customChatContainerInVideo = document.getElementById('custom-chat-container');
+  if(customChatContainerInVideo) customChatContainerInVideo.style.display = '';
   document.getElementById('player-playlist-btn').style.display = '';
   document.getElementById('player-share-btn').style.display = '';
   currentDirectVideoTag = null;
