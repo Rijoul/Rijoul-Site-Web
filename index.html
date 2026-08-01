@@ -6021,20 +6021,50 @@ function scoreVideoMatch(v, words, expandedTerms){
   score += scoreTextMatch(v.description, words, expandedTerms) * 0.7;
   return Math.round(score);
 }
-function findMatchingChannels(words, expandedTerms){
+let searchChannelsPoolCache = null;
+let searchChannelsPoolLoading = null;
+async function ensureSearchChannelsPool(){
+  if(searchChannelsPoolCache) return searchChannelsPoolCache;
+  if(searchChannelsPoolLoading) return searchChannelsPoolLoading;
+  searchChannelsPoolLoading = (async ()=>{
+    let result = [];
+    try{
+      const snap = await channelsRef.get();
+      result = snap.docs.map(d => ({ cdId: d.id, name: (d.data() || {}).name || '', count: (d.data() || {}).subscriberCount || 0 }));
+    }catch(e){
+      console.error('Erreur chargement des chaînes pour la recherche :', e);
+    }
+    searchChannelsPoolCache = result;
+    return result;
+  })();
+  const result = await searchChannelsPoolLoading;
+  searchChannelsPoolLoading = null;
+  return result;
+}
+let searchVideosPoolCache = null;
+let searchVideosPoolLoading = null;
+async function ensureSearchVideosPool(){
+  if(searchVideosPoolCache) return searchVideosPoolCache;
+  if(searchVideosPoolLoading) return searchVideosPoolLoading;
+  searchVideosPoolLoading = (async ()=>{
+    let result = [];
+    try{
+      const snap = await videosRef.get();
+      result = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }catch(e){
+      console.error('Erreur chargement du catalogue complet pour la recherche :', e);
+    }
+    searchVideosPoolCache = result;
+    return result;
+  })();
+  const result = await searchVideosPoolLoading;
+  searchVideosPoolLoading = null;
+  return result;
+}
+function findMatchingChannels(channelsPool, words, expandedTerms){
   if(!words || words.length === 0) return [];
-  const pool = videoSections.long.docs.concat(videoSections.short.docs);
-  const map = {};
-  pool.forEach(v=>{
-    const key = channelKeyOf(v);
-    if(!key) return;
-    const cdId = channelDocId(key);
-    if(map[cdId]) return;
-    const entry = channelsCache[cdId];
-    const count = (entry && entry.data && entry.data.subscriberCount) || 0;
-    map[cdId] = { cdId, name: v.author || key, count };
-  });
-  return Object.values(map)
+  return channelsPool
+    .filter(ch => ch.name)
     .map(ch => ({ ch, score: scoreTextMatch(ch.name, words, expandedTerms) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score || a.ch.name.localeCompare(b.ch.name))
@@ -6072,38 +6102,80 @@ function renderSearchChannelsGrid(list){
     });
   });
 }
+let globalSearchToken = 0;
+const CHANNEL_MATCH_SCORE_THRESHOLD = 40; // au moins un mot entier de la requête retrouvé dans le nom de la chaîne
 async function performGlobalSearch(rawQuery){
   const trimmed = (rawQuery || '').trim();
   const queryLabel = document.getElementById('search-query-label');
-  queryLabel.textContent = trimmed ? `Résultats pour « ${trimmed} »` : 'Entre un mot-clé dans la barre de recherche.';
+  const token = ++globalSearchToken;
 
   if(!trimmed){
+    queryLabel.textContent = 'Entre un mot-clé dans la barre de recherche.';
     renderVideoGrid('search-video-grid', null, [], "Entre un mot-clé pour lancer une recherche.", null, false);
     renderVideoGrid('search-shorts-grid', null, [], "", null, false);
     renderSearchChannelsGrid([]);
     return;
   }
 
-  await Promise.all([loadFirstPage('long'), loadFirstPage('short')]);
+  queryLabel.textContent = `Recherche en cours pour « ${trimmed} »…`;
+  renderVideoGrid('search-video-grid', null, [], "Recherche en cours…", null, false);
+  renderVideoGrid('search-shorts-grid', null, [], "", null, false);
+  showSection('section-search');
 
   const { words, expanded } = expandSearchTerms(trimmed);
 
-  const matchedVideos = videoSections.long.docs
-    .map(v => ({ v, score: scoreVideoMatch(v, words, expanded) }))
-    .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score || effectiveMillis(b.v) - effectiveMillis(a.v))
-    .map(x => x.v);
-  const matchedShorts = videoSections.short.docs
-    .map(v => ({ v, score: scoreVideoMatch(v, words, expanded) }))
-    .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score || effectiveMillis(b.v) - effectiveMillis(a.v))
-    .map(x => x.v);
-  const matchedChannels = findMatchingChannels(words, expanded);
+  const [channelsPool, videosPool] = await Promise.all([
+    ensureSearchChannelsPool(),
+    ensureSearchVideosPool()
+  ]);
+  if(token !== globalSearchToken) return; // une recherche plus récente a été lancée entre-temps
 
+  const matchedChannels = findMatchingChannels(channelsPool, words, expanded);
   renderSearchChannelsGrid(matchedChannels);
-  renderVideoGrid('search-video-grid', null, matchedVideos, "Aucune vidéo ne correspond à ta recherche parmi celles déjà chargées.", null, false);
-  renderVideoGrid('search-shorts-grid', null, matchedShorts, "Aucun short ne correspond à ta recherche parmi ceux déjà chargés.", null, false);
-  showSection('section-search');
+
+  // Même principe que le clic sur une chaîne abonnée : si la recherche correspond
+  // à un créateur, on charge ses dernières vidéos (fetchChannelRecentVideos).
+  let creatorLong = [];
+  let creatorShort = [];
+  const topChannelMatch = matchedChannels[0];
+  if(topChannelMatch && topChannelMatch.score >= CHANNEL_MATCH_SCORE_THRESHOLD){
+    await fetchChannelRecentVideos(topChannelMatch.cdId, topChannelMatch.name);
+    if(token !== globalSearchToken) return;
+    const cache = subsChannelVideosCache[topChannelMatch.cdId];
+    if(cache){
+      creatorLong = cache.long || [];
+      creatorShort = cache.short || [];
+    }
+  }
+
+  // Vidéos dont le titre (ou la description/l'auteur) contient le mot recherché,
+  // recherchées dans tout le catalogue et pas seulement dans ce qui est déjà affiché à l'écran.
+  const titleMatchedLong = videosPool
+    .filter(v => !v.isShort)
+    .map(v => ({ v, score: scoreVideoMatch(v, words, expanded) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || effectiveMillis(b.v) - effectiveMillis(a.v))
+    .map(x => x.v);
+  const titleMatchedShort = videosPool
+    .filter(v => v.isShort)
+    .map(v => ({ v, score: scoreVideoMatch(v, words, expanded) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || effectiveMillis(b.v) - effectiveMillis(a.v))
+    .map(x => x.v);
+
+  const mergeUnique = (primary, secondary) => {
+    const seen = new Set(primary.map(v => v.id));
+    return primary.concat(secondary.filter(v => !seen.has(v.id)));
+  };
+  const finalLong = mergeUnique(creatorLong, titleMatchedLong);
+  const finalShort = mergeUnique(creatorShort, titleMatchedShort);
+
+  await ensureChannelsLoadedForDocs(finalLong.concat(finalShort));
+  if(token !== globalSearchToken) return;
+
+  queryLabel.textContent = `Résultats pour « ${trimmed} »`;
+  renderVideoGrid('search-video-grid', null, finalLong, "Aucune vidéo ne correspond à ta recherche.", null, false);
+  renderVideoGrid('search-shorts-grid', null, finalShort, "Aucun short ne correspond à ta recherche.", null, false);
 }
 const globalSearchInput = document.getElementById('global-search-input');
 const globalSearchClear = document.getElementById('global-search-clear');
