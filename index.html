@@ -970,6 +970,11 @@
     display:flex; flex-direction:column;
     max-height: calc(100vh - 4rem);
     max-height: calc(100dvh - 4rem);
+    /* La modale de base a overflow-y:auto, ce qui entrait en conflit avec le
+       scroll interne de la liste ci-dessous (deux zones de défilement
+       imbriquées pouvaient faire "disparaître" la liste selon le navigateur).
+       Ici, seule la liste des chaînes doit défiler, pas la modale entière. */
+    overflow-y: hidden;
   }
   #channels-overlay .modal > *:not(#channels-list-container),
   #twitch-channels-overlay .modal > *:not(#twitch-channels-list-container){ flex-shrink:0; }
@@ -5469,6 +5474,7 @@ async function renderChannelsList(){
   container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>`;
   try{
     const snap = await trackedChannelsRef.get();
+    console.log(`[Chaînes suivies] ${snap.size} chaîne(s) trouvée(s) dans trackedChannels.`);
     if(snap.empty){
       container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Aucune chaîne suivie pour l'instant. Utilise le champ ci-dessus pour en ajouter une.</div>`;
       return;
@@ -5508,7 +5514,9 @@ async function renderChannelsList(){
     });
   }catch(err){
     console.error(err);
-    container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes.</div>`;
+    container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes (${escapeHtml(err.message || String(err))}). <a href="#" id="retry-channels-list">Réessayer</a></div>`;
+    const retry = document.getElementById('retry-channels-list');
+    if(retry) retry.addEventListener('click', (e)=>{ e.preventDefault(); renderChannelsList(); });
   }
 }
 
@@ -5526,6 +5534,7 @@ async function renderTwitchChannelsList(){
   container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Chargement…</div>`;
   try{
     const snap = await trackedTwitchChannelsRef.get();
+    console.log(`[Chaînes Twitch suivies] ${snap.size} chaîne(s) trouvée(s) dans trackedTwitchChannels.`);
     if(snap.empty){
       container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Aucune chaîne Twitch suivie pour l'instant. Utilise le champ ci-dessus pour en ajouter une.</div>`;
       return;
@@ -5566,7 +5575,9 @@ async function renderTwitchChannelsList(){
     });
   }catch(err){
     console.error(err);
-    container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes Twitch.</div>`;
+    container.innerHTML = `<div class="empty-state" style="padding:2rem 1rem;">Impossible de charger la liste des chaînes Twitch (${escapeHtml(err.message || String(err))}). <a href="#" id="retry-twitch-channels-list">Réessayer</a></div>`;
+    const retry = document.getElementById('retry-twitch-channels-list');
+    if(retry) retry.addEventListener('click', (e)=>{ e.preventDefault(); renderTwitchChannelsList(); });
   }
 }
 
