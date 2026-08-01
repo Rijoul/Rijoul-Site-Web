@@ -189,6 +189,24 @@
   body.dark-mode .theme-toggle-track{ background:#000; border-color: rgba(255,255,255,0.18); }
   body.dark-mode .theme-toggle-thumb{ transform: translateX(20px); background:#e8e8ec; }
   .theme-toggle:hover .theme-toggle-track{ border-color: rgba(255,255,255,0.65); }
+
+  /* ---------- Bouton "Partager le site" ---------- */
+  .share-site-btn{
+    display:flex; align-items:center; gap:0.5rem; margin-left:0.9rem;
+    font-family:'Fredoka'; font-weight:600; font-size:0.8rem; letter-spacing:0.02em; text-transform:uppercase;
+    padding:0.6rem 1.1rem; border-radius:999px; cursor:pointer; border:1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.14); color: var(--cream); backdrop-filter: blur(6px);
+    transition: all .25s ease;
+  }
+  .share-site-btn:hover{ background: rgba(255,255,255,0.28); transform: translateY(-1px); }
+  .share-site-btn svg{ width:15px; height:15px; flex-shrink:0; }
+  body.dark-mode .share-site-btn{
+    box-shadow: 0 6px 16px -4px rgba(0,0,0,0.6), 0 0 12px rgba(238,28,60,0.22);
+  }
+  @media (max-width:640px){
+    .share-site-btn span{ display:none; }
+    .share-site-btn{ padding:0.6rem; margin-left:0.6rem; }
+  }
   @media (max-width:640px){
     .theme-bar{ top: 4.1rem; left: 1rem; }
     .account-bar{ top: 4.1rem; right: 1rem; }
@@ -1455,6 +1473,10 @@
       <span class="theme-toggle-thumb"></span>
     </span>
     <svg class="theme-toggle-icon theme-toggle-icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.4 14.7A8.5 8.5 0 0 1 9.3 3.6a8.5 8.5 0 1 0 11.1 11.1z"/></svg>
+  </button>
+  <button type="button" class="share-site-btn" id="share-site-btn" title="Partager RIJOUL VISION">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4"/><path d="M15.4 6.5l-6.8 4"/></svg>
+    <span>Partager</span>
   </button>
 </div>
 
@@ -6887,6 +6909,35 @@ handleSharedVideoLink();
     hideBanner();
     markDismissed();
   });
+
+  // Bouton "Partager" toujours visible (en haut à gauche, à côté du curseur clair/sombre)
+  const shareSiteBtn = document.getElementById('share-site-btn');
+  if(shareSiteBtn){
+    shareSiteBtn.addEventListener('click', async ()=>{
+      const url = currentShareUrl();
+      const shareData = {
+        title: 'RIJOUL VISION',
+        text: 'Découvre RIJOUL VISION, la chaîne officielle !',
+        url
+      };
+      if(navigator.share){
+        try{
+          await navigator.share(shareData);
+        }catch(e){
+          // L'utilisateur a annulé ou une erreur est survenue : rien à faire.
+        }
+        return;
+      }
+      // Pas de Web Share API disponible (desktop, anciens navigateurs) :
+      // on copie le lien dans le presse-papiers.
+      try{
+        await navigator.clipboard.writeText(url);
+        showToast('Lien copié dans le presse-papiers !');
+      }catch(e){
+        showToast(url);
+      }
+    });
+  }
 })();
 </script>
 </body>
