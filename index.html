@@ -2109,7 +2109,7 @@ const AUTO_CHECK_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 // identifiants dédiés à cet usage, sans droits sensibles.
 const TWITCH_CLIENT_ID = "ydnga5hvex93w41zfsnuc0lkizq9yx";
 const TWITCH_CLIENT_SECRET = "bcqw2lqj8iz50koty0unnupgk8azs2";
-const LIVE_CHECK_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes : vérification des lives
+const LIVE_CHECK_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes : vérification des lives (search.list coûte 100 unités/chaîne, donc on espace largement pour ne pas épuiser le quota quotidien de 10 000 unités)
 
 /* =========================================================
    Firebase init
@@ -4211,7 +4211,14 @@ async function checkLiveStreams(){
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           }, { merge: true });
         }
-      }catch(err){ console.warn('Vérification live YouTube impossible pour', ch.channelTitle, err); }
+      }catch(err){
+        console.warn('Vérification live YouTube impossible pour', ch.channelTitle, err);
+        if(/quota/i.test(err.message || '')){
+          // Quota épuisé : inutile de répéter la même erreur pour chaque
+          // chaîne restante, on arrête la boucle YouTube pour cette passe.
+          break;
+        }
+      }
     }
   }catch(e){ console.error('Erreur vérification lives YouTube :', e); }
 
@@ -5243,6 +5250,11 @@ async function checkTrackedChannelsForNewVideos(){
         latest = await fetchLatestUploads(ch.uploadsPlaylistId, 25);
       }catch(err){
         console.warn(`Vérification impossible pour la chaîne "${ch.channelTitle}" :`, err);
+        if(/quota/i.test(err.message || '')){
+          // Quota épuisé : inutile de répéter la même erreur pour chaque
+          // chaîne restante, on arrête la boucle pour cette passe.
+          break;
+        }
         continue;
       }
 
@@ -5734,12 +5746,24 @@ function parseChannelRef(url){
   if(/^UC[a-zA-Z0-9_-]{22}$/.test(url)) return { type: 'id', value: url };
   return null;
 }
+let youtubeQuotaCooldownUntil = 0;
 async function ytApiGet(endpoint, params){
+  if(Date.now() < youtubeQuotaCooldownUntil){
+    throw new Error('Quota API YouTube dépassé pour aujourd\'hui (nouvelle tentative automatique plus tard).');
+  }
   const usp = new URLSearchParams({ ...params, key: YOUTUBE_API_KEY });
   const res = await fetch(`https://www.googleapis.com/youtube/v3/${endpoint}?${usp.toString()}`);
   const data = await res.json();
   if(!res.ok){
     const message = (data && data.error && data.error.message) || `Erreur API YouTube (${res.status})`;
+    if(res.status === 429 || /quota/i.test(message)){
+      // Le quota quotidien de l'API YouTube (10 000 unités/jour) est épuisé.
+      // On coupe les appels automatiques pendant quelques heures pour éviter
+      // de spammer une erreur identique pour chaque chaîne suivie et de
+      // gaspiller les quelques unités restantes sur des requêtes vouées à échouer.
+      youtubeQuotaCooldownUntil = Date.now() + 3 * 60 * 60 * 1000; // pause de 3h
+      console.warn('Quota API YouTube dépassé : pause des vérifications automatiques pendant 3h.');
+    }
     throw new Error(message);
   }
   return data;
