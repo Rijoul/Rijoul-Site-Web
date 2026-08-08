@@ -255,6 +255,67 @@
   .user-dropdown .dd-mail{ color: var(--text-dim); color:#8a7a6a; font-size:0.7rem; padding:0.5rem 0.8rem 0.3rem; border-bottom:1px solid var(--cream-2); margin-bottom:0.2rem; }
   .user-dropdown button.dd-danger{ color: var(--red-dim); }
   .user-dropdown button.dd-danger:hover{ background: #fdeceb; color: var(--red); }
+  .user-dropdown button.dd-notif-on{ color: var(--red); }
+
+  /* ---------- Cloche de notifications ---------- */
+  .notif-bell-wrap{ position:relative; }
+  .notif-bell-btn{
+    position:relative; display:flex; align-items:center; justify-content:center;
+    width:40px; height:40px; border-radius:50%; border:none; cursor:pointer;
+    background: var(--cream); box-shadow: 0 6px 16px -4px rgba(0,0,0,0.25); color: var(--dark-text);
+    transition: all .2s ease;
+  }
+  .notif-bell-btn:hover{ background:#fff; transform: translateY(-1px); }
+  .notif-bell-btn svg{ width:18px; height:18px; }
+  .notif-badge{
+    position:absolute; top:-4px; right:-4px; min-width:17px; height:17px; padding:0 4px;
+    border-radius:999px; background: var(--red); color:#fff; font-family:'Fredoka';
+    font-size:0.63rem; font-weight:700; display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 0 0 2px var(--cream);
+  }
+  .notif-panel{
+    position:absolute; top: calc(100% + 0.6rem); right:0; width:320px; max-width:82vw;
+    background: var(--panel); border:2px solid var(--cream-2); border-radius:18px;
+    box-shadow: 0 18px 40px -12px rgba(0,0,0,0.35); display:none; flex-direction:column;
+    overflow:hidden; z-index:60;
+  }
+  .notif-bell-wrap.open .notif-panel{ display:flex; }
+  .notif-panel-head{
+    display:flex; align-items:center; justify-content:space-between; padding:0.8rem 0.9rem;
+    border-bottom:1px solid var(--cream-2); font-family:'Fredoka'; font-weight:700; color: var(--dark-text); font-size:0.85rem;
+  }
+  .notif-mark-all{
+    background:none; border:none; cursor:pointer; color: var(--red-dim); font-family:'Baloo 2';
+    font-weight:600; font-size:0.72rem; padding:0.2rem 0.4rem; border-radius:6px;
+  }
+  .notif-mark-all:hover{ background: var(--cream-2); color: var(--red); }
+  .notif-panel-list{ max-height:360px; overflow-y:auto; padding:0.4rem; }
+  .notif-empty{ padding:1.2rem 0.8rem; text-align:center; color:#8a7a6a; font-size:0.8rem; }
+  .notif-item{
+    display:flex; gap:0.6rem; align-items:flex-start; padding:0.6rem 0.6rem; border-radius:12px;
+    cursor:pointer; text-align:left; width:100%; background:none; border:none; font-family:'Baloo 2';
+  }
+  .notif-item:hover{ background: var(--cream-2); }
+  .notif-item.unread{ background: rgba(238,28,60,0.08); }
+  .notif-item-thumb{
+    width:52px; height:32px; border-radius:8px; object-fit:cover; flex-shrink:0; background: var(--cream-2);
+  }
+  .notif-item-body{ min-width:0; flex:1; }
+  .notif-item-title{
+    font-size:0.8rem; font-weight:700; color: var(--dark-text); line-height:1.25;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .notif-item-meta{ font-size:0.68rem; color:#8a7a6a; margin-top:0.2rem; }
+  .notif-item.unread .notif-item-title{ color: var(--red-dim); }
+  .notif-item-dot{ width:8px; height:8px; border-radius:50%; background: var(--red); flex-shrink:0; margin-top:0.35rem; visibility:hidden; }
+  .notif-item.unread .notif-item-dot{ visibility:visible; }
+
+  body.dark-mode .notif-panel{ box-shadow: 0 18px 40px -12px rgba(0,0,0,0.7), 0 0 16px rgba(238,28,60,0.18); }
+  body.dark-mode .notif-bell-btn{ box-shadow: 0 8px 20px -4px rgba(0,0,0,0.7), 0 0 16px rgba(238,28,60,0.22); }
+
+  @media (max-width:640px){
+    .notif-panel{ position:fixed; top:auto; bottom:1rem; left:1rem; right:1rem; width:auto; max-width:none; }
+  }
 
   /* ---------- Header / Hero ---------- */
   header{
@@ -1482,6 +1543,21 @@
 
 <!-- Top-right account bar -->
 <div class="account-bar">
+  <div class="notif-bell-wrap" id="notif-bell-wrap">
+    <button class="notif-bell-btn" id="notif-bell-btn" type="button" title="Notifications" aria-label="Notifications">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+    </button>
+    <div class="notif-panel" id="notif-panel">
+      <div class="notif-panel-head">
+        <span>Notifications</span>
+        <button type="button" class="notif-mark-all" id="notif-mark-all-read">Tout marquer lu</button>
+      </div>
+      <div class="notif-panel-list" id="notif-panel-list">
+        <div class="notif-empty">Aucune notification pour l'instant.</div>
+      </div>
+    </div>
+  </div>
   <button class="account-btn" id="account-btn">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.5c-3.3 0-9.8 1.6-9.8 4.9v2.4h19.6v-2.4c0-3.3-6.5-4.9-9.8-4.9z"/></svg>
     Connexion
@@ -1493,6 +1569,7 @@
     <div class="user-dropdown">
       <div class="dd-mail" id="user-email-label">—</div>
       <button id="dd-edit-profile">Modifier le profil</button>
+      <button id="dd-toggle-notifications">🔔 Notifications : <span id="notif-toggle-state">Désactivées</span></button>
       <button id="dd-export-data">Télécharger mes données</button>
       <button id="dd-delete-account" class="dd-danger">Supprimer mon compte</button>
       <button id="dd-logout">Se déconnecter</button>
@@ -6407,23 +6484,268 @@ document.getElementById('dd-export-data').addEventListener('click', async ()=>{
       abonnements: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       exporteLe: new Date().toISOString()
     };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rijoul-mes-donnees-${user.uid}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadJSONFile(`rijoul-mes-donnees-${user.uid}.json`, exportData);
+    btn.textContent = 'Téléchargé ✓';
+    setTimeout(()=>{ btn.textContent = originalText; }, 2000);
   }catch(e){
     console.error('Erreur export des données :', e);
-    alert("Impossible de récupérer tes données pour le moment. Réessaie plus tard.");
-  }finally{
+    alert("Impossible de récupérer tes données pour le moment (vérifie ta connexion ou réessaie plus tard).");
     btn.textContent = originalText;
+  }finally{
     btn.disabled = false;
   }
 });
+
+/* Déclenche le téléchargement d'un objet JS sous forme de fichier .json.
+   Sur iOS/Safari (y compris en PWA installée), l'attribut "download" d'un
+   lien <a> est peu fiable : le fichier s'ouvre parfois dans un nouvel onglet
+   au lieu de se télécharger. On ouvre donc le blob dans un nouvel onglet
+   dans ce cas précis, ce qui permet à l'utilisateur d'utiliser
+   Partager > Enregistrer dans Fichiers pour le sauvegarder. */
+function downloadJSONFile(filename, dataObj){
+  const jsonStr = JSON.stringify(dataObj, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  try{
+    if(isIOS){
+      const win = window.open(url, '_blank');
+      if(!win){
+        // Popup bloquée : on retente la méthode classique en dernier recours.
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.rel = 'noopener';
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+    }else{
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }finally{
+    setTimeout(()=>URL.revokeObjectURL(url), 10000);
+  }
+}
+
+/* =========================================================
+   NOTIFICATIONS — nouvelles vidéos
+   - Historique local (cloche) + notification navigateur (Notification API)
+   - Préférence activé/désactivé synchronisée sur le profil Firestore pour
+     les comptes connectés, et gardée en localStorage comme repli (invités).
+   - Limite : ceci fonctionne tant que le site est ouvert quelque part dans
+     le navigateur (onglet au premier plan ou en arrière-plan). Une
+     notification "push" reçue même site/app fermés nécessiterait un
+     backend (Firebase Cloud Messaging + Cloud Function côté serveur), qui
+     n'existe pas dans cette app 100% front-end.
+   ========================================================= */
+const NOTIF_ENABLED_LOCAL_KEY = 'rijoul_notifications_enabled';
+const NOTIF_HISTORY_KEY = 'rijoul_notif_history_v1';
+const NOTIF_LAST_SEEN_VIDEO_KEY = 'rijoul_last_seen_video_addedat';
+const MAX_NOTIF_HISTORY = 30;
+
+function isNotificationsEnabled(){
+  return localStorage.getItem(NOTIF_ENABLED_LOCAL_KEY) === '1';
+}
+async function setNotificationsEnabled(value){
+  localStorage.setItem(NOTIF_ENABLED_LOCAL_KEY, value ? '1' : '0');
+  const user = auth.currentUser;
+  if(user && !user.isAnonymous){
+    try{
+      await usersRef.doc(user.uid).set({
+        notificationsEnabled: value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }catch(e){ console.warn("Impossible d'enregistrer la préférence de notifications :", e); }
+  }
+}
+function updateNotifToggleUI(){
+  const stateEl = document.getElementById('notif-toggle-state');
+  const btnEl = document.getElementById('dd-toggle-notifications');
+  const on = isNotificationsEnabled();
+  if(stateEl) stateEl.textContent = on ? 'Activées' : 'Désactivées';
+  if(btnEl) btnEl.classList.toggle('dd-notif-on', on);
+}
+
+function getNotifHistory(){
+  try{ return JSON.parse(localStorage.getItem(NOTIF_HISTORY_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function saveNotifHistory(list){
+  try{ localStorage.setItem(NOTIF_HISTORY_KEY, JSON.stringify(list.slice(0, MAX_NOTIF_HISTORY))); }
+  catch(e){ console.warn('Historique de notifications non sauvegardé :', e); }
+}
+function addNotifToHistory(entry){
+  const list = getNotifHistory();
+  list.unshift(entry);
+  saveNotifHistory(list);
+}
+function unreadNotifCount(){
+  return getNotifHistory().filter(n => !n.read).length;
+}
+function updateNotifBadge(){
+  const badge = document.getElementById('notif-badge');
+  if(!badge) return;
+  const count = unreadNotifCount();
+  if(count > 0){
+    badge.textContent = count > 9 ? '9+' : String(count);
+    badge.style.display = 'flex';
+  }else{
+    badge.style.display = 'none';
+  }
+}
+function markAllNotifRead(){
+  const list = getNotifHistory().map(n => ({ ...n, read: true }));
+  saveNotifHistory(list);
+  updateNotifBadge();
+  renderNotifPanel();
+}
+function timeAgoLabel(ts){
+  const diffSec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+  if(diffSec < 60) return "à l'instant";
+  const diffMin = Math.floor(diffSec / 60);
+  if(diffMin < 60) return `il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if(diffH < 24) return `il y a ${diffH} h`;
+  const diffJ = Math.floor(diffH / 24);
+  return `il y a ${diffJ} j`;
+}
+function renderNotifPanel(){
+  const list = getNotifHistory();
+  const container = document.getElementById('notif-panel-list');
+  if(!container) return;
+  if(list.length === 0){
+    container.innerHTML = '<div class="notif-empty">Aucune notification pour l\'instant.</div>';
+    return;
+  }
+  container.innerHTML = list.map(n => `
+    <button type="button" class="notif-item ${n.read ? '' : 'unread'}" data-notif-video="${escapeHtml(n.id)}">
+      <span class="notif-item-dot"></span>
+      ${n.thumb ? `<img class="notif-item-thumb" src="${escapeHtml(n.thumb)}" alt="">` : ''}
+      <span class="notif-item-body">
+        <span class="notif-item-title">${escapeHtml(n.title)}</span>
+        <span class="notif-item-meta">${escapeHtml(n.author || '')}${n.author ? ' • ' : ''}${timeAgoLabel(n.ts)}</span>
+      </span>
+    </button>
+  `).join('');
+}
+async function openVideoFromNotif(videoId){
+  notifBellWrap.classList.remove('open');
+  const list = getNotifHistory().map(n => n.id === videoId ? { ...n, read: true } : n);
+  saveNotifHistory(list);
+  updateNotifBadge();
+  renderNotifPanel();
+  let v = (typeof findLoadedVideoById === 'function') ? findLoadedVideoById(videoId) : null;
+  if(!v){
+    try{
+      const snap = await videosRef.doc(videoId).get();
+      if(snap.exists) v = { id: snap.id, ...snap.data() };
+    }catch(e){ console.warn('Vidéo introuvable pour cette notification :', e); }
+  }
+  if(v) playVideo(v);
+  else alert("Cette vidéo n'est plus disponible.");
+}
+
+function notifyNewVideo(v){
+  const entry = {
+    id: v.id,
+    title: v.title || 'Nouvelle vidéo',
+    author: v.author || '',
+    thumb: (typeof thumbForVideo === 'function' ? thumbForVideo(v) : null) || null,
+    ts: Date.now(),
+    read: false
+  };
+  addNotifToHistory(entry);
+  updateNotifBadge();
+  renderNotifPanel();
+
+  if(isNotificationsEnabled() && 'Notification' in window && Notification.permission === 'granted'){
+    try{
+      const iconEl = document.querySelector('link[rel="apple-touch-icon"]');
+      const n = new Notification('🎬 Nouvelle vidéo sur RIJOUL VISION', {
+        body: entry.author ? `${entry.title} — ${entry.author}` : entry.title,
+        icon: iconEl ? iconEl.href : undefined,
+        tag: 'rijoul-video-' + entry.id
+      });
+      n.onclick = ()=>{ window.focus(); openVideoFromNotif(entry.id); n.close(); };
+    }catch(e){ console.warn('Notification navigateur impossible :', e); }
+  }
+}
+
+let notifVideosUnsub = null;
+let notifFirstSnapshotDone = false;
+function startNewVideoNotificationWatcher(){
+  if(notifVideosUnsub) return;
+  notifVideosUnsub = videosRef.orderBy('addedAt', 'desc').limit(5).onSnapshot((snap)=>{
+    if(!notifFirstSnapshotDone){
+      notifFirstSnapshotDone = true;
+      const mostRecent = snap.docs[0];
+      const alreadyStored = localStorage.getItem(NOTIF_LAST_SEEN_VIDEO_KEY);
+      if(mostRecent && !alreadyStored){
+        const t = mostRecent.data().addedAt;
+        const ms = (t && t.toMillis) ? t.toMillis() : Date.now();
+        localStorage.setItem(NOTIF_LAST_SEEN_VIDEO_KEY, String(ms));
+      }
+      return;
+    }
+    let lastSeen = Number(localStorage.getItem(NOTIF_LAST_SEEN_VIDEO_KEY) || 0);
+    snap.docChanges().forEach(change=>{
+      if(change.type !== 'added') return;
+      const data = change.doc.data();
+      const t = data.addedAt;
+      const addedAtMs = (t && t.toMillis) ? t.toMillis() : Date.now();
+      if(addedAtMs <= lastSeen) return;
+      lastSeen = Math.max(lastSeen, addedAtMs);
+      localStorage.setItem(NOTIF_LAST_SEEN_VIDEO_KEY, String(lastSeen));
+      notifyNewVideo({ id: change.doc.id, ...data });
+    });
+  }, (err)=>{ console.warn('Surveillance des nouvelles vidéos indisponible :', err); });
+}
+
+const notifBellWrap = document.getElementById('notif-bell-wrap');
+const notifBellBtn = document.getElementById('notif-bell-btn');
+notifBellBtn.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  notifBellWrap.classList.toggle('open');
+});
+document.getElementById('notif-panel-list').addEventListener('click', (e)=>{
+  const item = e.target.closest('[data-notif-video]');
+  if(item) openVideoFromNotif(item.getAttribute('data-notif-video'));
+});
+document.getElementById('notif-mark-all-read').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  markAllNotifRead();
+});
+document.addEventListener('click', (e)=>{
+  if(notifBellWrap && !notifBellWrap.contains(e.target)) notifBellWrap.classList.remove('open');
+});
+
+document.getElementById('dd-toggle-notifications').addEventListener('click', async ()=>{
+  const turningOn = !isNotificationsEnabled();
+  if(turningOn && 'Notification' in window){
+    let perm = Notification.permission;
+    if(perm === 'default'){
+      try{ perm = await Notification.requestPermission(); }catch(e){ perm = 'denied'; }
+    }
+    if(perm === 'denied'){
+      alert("Les notifications sont bloquées dans les réglages de ton navigateur. Les nouvelles vidéos resteront visibles dans la cloche 🔔 en haut du site, mais tu ne recevras pas d'alerte système. Autorise les notifications pour ce site si tu changes d'avis.");
+    }
+  }else if(turningOn && !('Notification' in window)){
+    alert("Ton navigateur ne supporte pas les notifications système. Les nouvelles vidéos resteront visibles dans la cloche 🔔 en haut du site.");
+  }
+  await setNotificationsEnabled(turningOn);
+  updateNotifToggleUI();
+  userChip.classList.remove('open');
+});
+
+// Initialisation au chargement : restaure l'état de la cloche et lance la
+// surveillance des nouvelles vidéos pour tous les visiteurs (connectés ou non).
+updateNotifToggleUI();
+updateNotifBadge();
+renderNotifPanel();
+startNewVideoNotificationWatcher();
 
 document.getElementById('dd-delete-account').addEventListener('click', async ()=>{
   userChip.classList.remove('open');
@@ -6498,6 +6820,10 @@ function subscribeToProfile(uid){
     document.getElementById('profile-name').value = label;
     currentProfilePhoto = data.photoURL || null;
     updateProfilePreview(label, data.photoURL || null);
+    if(typeof data.notificationsEnabled === 'boolean'){
+      localStorage.setItem(NOTIF_ENABLED_LOCAL_KEY, data.notificationsEnabled ? '1' : '0');
+      updateNotifToggleUI();
+    }
   });
 }
 function updateProfilePreview(label, photoURL){
