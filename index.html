@@ -653,6 +653,23 @@
   .modal-checkbox-row input[type=checkbox]{ width:auto; margin:0; accent-color: var(--red); }
   .modal-checkbox-row label{ margin:0; text-transform:none; font-size:0.85rem; font-weight:600; color:#6b5644; letter-spacing:0; }
 
+  /* ---------- Mini-lecteur flottant (Picture-in-Picture façon Twitch) ---------- */
+  /* Styles appliqués au conteneur #player-media une fois déplacé dans la
+     fenêtre Picture-in-Picture (voir script en bas de page). Cette fenêtre
+     n'hérite pas forcément de toutes les variables CSS du document
+     principal selon les navigateurs, d'où quelques valeurs codées en dur. */
+  .pip-mini-media{
+    width:100vw !important; height:100vh !important; margin:0 !important;
+    border-radius:0 !important; background:#000;
+  }
+  .pip-mini-media .player-loading-overlay{ display:none !important; }
+  .pip-mini-return-hint{
+    position:fixed; left:50%; bottom:8px; transform:translateX(-50%);
+    background:rgba(0,0,0,0.55); color:#fff; font-family:'Baloo 2', sans-serif;
+    font-size:11px; padding:3px 9px; border-radius:999px; pointer-events:none;
+    z-index:5; white-space:nowrap;
+  }
+
   /* ---------- Lecteur vidéo interne (style verre iOS 26) ---------- */
   .player-overlay{ background: rgba(6,4,10,0.82); backdrop-filter: blur(10px); overflow-y:auto; transition: background .4s ease; }
   .player-shell{
@@ -2108,6 +2125,9 @@
         </span>
         <svg class="cinema-toggle-icon cinema-toggle-icon-on" viewBox="0 0 24 24" fill="currentColor"><path d="M18 4H6a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm-8 11.5v-7l6 3.5-6 3.5z"/></svg>
         <span class="cinema-toggle-label">Cinéma</span>
+      </button>
+      <button class="player-close glass-btn" id="player-pip-btn" title="Mini-lecteur (garder l'aperçu visible en quittant le site)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="11" y="11" width="8" height="6" rx="1" fill="currentColor" stroke="none"/></svg>
       </button>
       <button class="player-close glass-btn" data-close="player-overlay" title="Fermer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -4971,6 +4991,244 @@ function setupCustomControls(videoTag){
 }
 
 document.querySelector('[data-close="player-overlay"]').addEventListener('click', closePlayerOverlay);
+
+/* ============================================================
+   Mini-lecteur flottant (Picture-in-Picture façon Twitch)
+   ============================================================
+   Objectif : quand on quitte l'onglet/le site pendant qu'un live ou
+   une vidéo est en cours, afficher un petit aperçu qui reste visible
+   par-dessus les autres fenêtres/onglets (comme le mini-lecteur de
+   Twitch), au lieu que la lecture se retrouve cachée dans un onglet
+   inactif.
+
+   Fonctionnement :
+   - Sur les navigateurs qui supportent la "Document Picture-in-Picture
+     API" (Chrome/Edge récents, desktop et une partie d'Android), on
+     déplace réellement le lecteur (#player-media) dans une petite
+     fenêtre flottante toujours au-dessus des autres fenêtres/onglets,
+     qui continue d'exister même si on change d'onglet, d'application,
+     ou qu'on minimise le navigateur.
+   - Le déclenchement est automatique dès que l'onglet devient invisible
+     (changement d'onglet, mise en arrière-plan) pendant une lecture, et
+     peut aussi être déclenché manuellement via le bouton dédié dans la
+     barre du lecteur.
+   - Sur les navigateurs qui ne supportent pas cette API (Firefox,
+     Safari...), on utilise en repli la Picture-in-Picture native du
+     tag <video> quand la vidéo est un fichier direct (mp4/webm) — cette
+     API native est plus largement supportée, y compris sur mobile.
+
+   Limite technique à connaître : les lecteurs YouTube/Twitch intégrés
+   sont des <iframe> tierces. Le navigateur ne permet pas de "cloner" un
+   iframe vers une autre fenêtre sans recharger son contenu (c'est une
+   restriction du web, pas quelque chose qu'on peut contourner en JS).
+   Résultat concret : pour un live, le mini-lecteur se reconnecte au
+   direct (perte de quelques secondes, sans gêne) ; pour une vidéo à la
+   demande, le mini-lecteur la relance depuis le début. C'est la seule
+   approche possible sans dépendre d'une extension navigateur.
+   ============================================================ */
+let pipWindow = null;
+let pipReturnParent = null;
+let pipReturnNextSibling = null;
+let pipActive = false;
+
+function supportsDocumentPiP(){
+  return 'documentPictureInPicture' in window;
+}
+
+function isPlayerOverlayOpen(){
+  const ov = document.getElementById('player-overlay');
+  return !!ov && ov.classList.contains('open');
+}
+
+async function enterMiniPlayer(){
+  if(pipActive) return;
+  if(!isPlayerOverlayOpen()) return;
+  if(!currentPlayingLive && !currentPlayingVideo) return;
+  const media = document.getElementById('player-media');
+  if(!media) return;
+
+  if(supportsDocumentPiP()){
+    try{
+      const pipW = await window.documentPictureInPicture.requestWindow({
+        width: 360,
+        height: 220,
+        disallowReturnToOpener: false
+      });
+      pipWindow = pipW;
+
+      // On recopie les styles du site dans la fenêtre flottante pour que
+      // le lecteur (contrôles, fond, coins arrondis...) garde le même
+      // rendu à l'intérieur du mini-lecteur.
+      [...document.styleSheets].forEach(styleSheet => {
+        try{
+          const cssText = [...styleSheet.cssRules].map(rule => rule.cssText).join('\n');
+          const style = pipW.document.createElement('style');
+          style.textContent = cssText;
+          pipW.document.head.appendChild(style);
+        }catch(e){
+          if(styleSheet.href){
+            const link = pipW.document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = styleSheet.href;
+            pipW.document.head.appendChild(link);
+          }
+        }
+      });
+      pipW.document.body.style.margin = '0';
+      pipW.document.body.style.background = '#000';
+      pipW.document.body.style.overflow = 'hidden';
+
+      pipReturnParent = media.parentElement;
+      pipReturnNextSibling = media.nextSibling;
+      media.classList.add('pip-mini-media');
+      pipW.document.body.appendChild(media);
+
+      const hint = pipW.document.createElement('div');
+      hint.className = 'pip-mini-return-hint';
+      hint.textContent = 'RIJOUL VISION';
+      pipW.document.body.appendChild(hint);
+
+      pipActive = true;
+      updatePipButtonState();
+
+      pipW.addEventListener('pagehide', ()=>{
+        exitMiniPlayer();
+      }, { once:true });
+    }catch(e){
+      console.warn('Mini-lecteur (Document Picture-in-Picture) indisponible, repli natif :', e);
+      tryNativeVideoPiP();
+    }
+  }else{
+    tryNativeVideoPiP();
+  }
+}
+
+function tryNativeVideoPiP(){
+  // Repli pour les navigateurs sans Document PiP : la Picture-in-Picture
+  // native du <video> fonctionne uniquement pour les fichiers vidéo
+  // directs (pas pour les iframes YouTube/Twitch, contrôlées par leurs
+  // propres domaines), mais elle est plus largement supportée, y compris
+  // sur certains navigateurs mobiles.
+  if(currentDirectVideoTag && document.pictureInPictureEnabled && !currentDirectVideoTag.disablePictureInPicture){
+    currentDirectVideoTag.requestPictureInPicture().catch(()=>{});
+  }
+}
+
+function exitMiniPlayer(){
+  if(!pipActive){ pipWindow = null; return; }
+  const media = (pipWindow && pipWindow.document.getElementById('player-media')) || document.getElementById('player-media');
+  if(media && pipReturnParent){
+    media.classList.remove('pip-mini-media');
+    if(pipReturnNextSibling && pipReturnNextSibling.parentElement === pipReturnParent){
+      pipReturnParent.insertBefore(media, pipReturnNextSibling);
+    }else{
+      pipReturnParent.appendChild(media);
+    }
+  }
+  pipActive = false;
+  updatePipButtonState();
+  const w = pipWindow;
+  pipWindow = null;
+  pipReturnParent = null;
+  pipReturnNextSibling = null;
+  if(w && !w.closed){
+    try{ w.close(); }catch(e){ /* déjà en cours de fermeture */ }
+  }
+}
+
+function updatePipButtonState(){
+  const btn = document.getElementById('player-pip-btn');
+  if(btn) btn.classList.toggle('player-action-active-like', pipActive);
+}
+
+const pipToggleBtn = document.getElementById('player-pip-btn');
+if(pipToggleBtn){
+  pipToggleBtn.addEventListener('click', ()=>{
+    if(pipActive) exitMiniPlayer();
+    else enterMiniPlayer();
+  });
+}
+
+// Déclenchement automatique : dès qu'on quitte l'onglet (changement
+// d'onglet, appli en arrière-plan, navigateur minimisé) pendant qu'un
+// live ou une vidéo tourne, on bascule tout seul en mini-lecteur
+// flottant, façon Twitch, pour garder un aperçu visible en dehors du
+// site.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden && !pipActive && isPlayerOverlayOpen() && (currentPlayingLive || currentPlayingVideo)){
+    enterMiniPlayer();
+  }
+});
+
+// Si on ferme le lecteur (bouton fermer, changement de vidéo, etc.), on
+// referme aussi le mini-lecteur flottant s'il était ouvert.
+const _closePlayerOverlayBase = closePlayerOverlay;
+closePlayerOverlay = function(){
+  exitMiniPlayer();
+  _closePlayerOverlayBase();
+};
+
+/* ============================================================
+   Lecture en arrière-plan (écran éteint / verrouillé)
+   ============================================================
+   La Media Session API permet d'annoncer au système ce qui est en train
+   de jouer (titre, contrôles play/pause) et d'obtenir des contrôles sur
+   l'écran de verrouillage — cela aide certains navigateurs mobiles à
+   traiter la lecture comme une "vraie" session multimédia active plutôt
+   que comme un onglet inactif à mettre en pause pour économiser la
+   batterie.
+
+   Important à savoir : pour les lives/vidéos YouTube et Twitch intégrés
+   en iframe, c'est le lecteur YouTube/Twitch lui-même (dans son propre
+   domaine) qui gère sa propre lecture en arrière-plan — un site tiers ne
+   peut pas forcer une iframe d'un autre domaine à continuer de jouer
+   quand l'écran est éteint, ni relire ses contrôles. YouTube et Twitch
+   gèrent déjà nativement une bonne partie de la lecture audio en fond.
+   Pour les vidéos "directes" (mp4/webm hébergées par le site), le code
+   ci-dessous aide vraiment le navigateur à poursuivre la lecture écran
+   éteint. Le comportement final reste toutefois décidé par le système
+   d'exploitation du visiteur (iOS, Android...) et peut varier.
+   ============================================================ */
+function updateMediaSessionMetadata(){
+  if(!('mediaSession' in navigator)) return;
+  const title = document.getElementById('player-info-title')?.textContent || 'RIJOUL VISION';
+  const author = document.getElementById('player-info-author')?.textContent || '';
+  try{
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title,
+      artist: author,
+      album: 'RIJOUL VISION'
+    });
+    navigator.mediaSession.playbackState = 'playing';
+  }catch(e){ /* MediaMetadata indisponible */ }
+}
+
+function setupMediaSessionForDirectVideo(videoTag){
+  if(!('mediaSession' in navigator) || !videoTag) return;
+  updateMediaSessionMetadata();
+  try{
+    navigator.mediaSession.setActionHandler('play', ()=>{ videoTag.play(); });
+    navigator.mediaSession.setActionHandler('pause', ()=>{ videoTag.pause(); });
+    navigator.mediaSession.setActionHandler('seekbackward', ()=>{ videoTag.currentTime = Math.max(0, videoTag.currentTime - 10); });
+    navigator.mediaSession.setActionHandler('seekforward', ()=>{ videoTag.currentTime = Math.min(videoTag.duration || Infinity, videoTag.currentTime + 10); });
+  }catch(e){ /* action non supportée sur ce navigateur */ }
+  videoTag.addEventListener('play', ()=>{ if(navigator.mediaSession) navigator.mediaSession.playbackState = 'playing'; });
+  videoTag.addEventListener('pause', ()=>{ if(navigator.mediaSession) navigator.mediaSession.playbackState = 'paused'; });
+}
+
+// On branche la Media Session dès qu'un live démarre (titre/auteur) et
+// dès qu'une vidéo directe est montée (contrôles complets).
+const _playLiveStreamBase = playLiveStream;
+playLiveStream = function(l){
+  _playLiveStreamBase(l);
+  updateMediaSessionMetadata();
+};
+const _playVideoBase = playVideo;
+playVideo = function(v){
+  _playVideoBase(v);
+  updateMediaSessionMetadata();
+  if(currentDirectVideoTag) setupMediaSessionForDirectVideo(currentDirectVideoTag);
+};
 
 window.addEventListener('beforeunload', ()=>{
   if(!currentPlayingVideo) return;
