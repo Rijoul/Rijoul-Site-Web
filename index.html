@@ -289,6 +289,14 @@
     font-weight:600; font-size:0.72rem; padding:0.2rem 0.4rem; border-radius:6px;
   }
   .notif-mark-all:hover{ background: var(--cream-2); color: var(--red); }
+  .notif-test-btn{
+    display:none; margin:0 0.4rem 0.4rem; padding:0.55rem 0.7rem; border-radius:10px;
+    background: var(--cream-2); border:1px dashed var(--red-dim); color: var(--red-dim);
+    font-family:'Baloo 2'; font-weight:700; font-size:0.72rem; letter-spacing:0.02em;
+    cursor:pointer; text-align:center;
+  }
+  .notif-test-btn:hover{ background: #fdeceb; color: var(--red); }
+  body.admin-mode .notif-test-btn{ display:block; }
   .notif-panel-list{ max-height:360px; overflow-y:auto; padding:0.4rem; }
   .notif-empty{ padding:1.2rem 0.8rem; text-align:center; color:#8a7a6a; font-size:0.8rem; }
   .notif-item{
@@ -1556,6 +1564,7 @@
       <div class="notif-panel-list" id="notif-panel-list">
         <div class="notif-empty">Aucune notification pour l'instant.</div>
       </div>
+      <button type="button" class="notif-test-btn" id="notif-test-btn">🧪 Envoyer une notification test (admin)</button>
     </div>
   </div>
   <button class="account-btn" id="account-btn">
@@ -6738,6 +6747,29 @@ document.getElementById('dd-toggle-notifications').addEventListener('click', asy
   await setNotificationsEnabled(turningOn);
   updateNotifToggleUI();
   userChip.classList.remove('open');
+});
+
+// Bouton visible uniquement pour l'admin (voir CSS body.admin-mode .notif-test-btn) :
+// envoie une notification de test 100% locale (aucune écriture Firestore, donc
+// aucun autre utilisateur n'est averti) pour vérifier que la cloche et les
+// notifications système fonctionnent bien sur cet appareil.
+document.getElementById('notif-test-btn').addEventListener('click', async (e)=>{
+  e.stopPropagation();
+  if(!isAdmin) return;
+  if('Notification' in window && Notification.permission === 'default'){
+    try{ await Notification.requestPermission(); }catch(err){}
+  }
+  notifyNewVideo({
+    id: 'test-' + Date.now(),
+    title: 'Ceci est une notification test 🧪',
+    author: 'RIJOUL VISION',
+    thumb: null
+  });
+  if(!isNotificationsEnabled()){
+    alert("Notification test envoyée dans la cloche 🔔. Active aussi les notifications système (bouton ci-dessus) pour recevoir une alerte du navigateur.");
+  }else if(!('Notification' in window) || Notification.permission !== 'granted'){
+    alert("Notification test envoyée dans la cloche 🔔. Les alertes système ne sont pas autorisées par ton navigateur.");
+  }
 });
 
 // Initialisation au chargement : restaure l'état de la cloche et lance la
