@@ -1351,6 +1351,103 @@
     .twitch-chat-iframe{ height:100%; max-height:80vh; max-height:80dvh; }
   }
 
+  /* ---------- Commentaires YouTube (sous le lecteur, pour les vidéos YouTube) ---------- */
+  .player-comments{
+    display:none; flex-direction:column;
+    background: rgba(18,14,24,0.9);
+    backdrop-filter: blur(28px) saturate(190%);
+    -webkit-backdrop-filter: blur(28px) saturate(190%);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    flex-shrink:0;
+    max-height: 46vh; max-height: 46dvh; overflow-y:auto;
+  }
+  .player-comments.visible{ display:flex; }
+  .comments-head{
+    display:flex; align-items:center; justify-content:space-between; gap:0.6rem;
+    padding: 0.9rem 1.5rem 0.2rem; flex-shrink:0;
+  }
+  .comments-head-title{
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.85rem; letter-spacing:0.02em;
+    color: rgba(255,255,255,0.9); display:flex; align-items:center; gap:0.45rem;
+  }
+  .comments-head-title svg{ width:16px; height:16px; color:#ff5470; flex-shrink:0; }
+  .comments-yt-link{
+    font-family:'Baloo 2', sans-serif; font-weight:600; font-size:0.72rem; color: rgba(255,255,255,0.55);
+    text-decoration:none; white-space:nowrap; transition: color .2s ease;
+  }
+  .comments-yt-link:hover{ color:#ff5470; }
+  .comments-compose{
+    display:flex; gap:0.6rem; padding: 0.7rem 1.5rem; flex-shrink:0; align-items:flex-start;
+  }
+  .comments-compose textarea{
+    flex:1; min-width:0; resize:none; min-height:38px; max-height:110px;
+    background: rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:16px;
+    padding:0.6rem 1rem; color:#fff; font-family:'Baloo 2', sans-serif; font-size:0.85rem; outline:none;
+  }
+  .comments-compose textarea::placeholder{ color: rgba(255,255,255,0.5); }
+  .comments-compose textarea:focus{ border-color: var(--red); }
+  .comments-send-btn{
+    flex-shrink:0; width:38px; height:38px; border-radius:50%; border:none; background: var(--red); color:#fff;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; margin-top:0.1rem;
+  }
+  .comments-send-btn:hover{ background:#ff2d4d; }
+  .comments-send-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .comments-send-btn svg{ width:16px; height:16px; }
+  .comments-connect-row{
+    padding: 0.5rem 1.5rem 0.9rem; flex-shrink:0;
+  }
+  .comments-connect-btn{
+    font-family:'Fredoka'; font-weight:600; font-size:0.78rem; letter-spacing:0.02em;
+    padding:0.6rem 1.1rem; border-radius:999px; cursor:pointer; border:1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1); color:#fff; display:inline-flex; align-items:center; gap:0.5rem;
+    transition: all .2s ease;
+  }
+  .comments-connect-btn:hover{ background: rgba(255,255,255,0.2); }
+  .comments-connect-btn svg{ width:15px; height:15px; flex-shrink:0; }
+  .comments-status{
+    font-family:'Baloo 2', sans-serif; font-size:0.76rem; color: rgba(255,255,255,0.55);
+    padding: 0 1.5rem 0.6rem; flex-shrink:0;
+  }
+  .comments-status.error{ color:#ff8a8a; }
+  .comments-list{
+    display:flex; flex-direction:column; gap:0.9rem; padding: 0.4rem 1.5rem 1.2rem;
+  }
+  .comment-item{ display:flex; gap:0.7rem; }
+  .comment-avatar{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0; overflow:hidden;
+    background: linear-gradient(160deg, var(--title-top), var(--title-bottom));
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    font-family:'Fredoka'; font-weight:700; font-size:0.78rem; text-transform:uppercase;
+  }
+  .comment-avatar img{ width:100%; height:100%; object-fit:cover; }
+  .comment-body{ flex:1; min-width:0; }
+  .comment-meta{ display:flex; align-items:baseline; gap:0.5rem; flex-wrap:wrap; }
+  .comment-author{ font-family:'Fredoka'; font-weight:600; font-size:0.8rem; color: rgba(255,255,255,0.92); }
+  .comment-time{ font-family:'Baloo 2'; font-size:0.7rem; color: rgba(255,255,255,0.45); }
+  .comment-text{
+    font-family:'Baloo 2', sans-serif; font-size:0.83rem; line-height:1.45; color: rgba(255,255,255,0.85);
+    word-break:break-word; margin-top:0.15rem; white-space:pre-wrap;
+  }
+  .comment-likes{
+    display:flex; align-items:center; gap:0.3rem; margin-top:0.3rem;
+    font-family:'Baloo 2'; font-size:0.72rem; color: rgba(255,255,255,0.45);
+  }
+  .comment-likes svg{ width:13px; height:13px; }
+  .comments-empty{
+    font-family:'Baloo 2', sans-serif; font-size:0.8rem; color: rgba(255,255,255,0.5);
+    text-align:center; padding: 1.2rem 1rem;
+  }
+  .comments-load-more{
+    align-self:center; margin: 0 0 1rem;
+    font-family:'Fredoka'; font-weight:600; font-size:0.74rem; letter-spacing:0.02em;
+    padding:0.5rem 1rem; border-radius:999px; cursor:pointer; border:1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
+  }
+  .comments-load-more:hover{ background: rgba(255,255,255,0.16); }
+  @media (max-width:640px){
+    .comments-head, .comments-compose, .comments-connect-row, .comments-status, .comments-list{ padding-left:1.1rem; padding-right:1.1rem; }
+  }
+
   /* ---------- Popup d'installation / partage du site (PWA) ---------- */
   .install-banner{
     position: fixed;
@@ -2218,6 +2315,35 @@
           </div>
         </div>
       </div>
+
+      <div class="player-comments" id="player-comments">
+        <div class="comments-head">
+          <div class="comments-head-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span id="comments-count-label">Commentaires YouTube</span>
+          </div>
+          <a href="#" target="_blank" rel="noopener" class="comments-yt-link" id="comments-yt-link">Voir sur YouTube ↗</a>
+        </div>
+
+        <div class="comments-connect-row" id="comments-connect-row">
+          <button type="button" class="comments-connect-btn" id="comments-connect-btn">
+            <svg viewBox="0 0 24 24"><path fill="#fff" d="M21.8 10.4H12v3.4h5.6c-.5 2.5-2.6 3.9-5.6 3.9-3.4 0-6.2-2.8-6.2-6.2s2.8-6.2 6.2-6.2c1.5 0 2.9.5 3.9 1.5l2.6-2.6C16.9 2.6 14.6 1.6 12 1.6 6.5 1.6 2.1 6 2.1 11.5S6.5 21.4 12 21.4c5.7 0 9.6-4 9.6-9.7 0-.7-.1-1.2-.2-1.7z"/></svg>
+            Se connecter avec Google pour commenter
+          </button>
+        </div>
+        <div class="comments-compose" id="comments-compose" style="display:none;">
+          <textarea id="comments-input" placeholder="Ajouter un commentaire public…" maxlength="1000" rows="1"></textarea>
+          <button class="comments-send-btn" id="comments-send-btn" title="Publier sur YouTube" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+        <div class="comments-status" id="comments-status" style="display:none;"></div>
+
+        <div class="comments-list" id="comments-list">
+          <div class="comments-empty">Chargement des commentaires…</div>
+        </div>
+        <button type="button" class="comments-load-more" id="comments-load-more" style="display:none;">Voir plus de commentaires</button>
+      </div>
     </div>
   </div>
 </div>
@@ -2273,6 +2399,12 @@ const liveStreamsRef = db.collection('liveStreams');
 const liveChatMessagesRef = db.collection('liveChatMessages');
 const userLiveReactionsRef = db.collection('userLiveReactions');
 const googleProvider = new firebase.auth.GoogleAuthProvider();
+// Provider dédié, avec le scope YouTube en plus, utilisé uniquement quand
+// l'utilisateur clique sur "Se connecter avec Google pour commenter" sous
+// une vidéo YouTube. On évite de demander ce scope sensible lors d'une
+// simple connexion/inscription au site.
+const youtubeCommentsProvider = new firebase.auth.GoogleAuthProvider();
+youtubeCommentsProvider.addScope('https://www.googleapis.com/auth/youtube.force-ssl');
 
 const ONYX_APP_ID = "onyx-pro-chat";
 const usersRef = db
@@ -2351,6 +2483,14 @@ let historyVideos = [];
 let historyLoading = false;
 let historyLoaded = false;
 let historyFetchSeq = 0;
+
+/* --- Commentaires YouTube (sous le lecteur) --- */
+let googleYtAccessToken = null;      // jeton OAuth Google avec le scope youtube.force-ssl
+let commentsCurrentVideoId = null;   // videoId YouTube actuellement affiché
+let commentsNextPageToken = null;
+let commentsList = [];
+let commentsFetchSeq = 0;
+let commentsPosting = false;
 
 let ytPlayerInstance = null;
 let ytProgressInterval = null;
@@ -4586,6 +4726,205 @@ document.getElementById('live-chat-input').addEventListener('keydown', (e)=>{
   if(e.key === 'Enter'){ e.preventDefault(); sendLiveChatMessage(); }
 });
 
+/* =========================================================
+   Commentaires YouTube (affichés sous le lecteur pour les
+   vidéos YouTube). Lecture via l'API publique YouTube Data v3
+   (clé API, comme le reste du site) : les commentaires affichés
+   sont bien les vrais commentaires publiés sur YouTube.
+   Publication : nécessite que l'utilisateur se connecte avec son
+   propre compte Google (scope youtube.force-ssl) — le commentaire
+   est alors envoyé directement à l'API YouTube en son nom et
+   apparaît réellement sur la vidéo YouTube d'origine.
+   ========================================================= */
+function commentsElements(){
+  return {
+    wrap: document.getElementById('player-comments'),
+    ytLink: document.getElementById('comments-yt-link'),
+    countLabel: document.getElementById('comments-count-label'),
+    connectRow: document.getElementById('comments-connect-row'),
+    compose: document.getElementById('comments-compose'),
+    input: document.getElementById('comments-input'),
+    sendBtn: document.getElementById('comments-send-btn'),
+    status: document.getElementById('comments-status'),
+    list: document.getElementById('comments-list'),
+    loadMoreBtn: document.getElementById('comments-load-more')
+  };
+}
+
+function showCommentsStatus(msg, isError){
+  const { status } = commentsElements();
+  if(!msg){ status.style.display = 'none'; status.textContent = ''; return; }
+  status.style.display = 'block';
+  status.textContent = msg;
+  status.classList.toggle('error', !!isError);
+}
+
+function updateCommentsAuthUI(){
+  const { connectRow, compose, sendBtn } = commentsElements();
+  const connected = !!googleYtAccessToken;
+  connectRow.style.display = connected ? 'none' : '';
+  compose.style.display = connected ? 'flex' : 'none';
+  sendBtn.disabled = !connected;
+}
+
+function commentAuthorAvatarHtml(name, imgUrl){
+  const initial = (name || '?').trim().charAt(0).toUpperCase();
+  if(imgUrl) return `<div class="comment-avatar"><img src="${escapeHtml(imgUrl)}" alt=""></div>`;
+  return `<div class="comment-avatar">${escapeHtml(initial)}</div>`;
+}
+
+function commentItemHtml(item){
+  const sn = (item.snippet && item.snippet.topLevelComment && item.snippet.topLevelComment.snippet) || item.snippet || {};
+  const author = sn.authorDisplayName || 'Anonyme';
+  const text = sn.textDisplay || sn.textOriginal || '';
+  const publishedMs = sn.publishedAt ? new Date(sn.publishedAt).getTime() : null;
+  const likeCount = sn.likeCount || 0;
+  return `
+    <div class="comment-item">
+      ${commentAuthorAvatarHtml(author, sn.authorProfileImageUrl)}
+      <div class="comment-body">
+        <div class="comment-meta">
+          <span class="comment-author">${escapeHtml(author)}</span>
+          ${publishedMs ? `<span class="comment-time">${timeAgoLabel(publishedMs)}</span>` : ''}
+        </div>
+        <div class="comment-text">${escapeHtml(text)}</div>
+        ${likeCount > 0 ? `<div class="comment-likes"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10v11H3V10h4zm4.5-8L7 10v11h11.5a2 2 0 0 0 2-1.6l1.4-7A2 2 0 0 0 20 10h-5.5l1-4.5A1.5 1.5 0 0 0 14 4l-2.5-2z"/></svg>${likeCount}</div>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderCommentsList(){
+  const { list, loadMoreBtn, countLabel } = commentsElements();
+  countLabel.textContent = commentsList.length > 0 ? `Commentaires YouTube (${commentsList.length}${commentsNextPageToken ? '+' : ''})` : 'Commentaires YouTube';
+  if(commentsList.length === 0){
+    list.innerHTML = '<div class="comments-empty">Aucun commentaire pour l\'instant. Sois le premier à commenter sur YouTube !</div>';
+  }else{
+    list.innerHTML = commentsList.map(commentItemHtml).join('');
+  }
+  loadMoreBtn.style.display = commentsNextPageToken ? '' : 'none';
+}
+
+async function loadCommentsForVideo(videoId, more){
+  const { ytLink, list } = commentsElements();
+  ytLink.href = `https://www.youtube.com/watch?v=${videoId}&lc=`;
+
+  if(!more){
+    commentsCurrentVideoId = videoId;
+    commentsList = [];
+    commentsNextPageToken = null;
+    list.innerHTML = '<div class="comments-empty">Chargement des commentaires…</div>';
+  }
+
+  const seq = ++commentsFetchSeq;
+  try{
+    const data = await ytApiGet('commentThreads', {
+      part: 'snippet',
+      videoId,
+      order: 'relevance',
+      maxResults: 20,
+      textFormat: 'plainText',
+      ...(more && commentsNextPageToken ? { pageToken: commentsNextPageToken } : {})
+    });
+    if(seq !== commentsFetchSeq || commentsCurrentVideoId !== videoId) return; // vidéo changée entretemps
+    commentsList = commentsList.concat(data.items || []);
+    commentsNextPageToken = data.nextPageToken || null;
+    renderCommentsList();
+  }catch(e){
+    if(seq !== commentsFetchSeq || commentsCurrentVideoId !== videoId) return;
+    console.warn('Impossible de charger les commentaires YouTube :', e);
+    const disabled = /disabled|desactiv/i.test(e.message || '');
+    list.innerHTML = `<div class="comments-empty">${disabled ? "Les commentaires sont désactivés pour cette vidéo sur YouTube." : "Impossible de charger les commentaires YouTube pour le moment."}</div>`;
+  }
+}
+document.getElementById('comments-load-more').addEventListener('click', ()=>{
+  if(commentsCurrentVideoId) loadCommentsForVideo(commentsCurrentVideoId, true);
+});
+
+async function connectYouTubeComments(){
+  showCommentsStatus('');
+  try{
+    const result = await auth.signInWithPopup(youtubeCommentsProvider);
+    const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
+    if(!credential || !credential.accessToken){
+      showCommentsStatus("Connexion Google réussie, mais aucun accès YouTube n'a été accordé.", true);
+      return;
+    }
+    googleYtAccessToken = credential.accessToken;
+    updateCommentsAuthUI();
+    showCommentsStatus('');
+  }catch(err){
+    console.warn('Connexion Google (commentaires YouTube) impossible :', err);
+    showCommentsStatus("Connexion à Google impossible pour l'instant.", true);
+  }
+}
+document.getElementById('comments-connect-btn').addEventListener('click', connectYouTubeComments);
+
+async function postYouTubeComment(){
+  const { input, sendBtn } = commentsElements();
+  const text = input.value.trim();
+  if(!text || !commentsCurrentVideoId || commentsPosting) return;
+  if(!googleYtAccessToken){ updateCommentsAuthUI(); return; }
+
+  commentsPosting = true;
+  sendBtn.disabled = true;
+  showCommentsStatus('Publication en cours…');
+  try{
+    const res = await fetch('https://www.googleapis.com/youtube/v3/commentThreads?part=snippet', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${googleYtAccessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        snippet: {
+          videoId: commentsCurrentVideoId,
+          topLevelComment: { snippet: { textOriginal: text } }
+        }
+      })
+    });
+    const data = await res.json();
+    if(!res.ok){
+      const message = (data && data.error && data.error.message) || `Erreur API YouTube (${res.status})`;
+      if(res.status === 401){
+        googleYtAccessToken = null;
+        updateCommentsAuthUI();
+        showCommentsStatus("Ta session Google a expiré, reconnecte-toi pour commenter.", true);
+      }else if(res.status === 403){
+        showCommentsStatus("YouTube refuse ce commentaire (commentaires désactivés, ou vidéo appartenant à une autre chaîne que celle affichée).", true);
+      }else{
+        showCommentsStatus(message, true);
+      }
+      return;
+    }
+    // Le commentaire est bien publié sur YouTube : on l'ajoute en tête de
+    // liste directement à partir de la réponse de l'API, sans attendre
+    // un rechargement complet.
+    commentsList.unshift(data);
+    renderCommentsList();
+    input.value = '';
+    input.style.height = '';
+    showCommentsStatus('Commentaire publié sur YouTube.');
+    setTimeout(()=> showCommentsStatus(''), 3000);
+  }catch(e){
+    console.warn('Erreur publication commentaire YouTube :', e);
+    showCommentsStatus("Impossible de publier ce commentaire pour le moment.", true);
+  }finally{
+    commentsPosting = false;
+    sendBtn.disabled = !googleYtAccessToken;
+  }
+}
+document.getElementById('comments-send-btn').addEventListener('click', postYouTubeComment);
+document.getElementById('comments-input').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); postYouTubeComment(); }
+});
+document.getElementById('comments-input').addEventListener('input', (e)=>{
+  const el = e.target;
+  el.style.height = '';
+  el.style.height = Math.min(110, el.scrollHeight) + 'px';
+});
+updateCommentsAuthUI();
+
 /* --- Réactions (like / dislike) sur un live : mêmes principes que pour
    les vidéos, mais stockées dans une collection dédiée "userLiveReactions"
    et sur le compteur likeCount/dislikeCount du document "liveStreams". --- */
@@ -4662,6 +5001,8 @@ function playLiveStream(l){
   currentDirectVideoTag = null;
   stopYtProgressTracking();
   updateCinemaAmbientFromThumbnail(l.thumbnail || (l.platform === 'youtube' ? `https://i.ytimg.com/vi/${l.videoId}/hqdefault.jpg` : null));
+  document.getElementById('player-comments').classList.remove('visible');
+  commentsCurrentVideoId = null;
 
   const iframe = document.getElementById('player-iframe');
   const wrapper = iframe.parentElement;
@@ -4936,6 +5277,8 @@ function closePlayerOverlay(){
   if(twitchChatIframeEl){ twitchChatIframeEl.src = ''; twitchChatIframeEl.classList.remove('visible'); }
   const customChatContainerEl = document.getElementById('custom-chat-container');
   if(customChatContainerEl) customChatContainerEl.style.display = '';
+  document.getElementById('player-comments').classList.remove('visible');
+  commentsCurrentVideoId = null;
   document.getElementById('player-like-btn').classList.remove('player-action-active-like');
   document.getElementById('player-dislike-btn').classList.remove('player-action-active-dislike');
   currentPlayingVideo = null;
@@ -4963,6 +5306,17 @@ function playVideo(v){
   currentDirectVideoTag = null;
   document.getElementById('player-info-actions').style.display = '';
   updatePlayerActionButtons();
+
+  // Commentaires YouTube : visibles uniquement pour les vidéos hébergées
+  // sur YouTube (les commentaires n'existent que là-bas).
+  const commentsWrap = document.getElementById('player-comments');
+  if(platform === 'youtube'){
+    commentsWrap.classList.add('visible');
+    loadCommentsForVideo(videoId, false);
+  }else{
+    commentsWrap.classList.remove('visible');
+    commentsCurrentVideoId = null;
+  }
 
   const watchEntry = userWatched[v.id];
   const alreadyCompleted = isVideoCompleted(v.id);
