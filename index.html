@@ -2465,33 +2465,108 @@ const trackedChannelsRef = db.collection('trackedChannels');
                           suivie certifiée.
    Rafraîchis en temps réel via onSnapshot pour que le badge apparaisse/
    disparaisse/change partout dès qu'un admin modifie la certification. */
-const DEFAULT_CERT_CATEGORY = 'or';
+const DEFAULT_CERT_CATEGORY = 'automobile';
 const CERT_CATEGORIES = {
-  or: {
-    label: 'Or',
-    title: 'Chaîne certifiée Or',
-    svg: '<svg class="cert-badge cert-badge-or" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée Or" aria-label="Chaîne certifiée Or"><path fill="#ffd447" stroke="#c98a00" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.6 15.4l-3.1-3.1 1.2-1.2 1.9 1.9 4.2-4.2 1.2 1.2z"/></svg>'
+  automobile: {
+    label: 'Automobile',
+    title: 'Chaîne certifiée · Automobile',
+    svg: '<svg class="cert-badge cert-badge-automobile" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Automobile" aria-label="Chaîne certifiée · Automobile"><path fill="#ff6b4a" stroke="#b8391f" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M7.3 13.6l1.1-2.9c.15-.4.53-.65.96-.65h5.28c.43 0 .81.25.96.65l1.1 2.9"/><rect x="6.6" y="13.4" width="10.8" height="2.4" rx="0.7" fill="#fff"/><circle cx="8.9" cy="16.2" r="1" fill="#fff"/><circle cx="15.1" cy="16.2" r="1" fill="#fff"/></svg>'
   },
-  argent: {
-    label: 'Argent',
-    title: 'Chaîne certifiée Argent',
-    svg: '<svg class="cert-badge cert-badge-argent" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée Argent" aria-label="Chaîne certifiée Argent"><path fill="#dbe2e8" stroke="#8a97a3" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.6 15.4l-3.1-3.1 1.2-1.2 1.9 1.9 4.2-4.2 1.2 1.2z"/></svg>'
+  hightech: {
+    label: 'High-Tech',
+    title: 'Chaîne certifiée · High-Tech',
+    svg: '<svg class="cert-badge cert-badge-hightech" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · High-Tech" aria-label="Chaîne certifiée · High-Tech"><path fill="#4fd1ff" stroke="#0e7fa3" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><rect x="9.3" y="9.3" width="5.4" height="5.4" fill="none" stroke="#fff" stroke-width="1.1"/><g stroke="#fff" stroke-width="1.1"><path d="M12 6.3v3M12 14.7v3M6.3 12h3M14.7 12h3"/></g></svg>'
   },
-  diamant: {
-    label: 'Diamant',
-    title: 'Chaîne certifiée Diamant',
-    svg: '<svg class="cert-badge cert-badge-diamant" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée Diamant" aria-label="Chaîne certifiée Diamant"><path fill="#7fe3ff" stroke="#0f8fb3" stroke-width="1" d="M6 3h12l4 6-10 12L2 9z"/><path fill="#fff" opacity="0.75" d="M6 3l3 6-3.2 1.4L2 9z"/><path fill="#0f8fb3" opacity="0.35" d="M9 3h6l2.4 6H6.6z"/></svg>'
+  gaming: {
+    label: 'Gaming',
+    title: 'Chaîne certifiée · Gaming',
+    svg: '<svg class="cert-badge cert-badge-gaming" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Gaming" aria-label="Chaîne certifiée · Gaming"><path fill="#7c5cff" stroke="#4a32b0" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M7.6 10.6h8.8a2.4 2.4 0 012.35 2.9l-.35 1.75a2 2 0 01-3.6.7L14 14.6h-4l-.8 1.35a2 2 0 01-3.6-.7l-.35-1.75a2.4 2.4 0 012.35-2.9z"/><rect x="8.3" y="11.6" width="0.8" height="2.4" fill="#7c5cff"/><rect x="7.1" y="12.6" width="2.4" height="0.8" fill="#7c5cff"/><circle cx="14.9" cy="12.2" r="0.65" fill="#7c5cff"/><circle cx="16.2" cy="13.4" r="0.65" fill="#7c5cff"/></svg>'
   },
-  partenaire: {
-    label: 'Partenaire',
-    title: 'Chaîne partenaire officielle',
-    svg: '<svg class="cert-badge cert-badge-partenaire" viewBox="0 0 24 24" width="14" height="14" title="Chaîne partenaire officielle" aria-label="Chaîne partenaire officielle"><path fill="#c79bff" stroke="#6a2fb5" stroke-width="1" d="M3.3 17.5L2 8l5.6 3.6L12 4l4.4 7.6L22 8l-1.3 9.5z"/><rect x="3" y="18.2" width="18" height="2.3" rx="1" fill="#6a2fb5"/></svg>'
+  science: {
+    label: 'Science & Inventions',
+    title: 'Chaîne certifiée · Science & Inventions',
+    svg: '<svg class="cert-badge cert-badge-science" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Science & Inventions" aria-label="Chaîne certifiée · Science & Inventions"><path fill="#58e07a" stroke="#1f8f42" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.4 6.5h3.2v3.7l2.5 4.8a1.55 1.55 0 01-1.37 2.3H9.27a1.55 1.55 0 01-1.37-2.3l2.5-4.8V6.5z"/><rect x="9.9" y="6" width="4.2" height="1" fill="#fff"/></svg>'
+  },
+  asmr: {
+    label: 'ASMR',
+    title: 'Chaîne certifiée · ASMR',
+    svg: '<svg class="cert-badge cert-badge-asmr" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · ASMR" aria-label="Chaîne certifiée · ASMR"><path fill="#ffb3d9" stroke="#d1548f" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><rect x="10.5" y="6.3" width="3" height="6" rx="1.5" fill="#fff"/><path stroke="#fff" stroke-width="1.05" fill="none" d="M8 12a4 4 0 008 0"/><path stroke="#fff" stroke-width="1.05" d="M12 16v1.8"/><path stroke="#fff" stroke-width="1.05" d="M10.2 17.8h3.6"/></svg>'
+  },
+  sport: {
+    label: 'Sport',
+    title: 'Chaîne certifiée · Sport',
+    svg: '<svg class="cert-badge cert-badge-sport" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Sport" aria-label="Chaîne certifiée · Sport"><path fill="#ff9f1c" stroke="#c96e00" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M9 6.4h6v3a3 3 0 01-6 0v-3z"/><path stroke="#fff" stroke-width="0.9" fill="none" d="M9 7.1H6.9a1 1 0 00-1 1.2c.2 1.35 1.2 2.3 2.5 2.5M15 7.1h2.1a1 1 0 011 1.2c-.2 1.35-1.2 2.3-2.5 2.5"/><rect x="11" y="12.4" width="2" height="2.2" fill="#fff"/><rect x="9.2" y="14.9" width="5.6" height="1.3" rx="0.5" fill="#fff"/></svg>'
+  },
+  cuisine: {
+    label: 'Cuisine',
+    title: 'Chaîne certifiée · Cuisine',
+    svg: '<svg class="cert-badge cert-badge-cuisine" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Cuisine" aria-label="Chaîne certifiée · Cuisine"><path fill="#ffcf4d" stroke="#c98a00" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M8.3 11.3a2.65 2.65 0 012.15-4.25c.3-1 1.2-1.7 2.3-1.7s2 .7 2.3 1.7a2.65 2.65 0 012.35 4.25c.5.4.8 1 .8 1.65 0 .8-.5 1.5-1.2 1.85v2.7H8.7v-2.7a2 2 0 01-1.2-1.85c0-.65.3-1.25.8-1.65z"/></svg>'
+  },
+  mode: {
+    label: 'Mode & Beauté',
+    title: 'Chaîne certifiée · Mode & Beauté',
+    svg: '<svg class="cert-badge cert-badge-mode" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Mode & Beauté" aria-label="Chaîne certifiée · Mode & Beauté"><path fill="#ff6fae" stroke="#b8306f" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M9 8.2h6l2 3.1-5 6.1-5-6.1 2-3.1z"/><path fill="#ff6fae" opacity="0.5" d="M9 8.2l1.5 3.1h3l1.5-3.1z"/></svg>'
+  },
+  diy: {
+    label: 'DIY & Artisanat',
+    title: 'Chaîne certifiée · DIY & Artisanat',
+    svg: '<svg class="cert-badge cert-badge-diy" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · DIY & Artisanat" aria-label="Chaîne certifiée · DIY & Artisanat"><path fill="#c9974a" stroke="#8a5f1f" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M16 8.4a2.6 2.6 0 00-3.5 3.05l-5.55 5.55 1.5 1.5 5.55-5.55A2.6 2.6 0 0017.55 9.4l-1.5 1.5-1.4-.4-.4-1.4 1.75-1.7z"/></svg>'
+  },
+  vlogs: {
+    label: 'Vlogs & Voyages',
+    title: 'Chaîne certifiée · Vlogs & Voyages',
+    svg: '<svg class="cert-badge cert-badge-vlogs" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Vlogs & Voyages" aria-label="Chaîne certifiée · Vlogs & Voyages"><path fill="#4dd0e1" stroke="#0e8a9c" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M12 6l1 5.2 4.5 2.6-.2 1-4.3-1.2-.3 3 1.4 1v.9l-2.1-.5-2.1.5v-.9l1.4-1-.3-3-4.3 1.2-.2-1L11 11.2 12 6z"/></svg>'
+  },
+  humour: {
+    label: 'Humour',
+    title: 'Chaîne certifiée · Humour',
+    svg: '<svg class="cert-badge cert-badge-humour" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Humour" aria-label="Chaîne certifiée · Humour"><path fill="#ffd93d" stroke="#c9a100" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><circle cx="12" cy="12" r="5" fill="#fff"/><circle cx="10" cy="10.4" r="0.65" fill="#ffd93d"/><circle cx="14" cy="10.4" r="0.65" fill="#ffd93d"/><path stroke="#ffd93d" stroke-width="1.05" fill="none" d="M9 13.4c1 1.4 5 1.4 6 0"/></svg>'
+  },
+  cinema: {
+    label: 'Cinéma & Séries',
+    title: 'Chaîne certifiée · Cinéma & Séries',
+    svg: '<svg class="cert-badge cert-badge-cinema" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Cinéma & Séries" aria-label="Chaîne certifiée · Cinéma & Séries"><path fill="#6c63ff" stroke="#3d34c9" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><rect x="6.6" y="10" width="10.8" height="7" rx="1" fill="#fff"/><path fill="#6c63ff" d="M6.6 10l1.4-3h1.9l-1.4 3zM10.8 10l1.4-3h1.9l-1.4 3zM15 10l1.4-3h1.1a1 1 0 011 1.2l-.35 1.8z"/></svg>'
+  },
+  musique: {
+    label: 'Musique',
+    title: 'Chaîne certifiée · Musique',
+    svg: '<svg class="cert-badge cert-badge-musique" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Musique" aria-label="Chaîne certifiée · Musique"><path fill="#ff5c8a" stroke="#c92457" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><circle cx="9" cy="16" r="1.5" fill="#fff"/><circle cx="15" cy="14.6" r="1.5" fill="#fff"/><path stroke="#fff" stroke-width="1.05" fill="none" d="M10.5 16V7.2l6-1.2v7.6"/></svg>'
+  },
+  danse: {
+    label: 'Danse',
+    title: 'Chaîne certifiée · Danse',
+    svg: '<svg class="cert-badge cert-badge-danse" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Danse" aria-label="Chaîne certifiée · Danse"><path fill="#ff8fd6" stroke="#c94a9e" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><circle cx="12" cy="7.6" r="1.35" fill="#fff"/><path stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" d="M12 9v4M12 10.2l-3-1.5M12 10.2l3.5 1M12 13l-2.5 4M12 13l3 3.5"/></svg>'
+  },
+  tutoriels: {
+    label: 'Tutoriels & Guides',
+    title: 'Chaîne certifiée · Tutoriels & Guides',
+    svg: '<svg class="cert-badge cert-badge-tutoriels" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Tutoriels & Guides" aria-label="Chaîne certifiée · Tutoriels & Guides"><path fill="#4caf50" stroke="#2e7d32" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M12 8.3c-.9-.9-2.4-1.3-4.3-1.3v7.4c1.9 0 3.4.4 4.3 1.3.9-.9 2.4-1.3 4.3-1.3V7c-1.9 0-3.4.4-4.3 1.3z"/></svg>'
+  },
+  histoire: {
+    label: 'Histoire & Culture',
+    title: 'Chaîne certifiée · Histoire & Culture',
+    svg: '<svg class="cert-badge cert-badge-histoire" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Histoire & Culture" aria-label="Chaîne certifiée · Histoire & Culture"><path fill="#b08968" stroke="#6e4f30" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><rect x="8" y="7.6" width="8" height="1.2" fill="#fff"/><rect x="8" y="15.3" width="8" height="1.2" fill="#fff"/><rect x="8.9" y="9" width="1.3" height="6.1" fill="#fff"/><rect x="11.35" y="9" width="1.3" height="6.1" fill="#fff"/><rect x="13.8" y="9" width="1.3" height="6.1" fill="#fff"/></svg>'
+  },
+  actualites: {
+    label: 'Actualités & Décryptage',
+    title: 'Chaîne certifiée · Actualités & Décryptage',
+    svg: '<svg class="cert-badge cert-badge-actualites" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Actualités & Décryptage" aria-label="Chaîne certifiée · Actualités & Décryptage"><path fill="#37474f" stroke="#17222a" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><rect x="7" y="7.4" width="10" height="9.2" rx="0.8" fill="#fff"/><rect x="8.3" y="8.9" width="4" height="2.6" fill="#37474f"/><rect x="13" y="8.9" width="2.7" height="1" fill="#37474f"/><rect x="13" y="10.3" width="2.7" height="1" fill="#37474f"/><rect x="8.3" y="12.3" width="7.4" height="0.8" fill="#37474f"/><rect x="8.3" y="13.7" width="7.4" height="0.8" fill="#37474f"/><rect x="8.3" y="15.1" width="7.4" height="0.8" fill="#37474f"/></svg>'
+  },
+  media: {
+    label: 'Média',
+    title: 'Chaîne certifiée · Média',
+    svg: '<svg class="cert-badge cert-badge-media" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Média" aria-label="Chaîne certifiée · Média"><path fill="#607d8b" stroke="#37474f" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><circle cx="12" cy="12" r="5.1" fill="#fff"/><path fill="#607d8b" d="M10.5 9.4l4.4 2.6-4.4 2.6z"/></svg>'
+  },
+  divertissement: {
+    label: 'Divertissement',
+    title: 'Chaîne certifiée · Divertissement',
+    svg: '<svg class="cert-badge cert-badge-divertissement" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Divertissement" aria-label="Chaîne certifiée · Divertissement"><path fill="#f06292" stroke="#ad1457" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M12 6.8l1.5 3 3.3.5-2.4 2.3.6 3.3L12 14.3l-3 1.6.6-3.3-2.4-2.3 3.3-.5z"/></svg>'
   }
 };
 function certBadgeSvgForCategory(cat){
   return (CERT_CATEGORIES[cat] || CERT_CATEGORIES[DEFAULT_CERT_CATEGORY]).svg;
 }
-// Conservé pour compatibilité (badge Or par défaut) — préférer certBadgeSvgForCategory().
+// Conservé pour compatibilité — préférer certBadgeSvgForCategory().
 const CERT_BADGE_SVG = CERT_CATEGORIES[DEFAULT_CERT_CATEGORY].svg;
 
 let certifiedChannelIds = new Map();
