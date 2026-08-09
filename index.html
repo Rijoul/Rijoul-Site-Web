@@ -1149,6 +1149,30 @@
   }
   .channel-row-untrack:hover{ background:#ff2d4d; }
 
+  /* Liste "Gérer les chaînes" (certification) : le nom passe sur sa
+     propre ligne (badge inclus) et les actions (case Certifiée, choix
+     de catégorie, bouton Ne plus suivre) passent en dessous et peuvent
+     revenir à la ligne — sinon, avec 19 catégories possibles, le menu
+     déroulant pouvait pousser le nom de la chaîne hors de vue. */
+  #channels-list-container .channel-row{
+    flex-direction:column; align-items:stretch; gap:0.55rem;
+  }
+  #channels-list-container .channel-row-name{
+    width:100%;
+  }
+  #channels-list-container .channel-row-name .channel-row-name-text{
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
+  }
+  #channels-list-container .channel-row-name .cert-badge{ flex-shrink:0; }
+  #channels-list-container .channel-row-actions{
+    flex-wrap:wrap; gap:0.5rem 0.7rem; flex-shrink:1;
+  }
+  #channels-list-container .channel-row-cert-category{
+    min-width:0; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:0.68rem; padding:0.3rem 1.5rem 0.3rem 0.65rem; background-position:right 0.55rem center;
+  }
+  #channels-list-container .channel-row-untrack{ margin-left:auto; }
+
   /* ---------- Badge doré "chaîne certifiée" ----------
      Icône (petite médaille/étoile dorée) affichée juste après le nom
      de la chaîne, partout où ce nom apparaît (cartes vidéos, lives,
