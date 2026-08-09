@@ -2657,14 +2657,19 @@ trackedChannelsRef.onSnapshot((snap)=>{
     const data = doc.data();
     if(!data) return;
     const cat = CERT_CATEGORIES[data.certifiedCategory] ? data.certifiedCategory : null;
-    if(cat){
-      catIds.set(doc.id, cat);
-      if(data.channelTitle) catNames.set(normalizeAuthorKey(data.channelTitle), cat);
-      if(!byCategory.has(cat)) byCategory.set(cat, []);
-      byCategory.get(cat).push({ id: doc.id, name: data.channelTitle || null });
+    // Toute chaîne certifiée affiche un badge (catégorie choisie, ou catégorie
+    // par défaut si aucune n'a été assignée) : on utilise cette même catégorie
+    // "effective" pour la navigation et le comptage, afin que toute chaîne
+    // avec un badge soit bien comptabilisée dans une catégorie.
+    const effectiveCat = cat || (data.certified ? DEFAULT_CERT_CATEGORY : null);
+    if(effectiveCat){
+      catIds.set(doc.id, effectiveCat);
+      if(data.channelTitle) catNames.set(normalizeAuthorKey(data.channelTitle), effectiveCat);
+      if(!byCategory.has(effectiveCat)) byCategory.set(effectiveCat, []);
+      byCategory.get(effectiveCat).push({ id: doc.id, name: data.channelTitle || null });
     }
     if(data.certified){
-      const badgeCat = cat || DEFAULT_CERT_CATEGORY;
+      const badgeCat = effectiveCat || DEFAULT_CERT_CATEGORY;
       certIds.set(doc.id, badgeCat);
       if(data.channelTitle) certNames.set(normalizeAuthorKey(data.channelTitle), badgeCat);
     }
@@ -3336,8 +3341,9 @@ async function loadCategoryVideos(catKey, force){
         }
       });
     });
-    all.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
-    cache.docs = all;
+    const videosOnly = all.filter(v => !v.isShort);
+    videosOnly.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    cache.docs = videosOnly;
     await ensureChannelsLoadedForDocs(cache.docs);
   }catch(e){
     console.error('Erreur chargement des vidéos de la catégorie :', e);
