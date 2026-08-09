@@ -217,11 +217,12 @@
   }
   .account-btn{
     font-family:'Fredoka'; font-weight:600; font-size:0.85rem; letter-spacing:0.02em; text-transform:uppercase;
-    padding:0.75rem 1.4rem; border-radius:999px; cursor:pointer; border:none;
-    background: var(--cream); box-shadow: 0 6px 16px -4px rgba(0,0,0,0.25); color: var(--dark-text);
+    padding:0.75rem 1.4rem; border-radius:999px; cursor:pointer; border:1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.14); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    color: var(--cream); box-shadow: 0 6px 16px -4px rgba(0,0,0,0.25);
     transition: all .25s ease; display:flex; align-items:center; gap:0.5rem;
   }
-  .account-btn:hover{ background: #fff; transform: translateY(-1px); }
+  .account-btn:hover{ background: rgba(255,255,255,0.28); transform: translateY(-1px); }
   .account-btn svg{ width:14px; height:14px; }
 
   .user-chip{
@@ -261,11 +262,12 @@
   .notif-bell-wrap{ position:relative; }
   .notif-bell-btn{
     position:relative; display:flex; align-items:center; justify-content:center;
-    width:40px; height:40px; border-radius:50%; border:none; cursor:pointer;
-    background: var(--cream); box-shadow: 0 6px 16px -4px rgba(0,0,0,0.25); color: var(--dark-text);
+    width:40px; height:40px; border-radius:50%; border:1px solid rgba(255,255,255,0.4); cursor:pointer;
+    background: rgba(255,255,255,0.14); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    color: var(--cream); box-shadow: 0 6px 16px -4px rgba(0,0,0,0.25);
     transition: all .2s ease;
   }
-  .notif-bell-btn:hover{ background:#fff; transform: translateY(-1px); }
+  .notif-bell-btn:hover{ background: rgba(255,255,255,0.28); transform: translateY(-1px); }
   .notif-bell-btn svg{ width:18px; height:18px; }
   .notif-badge{
     position:absolute; top:-4px; right:-4px; min-width:17px; height:17px; padding:0 4px;
@@ -363,8 +365,14 @@
        combiner filter + -webkit-text-stroke + background-clip:text force
        Chrome/Edge à recomposer le texte sur un calque séparé et produit
        ce rendu "dédoublé/craquelé" des lettres. text-shadow reste un
-       effet purement typographique et n'a pas ce problème. */
-    text-shadow: 0 1px 0 rgba(255,255,255,0.4), 0 6px 16px rgba(0,0,0,0.10);
+       effet purement typographique et n'a pas ce problème.
+       Même système de halo qu'en mode sombre (glow proche + glow diffus
+       + ombre de base), mais en version mate (opacité réduite, pas
+       d'effet néon) et dans une teinte ambre/or plutôt que rouge. */
+    text-shadow:
+      0 0 10px rgba(255,166,64,0.35),
+      0 0 26px rgba(255,166,64,0.18),
+      0 6px 16px rgba(0,0,0,0.12);
     transition: text-shadow .4s ease, -webkit-text-stroke-color .4s ease;
   }
   /* Version "néon braise" du titre en mode sombre : contour plus discret
@@ -622,13 +630,15 @@
   /* ---------- Floating admin button ---------- */
   .fab{
     position: fixed; bottom: 2rem; right: 2rem; z-index:10;
-    width:60px; height:60px; border-radius:50%; background: var(--cream);
-    color: var(--red); border:none; font-size:1.8rem; font-family:'Fredoka', sans-serif; font-weight:600; cursor:pointer;
+    width:60px; height:60px; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.14); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    color: var(--cream); font-size:1.8rem; font-family:'Fredoka', sans-serif; font-weight:600; cursor:pointer;
     box-shadow: 0 12px 28px -8px rgba(0,0,0,0.4);
-    display:flex; align-items:center; justify-content:center; transition: transform .25s ease;
+    display:flex; align-items:center; justify-content:center; transition: all .25s ease;
   }
-  .fab:hover{ transform: scale(1.08) rotate(90deg); background:#fff; }
-  body.admin-mode .fab{ background: var(--red); color: var(--cream); }
+  .fab:hover{ background: rgba(255,255,255,0.28); transform: scale(1.08) rotate(90deg); }
+  body.admin-mode .fab{ background: var(--red); color: var(--cream); border-color: var(--red); }
 
   .admin-tag{
     position:fixed; bottom:2rem; left:2rem; z-index:10; font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.72rem;
