@@ -480,6 +480,19 @@
   .grid.shorts-grid{
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
+  /* Sur mobile, une grille à plusieurs colonnes oblige à balayer l'œil
+     horizontalement ET verticalement pour parcourir les shorts : on passe
+     donc à une colonne unique, en pleine largeur, façon "fil" vertical
+     (comme TikTok/YouTube Shorts), pour que défiler la page suffise à
+     tout voir. Les cartes sont un peu plus compactes (ratio légèrement
+     réduit) pour qu'on en aperçoive plusieurs à la fois à l'écran. */
+  @media (max-width:640px){
+    .grid.shorts-grid{
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+    .grid.shorts-grid .card.short .thumb-wrap{ aspect-ratio: 9/12; }
+  }
 
   .card{
     position:relative; background: var(--panel); border:4px solid var(--cream);
@@ -697,6 +710,77 @@
   .modal-checkbox-row{ display:flex; align-items:center; gap:0.6rem; margin: -0.4rem 0 1.2rem; }
   .modal-checkbox-row input[type=checkbox]{ width:auto; margin:0; accent-color: var(--red); }
   .modal-checkbox-row label{ margin:0; text-transform:none; font-size:0.85rem; font-weight:600; color:#6b5644; letter-spacing:0; }
+
+  /* ---------- "Mon Environnement" ----------
+     Un espace à part : quand il est actif (body.env-mode), tout le reste
+     de l'interface du site (recherche, nav, thème, bouton d'ajout admin,
+     footer) disparaît. Seuls restent le bouton "Quitter", le bouton
+     "Paramètres" (en haut à gauche) et le compte utilisateur (en haut à
+     droite, via .account-bar, laissé inchangé). */
+  body.env-mode header,
+  body.env-mode .top-search-bar,
+  body.env-mode .theme-bar,
+  body.env-mode .fab,
+  body.env-mode footer{ display:none !important; }
+  body.env-mode main{ padding-top: 8rem; }
+
+  .env-bar{
+    position: fixed; top: 4.4rem; left: 1.6rem; z-index: 55;
+    display:none; align-items:center; gap:0.7rem; flex-wrap:wrap;
+  }
+  body.env-mode .env-bar{ display:flex; }
+  .env-exit-btn, .env-settings-btn{
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.76rem; letter-spacing:0.02em; text-transform:uppercase;
+    padding:0.75rem 1.2rem; border-radius:999px; cursor:pointer; border:1px solid rgba(255,255,255,0.4);
+    background: rgba(20,14,20,0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    color:#fff; display:flex; align-items:center; gap:0.5rem; transition: all .2s ease; white-space:nowrap;
+    box-shadow: 0 6px 16px -4px rgba(0,0,0,0.4);
+  }
+  .env-exit-btn:hover, .env-settings-btn:hover{ background: rgba(238,28,60,0.4); border-color: rgba(238,28,60,0.65); transform: translateY(-1px); }
+  .env-exit-btn svg, .env-settings-btn svg{ width:15px; height:15px; flex-shrink:0; }
+  @media (max-width:640px){
+    .env-bar{ top: 4.1rem; left: 1rem; right: 1rem; justify-content:space-between; }
+    .env-exit-btn span, .env-exit-btn{ font-size:0.68rem; padding:0.7rem 0.9rem; }
+    .env-settings-btn span{ display:none; }
+    .env-settings-btn{ padding:0.7rem; }
+  }
+
+  .env-bg-layer{
+    position: fixed; inset:0; z-index:0; pointer-events:none;
+    opacity:0; transition: opacity .4s ease;
+    background-size: cover; background-position:center; background-repeat:no-repeat;
+  }
+  body.env-mode .env-bg-layer{ opacity:1; }
+
+  .env-page-inner{ position:relative; z-index:1; }
+  #env-guest-hint{ display:none; }
+  body:not(.is-connected) #env-guest-hint{ display:block; }
+
+  .env-settings-modal{ max-width:640px; }
+  .env-settings-section{ margin-bottom:1.6rem; }
+  .env-settings-section:last-of-type{ margin-bottom:0.4rem; }
+  .env-bg-options{ display:flex; flex-wrap:wrap; gap:0.7rem; }
+  .env-bg-swatch{
+    width:42px; height:42px; border-radius:50%; border:2px solid var(--cream-2); cursor:pointer;
+    box-shadow: 0 4px 10px -4px rgba(0,0,0,0.35); transition: transform .15s ease, border-color .15s ease;
+    background:#fff;
+  }
+  .env-bg-swatch-default{
+    background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 45%, var(--bg-bottom) 100%);
+  }
+  .env-bg-swatch:hover{ transform: scale(1.08); }
+  .env-bg-swatch.selected{ border-color: var(--red); box-shadow: 0 0 0 3px rgba(238,28,60,0.25); }
+
+  .env-toggle-list{ display:flex; flex-direction:column; gap:0.5rem; }
+  .env-toggle-list-scroll{ max-height:220px; overflow-y:auto; padding-right:0.3rem; }
+  .env-toggle-row{
+    display:flex; align-items:center; gap:0.7rem;
+    background:#fffaf1; border:2px solid var(--cream-2); border-radius:12px; padding:0.55rem 0.8rem;
+  }
+  .env-toggle-row input[type=checkbox]{ width:17px; height:17px; margin:0; accent-color: var(--red); cursor:pointer; flex-shrink:0; }
+  .env-toggle-row label{ margin:0; text-transform:none; font-size:0.85rem; font-weight:600; color: var(--dark-text); letter-spacing:0; cursor:pointer;
+    display:flex; align-items:center; gap:0.4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .env-toggle-empty{ font-size:0.82rem; color:#a3856f; padding:0.4rem 0.1rem; }
 
   /* ---------- Mini-lecteur flottant (Picture-in-Picture façon Twitch) ---------- */
   /* Styles appliqués au conteneur #player-media une fois déplacé dans la
@@ -1712,6 +1796,10 @@
 <div class="grain"></div>
 <div class="crack-overlay"></div>
 <div class="vignette"></div>
+<!-- Fond personnalisable de "Mon Environnement" : masqué partout ailleurs,
+     affiché uniquement quand cet espace est actif (body.env-mode), habillé
+     selon les préférences enregistrées par l'utilisateur connecté. -->
+<div class="env-bg-layer" id="env-bg-layer"></div>
 
 <!-- Popup d'installation / partage du site (PWA) -->
 <div class="install-banner" id="install-banner" role="dialog" aria-live="polite" aria-label="Installer ou partager RIJOUL">
@@ -1777,6 +1865,20 @@
   </button>
 </div>
 
+<!-- Barre visible uniquement dans "Mon Environnement" : le reste de
+     l'interface du site (recherche, nav, thème...) est masqué, et seuls
+     ces deux boutons restent, avec le compte utilisateur en haut à droite. -->
+<div class="env-bar" id="env-bar">
+  <button type="button" class="env-exit-btn" id="env-exit-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg>
+    QUITTER MON ENVIRONNEMENT
+  </button>
+  <button type="button" class="env-settings-btn" id="env-settings-btn" title="Paramètres de Mon Environnement">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    <span>Paramètres</span>
+  </button>
+</div>
+
 <!-- Top-right account bar -->
 <div class="account-bar">
   <div class="notif-bell-wrap" id="notif-bell-wrap">
@@ -1825,6 +1927,7 @@
     <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
     <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
     <button class="site-nav-btn" data-section="section-historique">Historique</button>
+    <button class="site-nav-btn" data-section="section-environment">Mon Environnement</button>
   </nav>
 </header>
 
@@ -1984,6 +2087,21 @@
     <div class="grid" id="search-video-grid"></div>
     <div class="section-subtitle" style="margin-top:2.4rem;">Shorts</div>
     <div class="grid shorts-grid" id="search-shorts-grid"></div>
+  </section>
+
+  <section class="page-section" id="section-environment">
+    <div class="env-page-inner">
+      <div class="section-head">
+        <div>
+          <div class="section-title">Mon Environnement</div>
+          <p class="subs-intro" id="env-guest-hint">Connecte-toi pour personnaliser cet espace : fond d'écran, chaînes et catégories affichées.</p>
+        </div>
+        <div class="section-count" id="environment-count"></div>
+      </div>
+      <div class="grid" id="environment-grid">
+        <div class="empty-state">Connecte-toi pour profiter de ton environnement personnalisé.</div>
+      </div>
+    </div>
   </section>
 
 </main>
@@ -2164,6 +2282,49 @@
     </div>
     <div class="modal-actions">
       <button class="btn" data-close="channels-overlay">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Paramètres de "Mon Environnement" (personnalisation, connectés uniquement) -->
+<div class="overlay" id="env-settings-overlay">
+  <div class="modal env-settings-modal">
+    <button class="modal-close" data-close="env-settings-overlay">&times;</button>
+    <h2>Paramètres de mon environnement</h2>
+    <div class="modal-hint">Personnalise le fond de cet espace, et choisis les chaînes et catégories qui doivent y apparaître.</div>
+
+    <div class="env-settings-section">
+      <label>Fond d'écran</label>
+      <div class="env-bg-options" id="env-bg-options">
+        <button type="button" class="env-bg-swatch env-bg-swatch-default" data-bg-type="default" title="Fond par défaut du site"></button>
+        <button type="button" class="env-bg-swatch" data-bg-type="color" data-bg-value="#1a0f14" style="background:#1a0f14;" title="Nuit braise"></button>
+        <button type="button" class="env-bg-swatch" data-bg-type="color" data-bg-value="linear-gradient(160deg,#ff5470,#17235e)" style="background:linear-gradient(160deg,#ff5470,#17235e);" title="Rose / Marine"></button>
+        <button type="button" class="env-bg-swatch" data-bg-type="color" data-bg-value="linear-gradient(160deg,#58e07a,#0c1f18)" style="background:linear-gradient(160deg,#58e07a,#0c1f18);" title="Forêt"></button>
+        <button type="button" class="env-bg-swatch" data-bg-type="color" data-bg-value="linear-gradient(160deg,#4fd1ff,#0e1a3a)" style="background:linear-gradient(160deg,#4fd1ff,#0e1a3a);" title="Nuit électrique"></button>
+        <button type="button" class="env-bg-swatch" data-bg-type="color" data-bg-value="linear-gradient(160deg,#ffcf4d,#7c1f1f)" style="background:linear-gradient(160deg,#ffcf4d,#7c1f1f);" title="Coucher de soleil"></button>
+      </div>
+      <label for="env-bg-image-input" style="margin-top:0.9rem;">Ou une image (URL)</label>
+      <div class="add-channel-row">
+        <input type="text" id="env-bg-image-input" placeholder="https://exemple.com/mon-image.jpg">
+        <button class="btn primary" id="env-bg-image-apply">Appliquer</button>
+      </div>
+    </div>
+
+    <div class="env-settings-section">
+      <label>Catégories affichées</label>
+      <div class="modal-hint" style="margin-top:-0.3rem;">Décoche une catégorie pour masquer ses chaînes de ton environnement.</div>
+      <div id="env-categories-list" class="env-toggle-list"></div>
+    </div>
+
+    <div class="env-settings-section">
+      <label>Chaînes affichées</label>
+      <div class="modal-hint" style="margin-top:-0.3rem;">Décoche une chaîne pour la masquer de ton environnement.</div>
+      <div id="env-channels-list" class="env-toggle-list env-toggle-list-scroll"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" data-close="env-settings-overlay">Fermer</button>
+      <button class="btn primary" id="env-settings-save">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -2669,12 +2830,18 @@ let certifiedChannelNames = new Map();
 let channelCategoryIds = new Map();
 let channelCategoryNames = new Map();
 let categoryChannelsMap = new Map();
+// allTrackedChannelsList : liste de TOUTES les chaînes suivies (certifiées
+// ou non), sous la forme {id, name, category}, triée par nom — utilisée par
+// "Mon Environnement" pour proposer une liste complète de chaînes à
+// afficher/masquer, indépendamment de la certification.
+let allTrackedChannelsList = [];
 trackedChannelsRef.onSnapshot((snap)=>{
   const certIds = new Map();
   const certNames = new Map();
   const catIds = new Map();
   const catNames = new Map();
   const byCategory = new Map();
+  const allChannels = [];
   snap.forEach(doc=>{
     const data = doc.data();
     if(!data) return;
@@ -2695,14 +2862,18 @@ trackedChannelsRef.onSnapshot((snap)=>{
       certIds.set(doc.id, badgeCat);
       if(data.channelTitle) certNames.set(normalizeAuthorKey(data.channelTitle), badgeCat);
     }
+    allChannels.push({ id: doc.id, name: data.channelTitle || 'Chaîne sans nom', category: effectiveCat || null });
   });
+  allChannels.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
   certifiedChannelIds = certIds;
   certifiedChannelNames = certNames;
   channelCategoryIds = catIds;
   channelCategoryNames = catNames;
   categoryChannelsMap = byCategory;
+  allTrackedChannelsList = allChannels;
   renderAllSections();
   renderCategoriesGrid();
+  renderEnvironmentSettingsLists();
 }, (err)=>{ console.error('Erreur suivi des chaînes certifiées :', err); });
 
 function isChannelCertified(v){
@@ -3240,6 +3411,7 @@ document.getElementById('legal-edit-save').addEventListener('click', async ()=>{
 /* =========================================================
    Navigation entre sections
    ========================================================= */
+let lastNonEnvSection = 'section-home';
 function showSection(id){
   document.querySelectorAll('.page-section').forEach(sec=>{
     sec.classList.toggle('active', sec.id === id);
@@ -3248,6 +3420,9 @@ function showSection(id){
     btn.classList.toggle('active', btn.dataset.section === id);
   });
   if(history.replaceState) history.replaceState(null, '', '#' + id);
+
+  if(id !== 'section-environment') lastNonEnvSection = id;
+  document.body.classList.toggle('env-mode', id === 'section-environment');
 
   if(id === 'section-home' || id === 'section-videos'){
     loadFirstPage('long');
@@ -3264,10 +3439,15 @@ function showSection(id){
   }else if(id === 'section-categories'){
     backToCategoriesGrid();
     renderCategoriesGrid();
+  }else if(id === 'section-environment'){
+    enterEnvironmentMode();
   }
 }
 document.querySelectorAll('.site-nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> showSection(btn.dataset.section));
+});
+document.getElementById('env-exit-btn').addEventListener('click', ()=>{
+  showSection(lastNonEnvSection === 'section-environment' ? 'section-home' : lastNonEnvSection);
 });
 
 /* =========================================================
@@ -3388,6 +3568,203 @@ function renderCategoryVideosView(){
       : "Aucune vidéo dans cette catégorie pour l'instant.";
   renderVideoGrid('category-videos-grid', 'category-videos-count', list, emptyMsg, null, false);
 }
+
+/* =========================================================
+   "Mon Environnement" — espace personnalisable (connectés)
+   Un fond d'écran au choix, et une sélection des chaînes / catégories
+   à afficher. Les préférences sont stockées sur le profil Firestore
+   de l'utilisateur (usersRef.doc(uid).environment), donc synchronisées
+   partout où il se connecte.
+   ========================================================= */
+const ENV_DEFAULT_SETTINGS = { bgType: 'default', bgValue: '', hiddenChannelIds: [], hiddenCategories: [] };
+let currentEnvironmentSettings = { ...ENV_DEFAULT_SETTINGS };
+let environmentVideosLoaded = false;
+let environmentVideosLoading = false;
+
+function applyEnvironmentBackground(settings){
+  const layer = document.getElementById('env-bg-layer');
+  if(!layer) return;
+  if(!settings || settings.bgType === 'default' || !settings.bgValue){
+    layer.style.background = '';
+    layer.style.backgroundImage = '';
+    return;
+  }
+  if(settings.bgType === 'image'){
+    layer.style.background = '#0a0608';
+    layer.style.backgroundImage = `url("${settings.bgValue.replace(/"/g, '')}")`;
+    layer.style.backgroundSize = 'cover';
+    layer.style.backgroundPosition = 'center';
+  }else{
+    layer.style.backgroundImage = '';
+    layer.style.background = settings.bgValue;
+  }
+}
+
+function enterEnvironmentMode(){
+  applyEnvironmentBackground(currentEnvironmentSettings);
+  renderEnvironmentSettingsLists();
+  loadEnvironmentVideos();
+}
+
+function environmentEnabledChannelIds(){
+  const hiddenChannels = new Set(currentEnvironmentSettings.hiddenChannelIds || []);
+  const hiddenCats = new Set(currentEnvironmentSettings.hiddenCategories || []);
+  return allTrackedChannelsList
+    .filter(ch => !hiddenChannels.has(ch.id) && !(ch.category && hiddenCats.has(ch.category)))
+    .map(ch => ch.id);
+}
+
+async function loadEnvironmentVideos(){
+  const grid = document.getElementById('environment-grid');
+  if(!grid) return;
+  if(!isConnected){
+    grid.innerHTML = '<div class="empty-state">Connecte-toi pour profiter de ton environnement personnalisé.</div>';
+    document.getElementById('environment-count').textContent = '';
+    return;
+  }
+  const enabledIds = environmentEnabledChannelIds();
+  if(allTrackedChannelsList.length === 0){
+    grid.innerHTML = '<div class="empty-state">Chargement…</div>';
+    return;
+  }
+  if(enabledIds.length === 0){
+    grid.innerHTML = '<div class="empty-state">Aucune chaîne à afficher pour l\'instant. Ouvre les paramètres (⚙) pour en choisir.</div>';
+    document.getElementById('environment-count').textContent = '';
+    return;
+  }
+  if(environmentVideosLoading) return;
+  environmentVideosLoading = true;
+  grid.innerHTML = '<div class="empty-state">Chargement de ton flux…</div>';
+  try{
+    const chunks = chunkArray(enabledIds, 10);
+    const results = await Promise.all(chunks.map(chunk =>
+      videosRef.where('channelId', 'in', chunk).limit(300).get()
+    ));
+    const seen = new Set();
+    const all = [];
+    results.forEach(snap=>{
+      snap.docs.forEach(d=>{
+        if(!seen.has(d.id)){
+          seen.add(d.id);
+          all.push({ id: d.id, ...d.data() });
+        }
+      });
+    });
+    all.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    const limited = all.slice(0, 90);
+    await ensureChannelsLoadedForDocs(limited);
+    renderVideoGrid('environment-grid', 'environment-count', limited, "Aucune vidéo pour l'instant dans ton environnement.", null, false);
+    environmentVideosLoaded = true;
+  }catch(e){
+    console.error('Erreur chargement du flux "Mon Environnement" :', e);
+    grid.innerHTML = '<div class="empty-state">Impossible de charger ton flux pour le moment. Réessaie dans un instant.</div>';
+  }finally{
+    environmentVideosLoading = false;
+  }
+}
+
+function renderEnvironmentSettingsLists(){
+  const catList = document.getElementById('env-categories-list');
+  const chanList = document.getElementById('env-channels-list');
+  if(!catList || !chanList) return;
+
+  const hiddenCats = new Set(currentEnvironmentSettings.hiddenCategories || []);
+  const catsWithChannels = Object.keys(CERT_CATEGORIES).filter(key => (categoryChannelsMap.get(key) || []).length > 0);
+  catList.innerHTML = catsWithChannels.length
+    ? catsWithChannels.map(key=>{
+        const info = CERT_CATEGORIES[key];
+        const checked = !hiddenCats.has(key);
+        return `
+          <div class="env-toggle-row">
+            <input type="checkbox" id="env-cat-${key}" data-env-category="${key}" ${checked ? 'checked' : ''}>
+            <label for="env-cat-${key}">${categoryBadgeSvgSized(key, 16)} ${escapeHtml(info.label)}</label>
+          </div>
+        `;
+      }).join('')
+    : '<div class="env-toggle-empty">Aucune catégorie de chaîne pour l\'instant.</div>';
+
+  const hiddenChannels = new Set(currentEnvironmentSettings.hiddenChannelIds || []);
+  chanList.innerHTML = allTrackedChannelsList.length
+    ? allTrackedChannelsList.map(ch=>{
+        const checked = !hiddenChannels.has(ch.id);
+        return `
+          <div class="env-toggle-row">
+            <input type="checkbox" id="env-chan-${ch.id}" data-env-channel="${ch.id}" ${checked ? 'checked' : ''}>
+            <label for="env-chan-${ch.id}"><span>${escapeHtml(ch.name)}</span></label>
+          </div>
+        `;
+      }).join('')
+    : '<div class="env-toggle-empty">Aucune chaîne suivie pour l\'instant.</div>';
+
+  const swatches = document.querySelectorAll('#env-bg-options .env-bg-swatch');
+  swatches.forEach(sw=>{
+    const isSelected = currentEnvironmentSettings.bgType === sw.dataset.bgType
+      && (sw.dataset.bgType === 'default' || sw.dataset.bgValue === currentEnvironmentSettings.bgValue);
+    sw.classList.toggle('selected', isSelected);
+  });
+}
+
+let pendingEnvBg = null; // sélection de fond en attente d'enregistrement dans la modale
+document.getElementById('env-bg-options').addEventListener('click', (e)=>{
+  const sw = e.target.closest('.env-bg-swatch');
+  if(!sw) return;
+  document.querySelectorAll('#env-bg-options .env-bg-swatch').forEach(s => s.classList.remove('selected'));
+  sw.classList.add('selected');
+  pendingEnvBg = { bgType: sw.dataset.bgType, bgValue: sw.dataset.bgValue || '' };
+});
+document.getElementById('env-bg-image-apply').addEventListener('click', ()=>{
+  const input = document.getElementById('env-bg-image-input');
+  const url = input.value.trim();
+  if(!url) return;
+  document.querySelectorAll('#env-bg-options .env-bg-swatch').forEach(s => s.classList.remove('selected'));
+  pendingEnvBg = { bgType: 'image', bgValue: url };
+});
+
+document.getElementById('env-settings-btn').addEventListener('click', ()=>{
+  if(!isConnected){
+    closeOverlay('env-settings-overlay');
+    openOverlay('account-overlay');
+    return;
+  }
+  pendingEnvBg = null;
+  document.getElementById('env-bg-image-input').value = (currentEnvironmentSettings.bgType === 'image') ? currentEnvironmentSettings.bgValue : '';
+  renderEnvironmentSettingsLists();
+  openOverlay('env-settings-overlay');
+});
+
+document.getElementById('env-settings-save').addEventListener('click', async ()=>{
+  if(!isConnected || !auth.currentUser) return;
+  const btn = document.getElementById('env-settings-save');
+  const hiddenCategories = Array.from(document.querySelectorAll('[data-env-category]'))
+    .filter(chk => !chk.checked)
+    .map(chk => chk.dataset.envCategory);
+  const hiddenChannelIds = Array.from(document.querySelectorAll('[data-env-channel]'))
+    .filter(chk => !chk.checked)
+    .map(chk => chk.dataset.envChannel);
+  const next = {
+    bgType: pendingEnvBg ? pendingEnvBg.bgType : currentEnvironmentSettings.bgType,
+    bgValue: pendingEnvBg ? pendingEnvBg.bgValue : currentEnvironmentSettings.bgValue,
+    hiddenCategories,
+    hiddenChannelIds
+  };
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Enregistrement…';
+  try{
+    await usersRef.doc(auth.currentUser.uid).set({ environment: next }, { merge: true });
+    currentEnvironmentSettings = next;
+    applyEnvironmentBackground(currentEnvironmentSettings);
+    environmentVideosLoaded = false;
+    loadEnvironmentVideos();
+    closeOverlay('env-settings-overlay');
+  }catch(e){
+    console.error('Erreur enregistrement des paramètres "Mon Environnement" :', e);
+    alert("Impossible d'enregistrer tes paramètres pour le moment. Réessaie dans un instant.");
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+});
 
 /* =========================================================
    Chargement paginé des vidéos
@@ -5777,10 +6154,11 @@ function playVideo(v){
   document.getElementById('player-info-actions').style.display = '';
   updatePlayerActionButtons();
 
-  // Commentaires YouTube : visibles uniquement pour les vidéos hébergées
-  // sur YouTube (les commentaires n'existent que là-bas).
+  // Commentaires YouTube : visibles uniquement pour les vidéos "longues"
+  // hébergées sur YouTube (les commentaires n'existent que là-bas). Les
+  // shorts n'affichent jamais de commentaires, quelle que soit la plateforme.
   const commentsWrap = document.getElementById('player-comments');
-  if(platform === 'youtube'){
+  if(platform === 'youtube' && !isShort){
     commentsWrap.classList.add('visible');
     loadCommentsForVideo(videoId, false);
   }else{
@@ -8224,6 +8602,13 @@ function subscribeToProfile(uid){
       localStorage.setItem(NOTIF_ENABLED_LOCAL_KEY, data.notificationsEnabled ? '1' : '0');
       updateNotifToggleUI();
     }
+    currentEnvironmentSettings = { ...ENV_DEFAULT_SETTINGS, ...(data.environment || {}) };
+    if(document.body.classList.contains('env-mode')){
+      applyEnvironmentBackground(currentEnvironmentSettings);
+      renderEnvironmentSettingsLists();
+      environmentVideosLoaded = false;
+      loadEnvironmentVideos();
+    }
   });
 }
 function updateProfilePreview(label, photoURL){
@@ -8394,6 +8779,7 @@ auth.onAuthStateChanged(async (user)=>{
   isAdmin = !!(realUser && realUser.uid === ADMIN_UID);
   isConnected = !!realUser;
   document.body.classList.toggle('admin-mode', isAdmin);
+  document.body.classList.toggle('is-connected', isConnected);
 
   if(isAdmin && !wasAdmin){
     checkTrackedChannelsForNewVideos();
@@ -8421,6 +8807,12 @@ auth.onAuthStateChanged(async (user)=>{
     userChip.classList.remove('visible');
     userChip.classList.remove('open');
     if(profileUnsub){ profileUnsub(); profileUnsub = null; }
+    currentEnvironmentSettings = { ...ENV_DEFAULT_SETTINGS };
+    environmentVideosLoaded = false;
+    if(document.body.classList.contains('env-mode')){
+      applyEnvironmentBackground(currentEnvironmentSettings);
+      loadEnvironmentVideos();
+    }
   }
 
   if(user){
