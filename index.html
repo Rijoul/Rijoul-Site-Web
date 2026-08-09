@@ -359,18 +359,23 @@
     color:transparent;
     -webkit-text-stroke: 0.5px var(--cream);
     paint-order: stroke fill;
-    filter: drop-shadow(0 1px 0 rgba(255,255,255,0.4)) drop-shadow(0 6px 16px rgba(0,0,0,0.10));
-    transition: filter .4s ease, -webkit-text-stroke-color .4s ease;
+    /* Remplace l'ancien "filter: drop-shadow(...)" par des text-shadow :
+       combiner filter + -webkit-text-stroke + background-clip:text force
+       Chrome/Edge à recomposer le texte sur un calque séparé et produit
+       ce rendu "dédoublé/craquelé" des lettres. text-shadow reste un
+       effet purement typographique et n'a pas ce problème. */
+    text-shadow: 0 1px 0 rgba(255,255,255,0.4), 0 6px 16px rgba(0,0,0,0.10);
+    transition: text-shadow .4s ease, -webkit-text-stroke-color .4s ease;
   }
   /* Version "néon braise" du titre en mode sombre : contour plus discret
      et double lueur rouge (proche + diffuse) façon enseigne lumineuse,
      assortie à la couleur de marque. */
   body.dark-mode h1.brand{
     -webkit-text-stroke: 0.5px rgba(255,84,112,0.35);
-    filter:
-      drop-shadow(0 0 14px rgba(238,28,60,0.65))
-      drop-shadow(0 0 38px rgba(238,28,60,0.35))
-      drop-shadow(0 8px 18px rgba(0,0,0,0.7));
+    text-shadow:
+      0 0 14px rgba(238,28,60,0.65),
+      0 0 38px rgba(238,28,60,0.35),
+      0 8px 18px rgba(0,0,0,0.7);
   }
   .rule{ display:none; }
   .tagline{
