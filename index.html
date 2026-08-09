@@ -1134,6 +1134,14 @@
     white-space:nowrap;
   }
   .channel-row-certify input{ width:16px; height:16px; accent-color:#ffb300; cursor:pointer; margin:0; }
+  .channel-row-cert-category{
+    flex-shrink:0; background: var(--cream); color: var(--dark-text); border:2px solid var(--cream-2);
+    border-radius:999px; font-family:'Fredoka'; font-weight:600; font-size:0.7rem; letter-spacing:0.02em;
+    padding:0.3rem 1.6rem 0.3rem 0.7rem; cursor:pointer; appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='10' height='10'><path fill='%233a1730' d='M7 10l5 5 5-5z'/></svg>");
+    background-repeat:no-repeat; background-position:right 0.6rem center;
+  }
+  .channel-row-cert-category:disabled{ opacity:0.45; cursor:not-allowed; }
   .channel-row-untrack{
     flex-shrink:0; background: var(--red); color: var(--cream); border:none; border-radius:999px;
     font-family:'Fredoka'; font-weight:600; font-size:0.7rem; letter-spacing:0.02em; text-transform:uppercase;
@@ -2442,25 +2450,61 @@ const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
 const trackedChannelsRef = db.collection('trackedChannels');
 
-/* ---------- Badge de certification (chaîne certifiée) ----------
-   certifiedChannelIds  : Set des channelId Firestore marqués "certified".
-   certifiedChannelNames: Set des noms de chaîne normalisés correspondants,
+/* ---------- Badges de certification (chaîne certifiée) ----------
+   Chaque chaîne certifiée a désormais une CATÉGORIE (Or / Argent /
+   Diamant / Partenaire...) choisie par l'admin via un menu déroulant,
+   et le badge affiché partout sur le site change de forme/couleur en
+   fonction de cette catégorie.
+
+   certifiedChannelIds  : Map channelId Firestore -> catégorie, pour les
+                          chaînes marquées "certified".
+   certifiedChannelNames: Map nom de chaîne normalisé -> catégorie,
                           pour retrouver les vidéos qui n'ont pas de
                           channelId enregistré (ajoutées manuellement) mais
                           dont le nom d'auteur correspond à une chaîne
                           suivie certifiée.
    Rafraîchis en temps réel via onSnapshot pour que le badge apparaisse/
-   disparaisse partout dès qu'un admin coche/décoche la case. */
-let certifiedChannelIds = new Set();
-let certifiedChannelNames = new Set();
+   disparaisse/change partout dès qu'un admin modifie la certification. */
+const DEFAULT_CERT_CATEGORY = 'or';
+const CERT_CATEGORIES = {
+  or: {
+    label: 'Or',
+    title: 'Chaîne certifiée Or',
+    svg: '<svg class="cert-badge cert-badge-or" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée Or" aria-label="Chaîne certifiée Or"><path fill="#ffd447" stroke="#c98a00" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.6 15.4l-3.1-3.1 1.2-1.2 1.9 1.9 4.2-4.2 1.2 1.2z"/></svg>'
+  },
+  argent: {
+    label: 'Argent',
+    title: 'Chaîne certifiée Argent',
+    svg: '<svg class="cert-badge cert-badge-argent" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée Argent" aria-label="Chaîne certifiée Argent"><path fill="#dbe2e8" stroke="#8a97a3" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.6 15.4l-3.1-3.1 1.2-1.2 1.9 1.9 4.2-4.2 1.2 1.2z"/></svg>'
+  },
+  diamant: {
+    label: 'Diamant',
+    title: 'Chaîne certifiée Diamant',
+    svg: '<svg class="cert-badge cert-badge-diamant" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée Diamant" aria-label="Chaîne certifiée Diamant"><path fill="#7fe3ff" stroke="#0f8fb3" stroke-width="1" d="M6 3h12l4 6-10 12L2 9z"/><path fill="#fff" opacity="0.75" d="M6 3l3 6-3.2 1.4L2 9z"/><path fill="#0f8fb3" opacity="0.35" d="M9 3h6l2.4 6H6.6z"/></svg>'
+  },
+  partenaire: {
+    label: 'Partenaire',
+    title: 'Chaîne partenaire officielle',
+    svg: '<svg class="cert-badge cert-badge-partenaire" viewBox="0 0 24 24" width="14" height="14" title="Chaîne partenaire officielle" aria-label="Chaîne partenaire officielle"><path fill="#c79bff" stroke="#6a2fb5" stroke-width="1" d="M3.3 17.5L2 8l5.6 3.6L12 4l4.4 7.6L22 8l-1.3 9.5z"/><rect x="3" y="18.2" width="18" height="2.3" rx="1" fill="#6a2fb5"/></svg>'
+  }
+};
+function certBadgeSvgForCategory(cat){
+  return (CERT_CATEGORIES[cat] || CERT_CATEGORIES[DEFAULT_CERT_CATEGORY]).svg;
+}
+// Conservé pour compatibilité (badge Or par défaut) — préférer certBadgeSvgForCategory().
+const CERT_BADGE_SVG = CERT_CATEGORIES[DEFAULT_CERT_CATEGORY].svg;
+
+let certifiedChannelIds = new Map();
+let certifiedChannelNames = new Map();
 trackedChannelsRef.onSnapshot((snap)=>{
-  const ids = new Set();
-  const names = new Set();
+  const ids = new Map();
+  const names = new Map();
   snap.forEach(doc=>{
     const data = doc.data();
     if(data && data.certified){
-      ids.add(doc.id);
-      if(data.channelTitle) names.add(normalizeAuthorKey(data.channelTitle));
+      const cat = CERT_CATEGORIES[data.certifiedCategory] ? data.certifiedCategory : DEFAULT_CERT_CATEGORY;
+      ids.set(doc.id, cat);
+      if(data.channelTitle) names.set(normalizeAuthorKey(data.channelTitle), cat);
     }
   });
   certifiedChannelIds = ids;
@@ -2474,9 +2518,15 @@ function isChannelCertified(v){
   if(v.author && certifiedChannelNames.has(normalizeAuthorKey(v.author))) return true;
   return false;
 }
-const CERT_BADGE_SVG = '<svg class="cert-badge" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée" aria-label="Chaîne certifiée"><path fill="#ffd447" stroke="#c98a00" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.6 15.4l-3.1-3.1 1.2-1.2 1.9 1.9 4.2-4.2 1.2 1.2z"/></svg>';
+function getChannelCertCategory(v){
+  if(!v) return null;
+  if(v.channelId && certifiedChannelIds.has(v.channelId)) return certifiedChannelIds.get(v.channelId);
+  if(v.author && certifiedChannelNames.has(normalizeAuthorKey(v.author))) return certifiedChannelNames.get(normalizeAuthorKey(v.author));
+  return null;
+}
 function certifiedBadgeHtml(v){
-  return isChannelCertified(v) ? CERT_BADGE_SVG : '';
+  const cat = getChannelCertCategory(v);
+  return cat ? certBadgeSvgForCategory(cat) : '';
 }
 const trackedTwitchChannelsRef = db.collection('trackedTwitchChannels');
 const liveStreamsRef = db.collection('liveStreams');
@@ -6539,15 +6589,22 @@ async function renderChannelsList(){
     container.innerHTML = docsSorted.map(doc=>{
       const ch = doc.data();
       const isCertified = !!ch.certified;
+      const cat = CERT_CATEGORIES[ch.certifiedCategory] ? ch.certifiedCategory : DEFAULT_CERT_CATEGORY;
       const name = ch.channelTitle || ('Chaîne sans nom (' + doc.id + ')');
+      const categoryOptions = Object.keys(CERT_CATEGORIES).map(key=>
+        `<option value="${key}" ${key===cat ? 'selected' : ''}>${escapeHtml(CERT_CATEGORIES[key].label)}</option>`
+      ).join('');
       return `
         <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
-          <span class="channel-row-name"><span class="channel-row-name-text">${escapeHtml(name)}</span>${isCertified ? CERT_BADGE_SVG : ''}</span>
+          <span class="channel-row-name"><span class="channel-row-name-text">${escapeHtml(name)}</span>${isCertified ? certBadgeSvgForCategory(cat) : ''}</span>
           <div class="channel-row-actions">
-            <label class="channel-row-certify" title="Afficher un badge doré à côté du nom de cette chaîne partout sur le site">
+            <label class="channel-row-certify" title="Afficher un badge à côté du nom de cette chaîne partout sur le site">
               <input type="checkbox" data-certify-id="${escapeHtml(doc.id)}" ${isCertified ? 'checked' : ''}>
               Certifiée
             </label>
+            <select class="channel-row-cert-category" data-certify-category-id="${escapeHtml(doc.id)}" ${isCertified ? '' : 'disabled'} title="Catégorie du badge de certification">
+              ${categoryOptions}
+            </select>
             <button class="channel-row-untrack" data-untrack-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
           </div>
         </div>
@@ -6575,15 +6632,19 @@ async function renderChannelsList(){
     container.querySelectorAll('[data-certify-id]').forEach(chk=>{
       chk.addEventListener('change', async ()=>{
         const id = chk.dataset.certifyId;
+        const row = chk.closest('.channel-row');
+        const select = row.querySelector('[data-certify-category-id]');
         chk.disabled = true;
         try{
-          await trackedChannelsRef.doc(id).set({ certified: chk.checked }, { merge:true });
-          const nameEl = chk.closest('.channel-row').querySelector('.channel-row-name');
+          const payload = { certified: chk.checked };
+          if(chk.checked) payload.certifiedCategory = select.value || DEFAULT_CERT_CATEGORY;
+          await trackedChannelsRef.doc(id).set(payload, { merge:true });
+          select.disabled = !chk.checked;
+          const nameEl = row.querySelector('.channel-row-name');
           const existingBadge = nameEl.querySelector('.cert-badge');
-          if(chk.checked && !existingBadge){
-            nameEl.insertAdjacentHTML('beforeend', CERT_BADGE_SVG);
-          }else if(!chk.checked && existingBadge){
-            existingBadge.remove();
+          if(existingBadge) existingBadge.remove();
+          if(chk.checked){
+            nameEl.insertAdjacentHTML('beforeend', certBadgeSvgForCategory(select.value || DEFAULT_CERT_CATEGORY));
           }
         }catch(err){
           console.error(err);
@@ -6591,6 +6652,28 @@ async function renderChannelsList(){
           chk.checked = !chk.checked;
         }finally{
           chk.disabled = false;
+        }
+      });
+    });
+    container.querySelectorAll('[data-certify-category-id]').forEach(sel=>{
+      sel.addEventListener('change', async ()=>{
+        const id = sel.dataset.certifyCategoryId;
+        const row = sel.closest('.channel-row');
+        const chk = row.querySelector('[data-certify-id]');
+        sel.disabled = true;
+        try{
+          await trackedChannelsRef.doc(id).set({ certifiedCategory: sel.value }, { merge:true });
+          if(chk && chk.checked){
+            const nameEl = row.querySelector('.channel-row-name');
+            const existingBadge = nameEl.querySelector('.cert-badge');
+            if(existingBadge) existingBadge.remove();
+            nameEl.insertAdjacentHTML('beforeend', certBadgeSvgForCategory(sel.value));
+          }
+        }catch(err){
+          console.error(err);
+          alert("Impossible de mettre à jour la catégorie du badge.");
+        }finally{
+          sel.disabled = false;
         }
       });
     });
