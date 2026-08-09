@@ -1368,6 +1368,8 @@
     font-family:'Baloo 2', sans-serif; font-weight:600; font-size:0.92rem; color: var(--dark-text);
   }
   .top-search-inner input::placeholder{ color:#b39a82; font-weight:500; }
+  .top-search-inner input[type="search"]::-webkit-search-cancel-button,
+  .top-search-inner input[type="search"]::-webkit-search-decoration{ display:none; -webkit-appearance:none; }
   .top-search-clear{
     flex-shrink:0; background:none; border:none; color:#a3856f; font-size:1.1rem; cursor:pointer;
     display:none; align-items:center; justify-content:center; width:24px; height:24px; padding:0;
@@ -1751,7 +1753,7 @@
 <div class="top-search-bar">
   <div class="top-search-inner">
     <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-    <input type="text" id="global-search-input" name="global-search-nofill" placeholder="Rechercher une vidéo, un auteur…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
+    <input type="search" id="global-search-input" name="global-search-nofill" placeholder="Rechercher une vidéo, un auteur…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other">
     <button class="top-search-clear" id="global-search-clear" title="Effacer">&times;</button>
     <button class="top-search-go" id="global-search-btn" title="Rechercher">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -2243,16 +2245,18 @@
   <div class="modal">
     <button class="modal-close" data-close="playlist-share-overlay">&times;</button>
     <h2>Partager la playlist</h2>
+    <form autocomplete="off" onsubmit="return false;">
     <input type="hidden" id="playlist-share-id">
     <div class="modal-hint">Entre n'importe quelle adresse e-mail. Si un compte RIJOUL existe déjà avec cette adresse, il aura accès immédiatement ; sinon, l'accès sera activé automatiquement dès qu'un compte sera créé ou connecté avec cette adresse. Les deux comptes verront et pourront modifier la même playlist, synchronisée pour les deux.</div>
     <label for="playlist-share-email">Adresse e-mail</label>
-    <input type="email" id="playlist-share-email" placeholder="ami@exemple.com">
+    <input type="email" id="playlist-share-email" placeholder="ami@exemple.com" autocomplete="off">
     <div id="playlist-share-members" style="margin:-0.6rem 0 1.2rem; font-size:0.8rem; color:#6b5644; font-weight:600;"></div>
     <div class="modal-error" id="playlist-share-error"></div>
     <div class="modal-actions">
-      <button class="btn" data-close="playlist-share-overlay">Fermer</button>
-      <button class="btn primary" id="playlist-share-submit">Partager</button>
+      <button type="button" class="btn" data-close="playlist-share-overlay">Fermer</button>
+      <button type="button" class="btn primary" id="playlist-share-submit">Partager</button>
     </div>
+    </form>
   </div>
 </div>
 
@@ -2303,7 +2307,8 @@
     </div>
 
     <div class="auth-panel active" id="panel-login">
-      <button class="google-btn" id="google-login-btn">
+      <form autocomplete="off" onsubmit="return false;">
+      <button type="button" class="google-btn" id="google-login-btn">
         <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-4.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.5 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 15.6 3 8.3 7.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.7 0 10.7-1.9 14.6-5.1l-6.7-5.7C29.6 36 26.9 37 24 37c-5.3 0-9.7-3.4-11.3-8l-6.6 5.1C8.3 40.1 15.5 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.7 5.7C41.2 36.4 45 30.8 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
         Continuer avec Google
       </button>
@@ -2314,12 +2319,14 @@
       <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
       <div class="auth-forgot"><a id="forgot-link">Mot de passe oublié ?</a></div>
       <div class="modal-error" id="login-error"></div>
-      <button class="btn primary auth-submit" id="login-submit">Se connecter</button>
+      <button type="button" class="btn primary auth-submit" id="login-submit">Se connecter</button>
       <div class="auth-switch">Pas encore de compte ? <a data-switch="signup">Créer un compte</a></div>
+      </form>
     </div>
 
     <div class="auth-panel" id="panel-signup">
-      <button class="google-btn" id="google-signup-btn">
+      <form autocomplete="off" onsubmit="return false;">
+      <button type="button" class="google-btn" id="google-signup-btn">
         <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-4.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.5 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.9 5.1 29.8 3 24 3 15.6 3 8.3 7.9 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.7 0 10.7-1.9 14.6-5.1l-6.7-5.7C29.6 36 26.9 37 24 37c-5.3 0-9.7-3.4-11.3-8l-6.6 5.1C8.3 40.1 15.5 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.7 5.7C41.2 36.4 45 30.8 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
         Continuer avec Google
       </button>
@@ -2335,8 +2342,9 @@
         <label for="signup-terms">J'ai lu et j'accepte les <a data-open-legal="cgu">CGU</a>, les <a data-open-legal="mentions">mentions légales</a> et la <a data-open-legal="confidentialite">politique de confidentialité</a> du site.</label>
       </div>
       <div class="modal-error" id="signup-error"></div>
-      <button class="btn primary auth-submit" id="signup-submit">Créer mon compte</button>
+      <button type="button" class="btn primary auth-submit" id="signup-submit">Créer mon compte</button>
       <div class="auth-switch">Déjà un compte ? <a data-switch="login">Se connecter</a></div>
+      </form>
     </div>
   </div>
 </div>
