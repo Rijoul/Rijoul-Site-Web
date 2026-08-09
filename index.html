@@ -2291,7 +2291,7 @@
   <div class="modal env-settings-modal">
     <button class="modal-close" data-close="env-settings-overlay">&times;</button>
     <h2>Paramètres de mon environnement</h2>
-    <div class="modal-hint">Personnalise le fond de cet espace, et choisis les chaînes et catégories qui doivent y apparaître.</div>
+    <div class="modal-hint">Personnalise le fond de cet espace. Par défaut, rien n'est coché : coche ce que tu veux voir apparaître.</div>
 
     <div class="env-settings-section">
       <label>Fond d'écran</label>
@@ -2311,14 +2311,29 @@
     </div>
 
     <div class="env-settings-section">
+      <label>Type de contenu</label>
+      <div class="modal-hint" style="margin-top:-0.3rem;">Coche Vidéos, Shorts, ou les deux. Sans rien cocher, rien ne s'affiche.</div>
+      <div class="env-toggle-list">
+        <div class="env-toggle-row">
+          <input type="checkbox" id="env-show-videos">
+          <label for="env-show-videos">Vidéos</label>
+        </div>
+        <div class="env-toggle-row">
+          <input type="checkbox" id="env-show-shorts">
+          <label for="env-show-shorts">Shorts</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="env-settings-section">
       <label>Catégories affichées</label>
-      <div class="modal-hint" style="margin-top:-0.3rem;">Décoche une catégorie pour masquer ses chaînes de ton environnement.</div>
+      <div class="modal-hint" style="margin-top:-0.3rem;">Coche une catégorie pour afficher les chaînes qui en font partie.</div>
       <div id="env-categories-list" class="env-toggle-list"></div>
     </div>
 
     <div class="env-settings-section">
       <label>Chaînes affichées</label>
-      <div class="modal-hint" style="margin-top:-0.3rem;">Décoche une chaîne pour la masquer de ton environnement.</div>
+      <div class="modal-hint" style="margin-top:-0.3rem;">Coche une chaîne pour l'afficher dans ton environnement.</div>
       <div id="env-channels-list" class="env-toggle-list env-toggle-list-scroll"></div>
     </div>
 
@@ -3576,7 +3591,7 @@ function renderCategoryVideosView(){
    de l'utilisateur (usersRef.doc(uid).environment), donc synchronisées
    partout où il se connecte.
    ========================================================= */
-const ENV_DEFAULT_SETTINGS = { bgType: 'default', bgValue: '', hiddenChannelIds: [], hiddenCategories: [] };
+const ENV_DEFAULT_SETTINGS = { bgType: 'default', bgValue: '', shownChannelIds: [], shownCategories: [], showVideos: false, showShorts: false };
 let currentEnvironmentSettings = { ...ENV_DEFAULT_SETTINGS };
 let environmentVideosLoaded = false;
 let environmentVideosLoading = false;
@@ -3607,10 +3622,10 @@ function enterEnvironmentMode(){
 }
 
 function environmentEnabledChannelIds(){
-  const hiddenChannels = new Set(currentEnvironmentSettings.hiddenChannelIds || []);
-  const hiddenCats = new Set(currentEnvironmentSettings.hiddenCategories || []);
+  const shownChannels = new Set(currentEnvironmentSettings.shownChannelIds || []);
+  const shownCats = new Set(currentEnvironmentSettings.shownCategories || []);
   return allTrackedChannelsList
-    .filter(ch => !hiddenChannels.has(ch.id) && !(ch.category && hiddenCats.has(ch.category)))
+    .filter(ch => shownChannels.has(ch.id) || (ch.category && shownCats.has(ch.category)))
     .map(ch => ch.id);
 }
 
@@ -3622,13 +3637,19 @@ async function loadEnvironmentVideos(){
     document.getElementById('environment-count').textContent = '';
     return;
   }
+  const { showVideos, showShorts } = currentEnvironmentSettings;
+  if(!showVideos && !showShorts){
+    grid.innerHTML = '<div class="empty-state">Ouvre les paramètres (⚙) et coche « Vidéos », « Shorts », ou les deux, pour voir apparaître du contenu.</div>';
+    document.getElementById('environment-count').textContent = '';
+    return;
+  }
   const enabledIds = environmentEnabledChannelIds();
   if(allTrackedChannelsList.length === 0){
     grid.innerHTML = '<div class="empty-state">Chargement…</div>';
     return;
   }
   if(enabledIds.length === 0){
-    grid.innerHTML = '<div class="empty-state">Aucune chaîne à afficher pour l\'instant. Ouvre les paramètres (⚙) pour en choisir.</div>';
+    grid.innerHTML = '<div class="empty-state">Aucune chaîne ni catégorie cochée pour l\'instant. Ouvre les paramètres (⚙) pour en choisir.</div>';
     document.getElementById('environment-count').textContent = '';
     return;
   }
@@ -3650,8 +3671,10 @@ async function loadEnvironmentVideos(){
         }
       });
     });
-    all.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
-    const limited = all.slice(0, 90);
+    // Filtre Vidéos / Shorts selon les cases cochées dans les paramètres.
+    const filtered = all.filter(v => (v.isShort ? showShorts : showVideos));
+    filtered.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    const limited = filtered.slice(0, 90);
     await ensureChannelsLoadedForDocs(limited);
     renderVideoGrid('environment-grid', 'environment-count', limited, "Aucune vidéo pour l'instant dans ton environnement.", null, false);
     environmentVideosLoaded = true;
@@ -3668,12 +3691,15 @@ function renderEnvironmentSettingsLists(){
   const chanList = document.getElementById('env-channels-list');
   if(!catList || !chanList) return;
 
-  const hiddenCats = new Set(currentEnvironmentSettings.hiddenCategories || []);
+  document.getElementById('env-show-videos').checked = !!currentEnvironmentSettings.showVideos;
+  document.getElementById('env-show-shorts').checked = !!currentEnvironmentSettings.showShorts;
+
+  const shownCats = new Set(currentEnvironmentSettings.shownCategories || []);
   const catsWithChannels = Object.keys(CERT_CATEGORIES).filter(key => (categoryChannelsMap.get(key) || []).length > 0);
   catList.innerHTML = catsWithChannels.length
     ? catsWithChannels.map(key=>{
         const info = CERT_CATEGORIES[key];
-        const checked = !hiddenCats.has(key);
+        const checked = shownCats.has(key);
         return `
           <div class="env-toggle-row">
             <input type="checkbox" id="env-cat-${key}" data-env-category="${key}" ${checked ? 'checked' : ''}>
@@ -3683,10 +3709,10 @@ function renderEnvironmentSettingsLists(){
       }).join('')
     : '<div class="env-toggle-empty">Aucune catégorie de chaîne pour l\'instant.</div>';
 
-  const hiddenChannels = new Set(currentEnvironmentSettings.hiddenChannelIds || []);
+  const shownChannels = new Set(currentEnvironmentSettings.shownChannelIds || []);
   chanList.innerHTML = allTrackedChannelsList.length
     ? allTrackedChannelsList.map(ch=>{
-        const checked = !hiddenChannels.has(ch.id);
+        const checked = shownChannels.has(ch.id);
         return `
           <div class="env-toggle-row">
             <input type="checkbox" id="env-chan-${ch.id}" data-env-channel="${ch.id}" ${checked ? 'checked' : ''}>
@@ -3735,17 +3761,21 @@ document.getElementById('env-settings-btn').addEventListener('click', ()=>{
 document.getElementById('env-settings-save').addEventListener('click', async ()=>{
   if(!isConnected || !auth.currentUser) return;
   const btn = document.getElementById('env-settings-save');
-  const hiddenCategories = Array.from(document.querySelectorAll('[data-env-category]'))
-    .filter(chk => !chk.checked)
+  const shownCategories = Array.from(document.querySelectorAll('[data-env-category]'))
+    .filter(chk => chk.checked)
     .map(chk => chk.dataset.envCategory);
-  const hiddenChannelIds = Array.from(document.querySelectorAll('[data-env-channel]'))
-    .filter(chk => !chk.checked)
+  const shownChannelIds = Array.from(document.querySelectorAll('[data-env-channel]'))
+    .filter(chk => chk.checked)
     .map(chk => chk.dataset.envChannel);
+  const showVideos = document.getElementById('env-show-videos').checked;
+  const showShorts = document.getElementById('env-show-shorts').checked;
   const next = {
     bgType: pendingEnvBg ? pendingEnvBg.bgType : currentEnvironmentSettings.bgType,
     bgValue: pendingEnvBg ? pendingEnvBg.bgValue : currentEnvironmentSettings.bgValue,
-    hiddenCategories,
-    hiddenChannelIds
+    shownCategories,
+    shownChannelIds,
+    showVideos,
+    showShorts
   };
   btn.disabled = true;
   const originalLabel = btn.textContent;
