@@ -437,6 +437,32 @@
   .shorts-block{ margin-bottom: 3rem; }
   .shorts-block:last-child{ margin-bottom:0; }
 
+  /* ---------- Grille des catégories (navigation par catégorie) ---------- */
+  .categories-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:1rem;
+  }
+  .category-card{
+    display:flex; flex-direction:column; align-items:center; text-align:center; gap:0.55rem;
+    background: var(--panel); border:2px solid var(--cream-2); border-radius:18px;
+    padding:1.3rem 0.9rem; cursor:pointer;
+    box-shadow: 0 6px 16px -6px rgba(0,0,0,0.3);
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .category-card:hover{
+    transform: translateY(-3px); box-shadow: 0 12px 22px -8px rgba(0,0,0,0.4); border-color: var(--red);
+  }
+  .category-card .cert-badge{ filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+  .category-card-label{
+    font-family:'Baloo 2', sans-serif; font-weight:700; font-size:0.85rem; color: var(--dark-text); line-height:1.2;
+  }
+  .category-card-count{
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.68rem; letter-spacing:0.02em;
+    color: var(--dark-text); opacity:0.6; text-transform:uppercase;
+  }
+  .category-videos-subtitle{ display:flex; align-items:center; gap:0.5rem; }
+  .category-videos-subtitle .cert-badge{ flex-shrink:0; }
+  #categories-back-link{ display:inline-block; margin-bottom:1.4rem; }
+
   .grid{
     display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.8rem;
   }
@@ -1778,6 +1804,7 @@
     <button class="site-nav-btn" data-section="section-home">Accueil</button>
     <button class="site-nav-btn" data-section="section-videos">Vidéos</button>
     <button class="site-nav-btn" data-section="section-shorts">Shorts</button>
+    <button class="site-nav-btn" data-section="section-categories">Catégories</button>
     <button class="site-nav-btn" data-section="section-lives">Lives</button>
     <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
     <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
@@ -1834,6 +1861,26 @@
     </div>
     <div class="load-more-row">
       <button class="btn primary load-more-btn" id="load-more-shorts">Afficher plus</button>
+    </div>
+  </section>
+
+  <section class="page-section" id="section-categories">
+    <div class="section-head">
+      <div class="section-title">Catégories</div>
+    </div>
+    <div id="categories-grid-view">
+      <p class="subs-intro">Clique sur une catégorie pour voir toutes les vidéos des chaînes qui en font partie.</p>
+      <div class="categories-grid" id="categories-grid"></div>
+    </div>
+    <div id="categories-videos-view" style="display:none;">
+      <a href="#" class="refresh-link" id="categories-back-link">← Toutes les catégories</a>
+      <div class="section-head">
+        <div class="section-subtitle category-videos-subtitle" id="category-videos-subtitle" style="margin:0;"></div>
+        <div class="section-count" id="category-videos-count"></div>
+      </div>
+      <div class="grid" id="category-videos-grid">
+        <div class="empty-state">Chargement des vidéos…</div>
+      </div>
     </div>
   </section>
 
@@ -2576,11 +2623,6 @@ const CERT_CATEGORIES = {
     title: 'Chaîne certifiée · Actualités & Décryptage',
     svg: '<svg class="cert-badge cert-badge-actualites" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Actualités & Décryptage" aria-label="Chaîne certifiée · Actualités & Décryptage"><path fill="#37474f" stroke="#17222a" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><rect x="7" y="7.4" width="10" height="9.2" rx="0.8" fill="#fff"/><rect x="8.3" y="8.9" width="4" height="2.6" fill="#37474f"/><rect x="13" y="8.9" width="2.7" height="1" fill="#37474f"/><rect x="13" y="10.3" width="2.7" height="1" fill="#37474f"/><rect x="8.3" y="12.3" width="7.4" height="0.8" fill="#37474f"/><rect x="8.3" y="13.7" width="7.4" height="0.8" fill="#37474f"/><rect x="8.3" y="15.1" width="7.4" height="0.8" fill="#37474f"/></svg>'
   },
-  media: {
-    label: 'Média',
-    title: 'Chaîne certifiée · Média',
-    svg: '<svg class="cert-badge cert-badge-media" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée · Média" aria-label="Chaîne certifiée · Média"><path fill="#607d8b" stroke="#37474f" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><circle cx="12" cy="12" r="5.1" fill="#fff"/><path fill="#607d8b" d="M10.5 9.4l4.4 2.6-4.4 2.6z"/></svg>'
-  },
   divertissement: {
     label: 'Divertissement',
     title: 'Chaîne certifiée · Divertissement',
@@ -2593,22 +2635,47 @@ function certBadgeSvgForCategory(cat){
 // Conservé pour compatibilité — préférer certBadgeSvgForCategory().
 const CERT_BADGE_SVG = CERT_CATEGORIES[DEFAULT_CERT_CATEGORY].svg;
 
+/* certifiedChannelIds/Names  : channelId/nom -> catégorie, UNIQUEMENT pour
+   les chaînes cochées "Certifiée" (contrôle l'affichage du badge doré).
+   channelCategoryIds/Names   : channelId/nom -> catégorie, pour TOUTES les
+   chaînes ayant une catégorie assignée, certifiées ou non (sert à la
+   navigation par catégorie).
+   categoryChannelsMap        : catégorie -> liste de {id, name} des chaînes
+   de cette catégorie, utilisé pour charger les vidéos d'une catégorie. */
 let certifiedChannelIds = new Map();
 let certifiedChannelNames = new Map();
+let channelCategoryIds = new Map();
+let channelCategoryNames = new Map();
+let categoryChannelsMap = new Map();
 trackedChannelsRef.onSnapshot((snap)=>{
-  const ids = new Map();
-  const names = new Map();
+  const certIds = new Map();
+  const certNames = new Map();
+  const catIds = new Map();
+  const catNames = new Map();
+  const byCategory = new Map();
   snap.forEach(doc=>{
     const data = doc.data();
-    if(data && data.certified){
-      const cat = CERT_CATEGORIES[data.certifiedCategory] ? data.certifiedCategory : DEFAULT_CERT_CATEGORY;
-      ids.set(doc.id, cat);
-      if(data.channelTitle) names.set(normalizeAuthorKey(data.channelTitle), cat);
+    if(!data) return;
+    const cat = CERT_CATEGORIES[data.certifiedCategory] ? data.certifiedCategory : null;
+    if(cat){
+      catIds.set(doc.id, cat);
+      if(data.channelTitle) catNames.set(normalizeAuthorKey(data.channelTitle), cat);
+      if(!byCategory.has(cat)) byCategory.set(cat, []);
+      byCategory.get(cat).push({ id: doc.id, name: data.channelTitle || null });
+    }
+    if(data.certified){
+      const badgeCat = cat || DEFAULT_CERT_CATEGORY;
+      certIds.set(doc.id, badgeCat);
+      if(data.channelTitle) certNames.set(normalizeAuthorKey(data.channelTitle), badgeCat);
     }
   });
-  certifiedChannelIds = ids;
-  certifiedChannelNames = names;
+  certifiedChannelIds = certIds;
+  certifiedChannelNames = certNames;
+  channelCategoryIds = catIds;
+  channelCategoryNames = catNames;
+  categoryChannelsMap = byCategory;
   renderAllSections();
+  renderCategoriesGrid();
 }, (err)=>{ console.error('Erreur suivi des chaînes certifiées :', err); });
 
 function isChannelCertified(v){
@@ -2626,6 +2693,9 @@ function getChannelCertCategory(v){
 function certifiedBadgeHtml(v){
   const cat = getChannelCertCategory(v);
   return cat ? certBadgeSvgForCategory(cat) : '';
+}
+function categoryBadgeSvgSized(catKey, size){
+  return certBadgeSvgForCategory(catKey).replace('width="14" height="14"', `width="${size}" height="${size}"`);
 }
 const trackedTwitchChannelsRef = db.collection('trackedTwitchChannels');
 const liveStreamsRef = db.collection('liveStreams');
@@ -3164,11 +3234,132 @@ function showSection(id){
     if(isConnected && !historyLoaded && !historyLoading) refreshHistoryVideos();
   }else if(id === 'section-lives'){
     attachLiveStreamsListener();
+  }else if(id === 'section-categories'){
+    backToCategoriesGrid();
+    renderCategoriesGrid();
   }
 }
 document.querySelectorAll('.site-nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> showSection(btn.dataset.section));
 });
+
+/* =========================================================
+   Navigation par catégorie (section "Catégories")
+   ========================================================= */
+let selectedCategoryKey = null;
+let categoryVideosCache = {}; // catégorie -> { docs, loading, loaded, error }
+
+function chunkArray(arr, size){
+  const out = [];
+  for(let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function renderCategoriesGrid(){
+  const grid = document.getElementById('categories-grid');
+  if(!grid) return;
+  grid.innerHTML = Object.keys(CERT_CATEGORIES).map(key=>{
+    const info = CERT_CATEGORIES[key];
+    const count = (categoryChannelsMap.get(key) || []).length;
+    return `
+      <div class="category-card" data-category-key="${key}">
+        ${categoryBadgeSvgSized(key, 34)}
+        <div class="category-card-label">${escapeHtml(info.label)}</div>
+        <div class="category-card-count">${count} chaîne${count > 1 ? 's' : ''}</div>
+      </div>
+    `;
+  }).join('');
+  grid.querySelectorAll('[data-category-key]').forEach(card=>{
+    card.addEventListener('click', ()=> openCategoryView(card.dataset.categoryKey));
+  });
+}
+
+function openCategoryView(key){
+  if(!CERT_CATEGORIES[key]) return;
+  selectedCategoryKey = key;
+  document.getElementById('categories-grid-view').style.display = 'none';
+  document.getElementById('categories-videos-view').style.display = '';
+  const info = CERT_CATEGORIES[key];
+  const subtitleEl = document.getElementById('category-videos-subtitle');
+  if(subtitleEl) subtitleEl.innerHTML = `${categoryBadgeSvgSized(key, 20)}<span>${escapeHtml(info.label)}</span>`;
+  loadCategoryVideos(key);
+}
+
+function backToCategoriesGrid(){
+  selectedCategoryKey = null;
+  const gridView = document.getElementById('categories-grid-view');
+  const videosView = document.getElementById('categories-videos-view');
+  if(videosView) videosView.style.display = 'none';
+  if(gridView) gridView.style.display = '';
+}
+
+const categoriesBackLink = document.getElementById('categories-back-link');
+if(categoriesBackLink){
+  categoriesBackLink.addEventListener('click', (e)=>{
+    e.preventDefault();
+    backToCategoriesGrid();
+  });
+}
+
+async function loadCategoryVideos(catKey, force){
+  if(!CERT_CATEGORIES[catKey]) return;
+  const cache = categoryVideosCache[catKey] || (categoryVideosCache[catKey] = { docs: [], loading:false, loaded:false, error:false });
+  if(cache.loaded && !force){ renderCategoryVideosView(); return; }
+  if(cache.loading) return;
+
+  const channels = categoryChannelsMap.get(catKey) || [];
+  if(channels.length === 0){
+    cache.docs = [];
+    cache.loading = false;
+    cache.loaded = true;
+    cache.error = false;
+    renderCategoryVideosView();
+    return;
+  }
+
+  cache.loading = true;
+  cache.error = false;
+  renderCategoryVideosView();
+  try{
+    const ids = channels.map(c => c.id);
+    const chunks = chunkArray(ids, 10);
+    const results = await Promise.all(chunks.map(chunk =>
+      videosRef.where('channelId', 'in', chunk).limit(300).get()
+    ));
+    const seen = new Set();
+    const all = [];
+    results.forEach(snap=>{
+      snap.docs.forEach(d=>{
+        if(!seen.has(d.id)){
+          seen.add(d.id);
+          all.push({ id: d.id, ...d.data() });
+        }
+      });
+    });
+    all.sort((a, b) => effectiveMillis(b) - effectiveMillis(a));
+    cache.docs = all;
+    await ensureChannelsLoadedForDocs(cache.docs);
+  }catch(e){
+    console.error('Erreur chargement des vidéos de la catégorie :', e);
+    cache.error = true;
+  }finally{
+    cache.loading = false;
+    cache.loaded = true;
+    renderCategoryVideosView();
+  }
+}
+
+function renderCategoryVideosView(){
+  if(!selectedCategoryKey) return;
+  const cache = categoryVideosCache[selectedCategoryKey] || {};
+  const list = cache.loading ? [] : (cache.docs || []);
+  const emptyMsg = cache.loading
+    ? 'Chargement des vidéos…'
+    : cache.error
+      ? "Impossible de charger les vidéos de cette catégorie pour le moment. Réessaie dans un instant."
+      : "Aucune vidéo dans cette catégorie pour l'instant.";
+  renderVideoGrid('category-videos-grid', 'category-videos-count', list, emptyMsg, null, false);
+}
 
 /* =========================================================
    Chargement paginé des vidéos
@@ -4561,6 +4752,7 @@ function renderAllSections(){
   renderPlaylistsSection();
   renderHistorySection();
   renderLivesSection();
+  if(selectedCategoryKey) renderCategoryVideosView();
   updatePlayerActionButtons();
 }
 
@@ -6688,20 +6880,22 @@ async function renderChannelsList(){
     container.innerHTML = docsSorted.map(doc=>{
       const ch = doc.data();
       const isCertified = !!ch.certified;
-      const cat = CERT_CATEGORIES[ch.certifiedCategory] ? ch.certifiedCategory : DEFAULT_CERT_CATEGORY;
+      const rawCat = CERT_CATEGORIES[ch.certifiedCategory] ? ch.certifiedCategory : '';
+      const badgeCat = rawCat || DEFAULT_CERT_CATEGORY;
       const name = ch.channelTitle || ('Chaîne sans nom (' + doc.id + ')');
-      const categoryOptions = Object.keys(CERT_CATEGORIES).map(key=>
-        `<option value="${key}" ${key===cat ? 'selected' : ''}>${escapeHtml(CERT_CATEGORIES[key].label)}</option>`
-      ).join('');
+      const categoryOptions = `<option value="" ${rawCat ? '' : 'selected'}>— Aucune catégorie —</option>` +
+        Object.keys(CERT_CATEGORIES).map(key=>
+          `<option value="${key}" ${key===rawCat ? 'selected' : ''}>${escapeHtml(CERT_CATEGORIES[key].label)}</option>`
+        ).join('');
       return `
         <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
-          <span class="channel-row-name"><span class="channel-row-name-text">${escapeHtml(name)}</span>${isCertified ? certBadgeSvgForCategory(cat) : ''}</span>
+          <span class="channel-row-name"><span class="channel-row-name-text">${escapeHtml(name)}</span>${isCertified ? certBadgeSvgForCategory(badgeCat) : ''}</span>
           <div class="channel-row-actions">
             <label class="channel-row-certify" title="Afficher un badge à côté du nom de cette chaîne partout sur le site">
               <input type="checkbox" data-certify-id="${escapeHtml(doc.id)}" ${isCertified ? 'checked' : ''}>
               Certifiée
             </label>
-            <select class="channel-row-cert-category" data-certify-category-id="${escapeHtml(doc.id)}" ${isCertified ? '' : 'disabled'} title="Catégorie du badge de certification">
+            <select class="channel-row-cert-category" data-certify-category-id="${escapeHtml(doc.id)}" title="Catégorie de la chaîne (utilisée pour le badge et pour la navigation par catégorie)">
               ${categoryOptions}
             </select>
             <button class="channel-row-untrack" data-untrack-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
@@ -6735,15 +6929,13 @@ async function renderChannelsList(){
         const select = row.querySelector('[data-certify-category-id]');
         chk.disabled = true;
         try{
-          const payload = { certified: chk.checked };
-          if(chk.checked) payload.certifiedCategory = select.value || DEFAULT_CERT_CATEGORY;
-          await trackedChannelsRef.doc(id).set(payload, { merge:true });
-          select.disabled = !chk.checked;
+          await trackedChannelsRef.doc(id).set({ certified: chk.checked }, { merge:true });
           const nameEl = row.querySelector('.channel-row-name');
           const existingBadge = nameEl.querySelector('.cert-badge');
           if(existingBadge) existingBadge.remove();
           if(chk.checked){
-            nameEl.insertAdjacentHTML('beforeend', certBadgeSvgForCategory(select.value || DEFAULT_CERT_CATEGORY));
+            const badgeCat = (select && CERT_CATEGORIES[select.value]) ? select.value : DEFAULT_CERT_CATEGORY;
+            nameEl.insertAdjacentHTML('beforeend', certBadgeSvgForCategory(badgeCat));
           }
         }catch(err){
           console.error(err);
@@ -6761,16 +6953,20 @@ async function renderChannelsList(){
         const chk = row.querySelector('[data-certify-id]');
         sel.disabled = true;
         try{
-          await trackedChannelsRef.doc(id).set({ certifiedCategory: sel.value }, { merge:true });
+          const payload = sel.value
+            ? { certifiedCategory: sel.value }
+            : { certifiedCategory: firebase.firestore.FieldValue.delete() };
+          await trackedChannelsRef.doc(id).set(payload, { merge:true });
           if(chk && chk.checked){
             const nameEl = row.querySelector('.channel-row-name');
             const existingBadge = nameEl.querySelector('.cert-badge');
             if(existingBadge) existingBadge.remove();
-            nameEl.insertAdjacentHTML('beforeend', certBadgeSvgForCategory(sel.value));
+            const badgeCat = CERT_CATEGORIES[sel.value] ? sel.value : DEFAULT_CERT_CATEGORY;
+            nameEl.insertAdjacentHTML('beforeend', certBadgeSvgForCategory(badgeCat));
           }
         }catch(err){
           console.error(err);
-          alert("Impossible de mettre à jour la catégorie du badge.");
+          alert("Impossible de mettre à jour la catégorie de cette chaîne.");
         }finally{
           sel.disabled = false;
         }
