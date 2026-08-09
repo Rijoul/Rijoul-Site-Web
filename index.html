@@ -359,7 +359,6 @@
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
-    -webkit-text-stroke: 0.5px var(--cream);
     paint-order: stroke fill;
     /* Remplace l'ancien "filter: drop-shadow(...)" par des text-shadow :
        combiner filter + -webkit-text-stroke + background-clip:text force
@@ -373,13 +372,12 @@
       0 0 10px rgba(255,166,64,0.35),
       0 0 26px rgba(255,166,64,0.18),
       0 6px 16px rgba(0,0,0,0.12);
-    transition: text-shadow .4s ease, -webkit-text-stroke-color .4s ease;
+    transition: text-shadow .4s ease;
   }
-  /* Version "néon braise" du titre en mode sombre : contour plus discret
-     et double lueur rouge (proche + diffuse) façon enseigne lumineuse,
-     assortie à la couleur de marque. */
+  /* Version "néon braise" du titre en mode sombre : double lueur rouge
+     (proche + diffuse) façon enseigne lumineuse, assortie à la couleur
+     de marque. */
   body.dark-mode h1.brand{
-    -webkit-text-stroke: 0.5px rgba(255,84,112,0.35);
     text-shadow:
       0 0 14px rgba(238,28,60,0.65),
       0 0 38px rgba(238,28,60,0.35),
