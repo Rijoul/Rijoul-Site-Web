@@ -328,7 +328,12 @@
   /* ---------- Header / Hero ---------- */
   header{
     position: relative; z-index:1;
-    padding: 9vh 6vw 6vh;
+    /* Les boutons "Connexion" / mode sombre sont en position fixe en haut
+       de la page (top: 4.4rem). On garantit ici une marge minimale sous
+       ces boutons (max(...)) afin que le titre RIJOUL VISION ne passe
+       jamais derrière eux, même sur les fenêtres peu hautes où 9vh serait
+       insuffisant. */
+    padding: max(9vh, 8.5rem) 6vw 6vh;
     text-align:center;
   }
   .eyebrow{
@@ -1612,6 +1617,7 @@
     <button class="site-nav-btn" data-section="section-lives">Lives</button>
     <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
     <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
+    <button class="site-nav-btn" data-section="section-historique">Historique</button>
   </nav>
 </header>
 
@@ -1715,6 +1721,21 @@
       <div class="section-count" id="subs-shorts-count"></div>
     </div>
     <div class="grid shorts-grid" id="subs-shorts-grid"></div>
+  </section>
+
+  <section class="page-section" id="section-historique">
+    <div class="section-head">
+      <div class="section-title">Historique</div>
+      <div class="section-count-row">
+        <button class="btn" id="clear-history-btn" style="padding:0.6rem 1.2rem; font-size:0.78rem; border-color:var(--cream-2); color:var(--dark-text); display:none;">Vider l'historique</button>
+      </div>
+    </div>
+    <p class="subs-intro" id="history-intro">Connecte-toi pour retrouver ici les vidéos que tu as déjà regardées.</p>
+    <div class="section-head">
+      <div class="section-subtitle" id="history-videos-subtitle" style="margin:0;">Vidéos déjà regardées</div>
+      <div class="section-count" id="history-videos-count"></div>
+    </div>
+    <div class="grid" id="history-grid"></div>
   </section>
 
   <section class="page-section" id="section-search">
@@ -2326,6 +2347,10 @@ let userReactions = {};
 let reactionInFlight = new Set();
 let userWatched = {};
 let userWatchedUnsub = null;
+let historyVideos = [];
+let historyLoading = false;
+let historyLoaded = false;
+let historyFetchSeq = 0;
 
 let ytPlayerInstance = null;
 let ytProgressInterval = null;
@@ -2762,6 +2787,8 @@ function showSection(id){
     loadFirstPage('long');
   }else if(id === 'section-playlists'){
     if(isConnected) loadUserPlaylists(auth.currentUser.uid);
+  }else if(id === 'section-historique'){
+    if(isConnected && !historyLoaded && !historyLoading) refreshHistoryVideos();
   }else if(id === 'section-lives'){
     attachLiveStreamsListener();
   }
@@ -2924,10 +2951,72 @@ function subscribeToUserWatched(uid){
   userWatchedUnsub = userWatchedRef.doc(uid).onSnapshot((snap)=>{
     userWatched = (snap.exists && snap.data().watched) || {};
     renderAllSections();
+    refreshHistoryVideos();
   }, (e)=>{
     console.warn('Impossible de synchroniser les vidéos déjà vues :', e);
   });
 }
+
+/* =========================================================
+   Section Historique — liste des vidéos déjà regardées par
+   l'utilisateur connecté, la plus récente en premier.
+   ========================================================= */
+async function refreshHistoryVideos(){
+  if(!isConnected){
+    historyVideos = [];
+    historyLoaded = false;
+    renderAllSections();
+    return;
+  }
+  const ids = Object.keys(userWatched)
+    .sort((a, b) => (userWatched[b].lastWatchedAt || 0) - (userWatched[a].lastWatchedAt || 0));
+
+  if(ids.length === 0){
+    historyVideos = [];
+    historyLoaded = true;
+    renderAllSections();
+    return;
+  }
+
+  const seq = ++historyFetchSeq;
+  historyLoading = true;
+  renderAllSections();
+  try{
+    const map = await fetchVideosByIds(ids);
+    if(seq !== historyFetchSeq) return; // une actualisation plus récente a démarré entre-temps
+    historyVideos = ids.map(id => map[id]).filter(Boolean);
+  }catch(e){
+    console.warn("Impossible de charger l'historique de visionnage :", e);
+  }finally{
+    if(seq === historyFetchSeq){
+      historyLoading = false;
+      historyLoaded = true;
+      renderAllSections();
+    }
+  }
+}
+
+async function clearWatchHistory(){
+  if(!isConnected || !auth.currentUser) return;
+  if(!confirm("Vider tout ton historique de visionnage ? Cette action est irréversible.")) return;
+  const prevWatched = userWatched;
+  const prevHistory = historyVideos;
+  userWatched = {};
+  historyVideos = [];
+  renderAllSections();
+  try{
+    await userWatchedRef.doc(auth.currentUser.uid).set({
+      watched: {},
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){
+    console.warn("Impossible de vider l'historique :", e);
+    userWatched = prevWatched;
+    historyVideos = prevHistory;
+    renderAllSections();
+  }
+}
+document.getElementById('clear-history-btn').addEventListener('click', clearWatchHistory);
 
 /* userWatched[id] = { seconds, duration, completed } */
 function watchRatio(entry){
@@ -2955,6 +3044,7 @@ async function saveWatchProgress(videoId, seconds, duration){
   }else{
     entry = { seconds: null, duration: null, completed: true };
   }
+  entry.lastWatchedAt = Date.now();
   const prev = userWatched[videoId];
   if(prev && prev.completed === entry.completed && Math.floor(prev.seconds||0) === Math.floor(entry.seconds||0) && prev.duration === entry.duration) return;
 
@@ -4096,8 +4186,38 @@ function renderAllSections(){
   }
   renderSubsSection();
   renderPlaylistsSection();
+  renderHistorySection();
   renderLivesSection();
   updatePlayerActionButtons();
+}
+
+function renderHistorySection(){
+  const intro = document.getElementById('history-intro');
+  const clearBtn = document.getElementById('clear-history-btn');
+
+  if(!isConnected){
+    intro.textContent = "Connecte-toi pour retrouver ici les vidéos que tu as déjà regardées.";
+    clearBtn.style.display = 'none';
+    renderVideoGrid('history-grid', 'history-videos-count', [], "Connecte-toi pour voir ton historique de visionnage.", null, false);
+    return;
+  }
+
+  clearBtn.style.display = historyVideos.length > 0 ? '' : 'none';
+
+  if(historyLoading && !historyLoaded){
+    intro.textContent = "Chargement de ton historique…";
+    renderVideoGrid('history-grid', 'history-videos-count', [], "Chargement…", null, false);
+    return;
+  }
+
+  if(historyVideos.length === 0){
+    intro.textContent = "Tu n'as encore regardé aucune vidéo. Les vidéos que tu regardes apparaîtront ici, dans l'ordre de ton dernier visionnage.";
+    renderVideoGrid('history-grid', 'history-videos-count', [], "Aucune vidéo dans ton historique pour l'instant.", null, false);
+    return;
+  }
+
+  intro.textContent = `${historyVideos.length} vidéo${historyVideos.length > 1 ? 's' : ''} déjà regardée${historyVideos.length > 1 ? 's' : ''}, classée${historyVideos.length > 1 ? 's' : ''} de la plus récente à la plus ancienne.`;
+  renderVideoGrid('history-grid', 'history-videos-count', historyVideos, "Aucune vidéo dans ton historique pour l'instant.", null, false);
 }
 
 function renderSubsSection(){
@@ -7320,6 +7440,9 @@ auth.onAuthStateChanged(async (user)=>{
     userReactions = {};
     userWatched = {};
     if(userWatchedUnsub){ userWatchedUnsub(); userWatchedUnsub = null; }
+    historyVideos = [];
+    historyLoaded = false;
+    historyLoading = false;
   }
 
   if(realUser){
@@ -7345,7 +7468,7 @@ auth.onAuthStateChanged(async (user)=>{
    Section initiale
    ========================================================= */
 (function initialSection(){
-  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-lives', 'section-playlists', 'section-subs', 'section-search'];
+  const validIds = ['section-home', 'section-videos', 'section-shorts', 'section-lives', 'section-playlists', 'section-subs', 'section-historique', 'section-search'];
   const hash = (location.hash || '').replace('#','');
   showSection(validIds.includes(hash) ? hash : 'section-home');
 })();
