@@ -440,8 +440,38 @@
   .grid{
     display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.8rem;
   }
+  /* ---------- Shorts : défilement horizontal ----------
+     Au lieu d'un grid qui s'enroule sur plusieurs lignes, la section
+     Shorts (et toute liste partageant .shorts-grid : abonnements,
+     recherche...) devient un rail qui défile horizontalement, comme
+     sur YouTube/TikTok. Chaque carte garde une largeur fixe, le
+     scroll-snap permet un défilement propre au doigt/trackpad, et la
+     molette verticale est convertie en scroll horizontal en JS pour
+     un usage confortable à la souris. */
   .grid.shorts-grid{
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    display:flex;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scroll-snap-type:x proximity;
+    -webkit-overflow-scrolling:touch;
+    scroll-behavior:smooth;
+    padding-bottom:0.9rem;
+    margin-bottom:-0.9rem;
+    cursor:grab;
+  }
+  .grid.shorts-grid.is-dragging{ cursor:grabbing; scroll-snap-type:none; }
+  .grid.shorts-grid > *{
+    flex:0 0 auto;
+    width:200px;
+    scroll-snap-align:start;
+  }
+  .grid.shorts-grid::-webkit-scrollbar{ height:8px; }
+  .grid.shorts-grid::-webkit-scrollbar-track{ background:rgba(255,255,255,0.15); border-radius:10px; }
+  .grid.shorts-grid::-webkit-scrollbar-thumb{ background: var(--red); border-radius:10px; }
+  .grid.shorts-grid{ scrollbar-width:thin; scrollbar-color: var(--red) rgba(255,255,255,0.15); }
+  @media (max-width: 640px){
+    .grid.shorts-grid > *{ width:150px; }
   }
 
   .card{
@@ -1106,13 +1136,29 @@
     background:#fffaf1; border:2px solid var(--cream-2); border-radius:14px;
     padding:0.7rem 0.9rem; margin-bottom:0.6rem;
   }
-  .channel-row-name{ font-family:'Baloo 2'; font-weight:700; font-size:0.9rem; color: var(--dark-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .channel-row-name{ font-family:'Baloo 2'; font-weight:700; font-size:0.9rem; color: var(--dark-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:0.35rem; min-width:0; }
+  .channel-row-name span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .channel-row-actions{ display:flex; align-items:center; gap:0.9rem; flex-shrink:0; }
+  .channel-row-certify{
+    display:flex; align-items:center; gap:0.35rem; cursor:pointer; user-select:none;
+    font-family:'Fredoka'; font-weight:600; font-size:0.72rem; letter-spacing:0.02em; color:#a06a00;
+    white-space:nowrap;
+  }
+  .channel-row-certify input{ width:16px; height:16px; accent-color:#ffb300; cursor:pointer; margin:0; }
   .channel-row-untrack{
     flex-shrink:0; background: var(--red); color: var(--cream); border:none; border-radius:999px;
     font-family:'Fredoka'; font-weight:600; font-size:0.7rem; letter-spacing:0.02em; text-transform:uppercase;
     padding:0.45rem 0.9rem; cursor:pointer;
   }
   .channel-row-untrack:hover{ background:#ff2d4d; }
+
+  /* ---------- Badge doré "chaîne certifiée" ----------
+     Icône (petite médaille/étoile dorée) affichée juste après le nom
+     de la chaîne, partout où ce nom apparaît (cartes vidéos, lives,
+     lecteur, abonnements, gestion des chaînes...). */
+  .cert-badge{ flex-shrink:0; vertical-align:-2px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
+  .card-author{ display:flex; align-items:center; gap:0.3rem; flex-wrap:wrap; }
+  .sub-channel-name{ display:flex; align-items:center; justify-content:center; gap:0.3rem; }
 
   footer{
     position:relative; z-index:1; text-align:center; padding: 3rem 1rem 4rem;
@@ -2394,6 +2440,43 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const videosRef = db.collection(COLLECTION_NAME);
 const trackedChannelsRef = db.collection('trackedChannels');
+
+/* ---------- Badge de certification (chaîne certifiée) ----------
+   certifiedChannelIds  : Set des channelId Firestore marqués "certified".
+   certifiedChannelNames: Set des noms de chaîne normalisés correspondants,
+                          pour retrouver les vidéos qui n'ont pas de
+                          channelId enregistré (ajoutées manuellement) mais
+                          dont le nom d'auteur correspond à une chaîne
+                          suivie certifiée.
+   Rafraîchis en temps réel via onSnapshot pour que le badge apparaisse/
+   disparaisse partout dès qu'un admin coche/décoche la case. */
+let certifiedChannelIds = new Set();
+let certifiedChannelNames = new Set();
+trackedChannelsRef.onSnapshot((snap)=>{
+  const ids = new Set();
+  const names = new Set();
+  snap.forEach(doc=>{
+    const data = doc.data();
+    if(data && data.certified){
+      ids.add(doc.id);
+      if(data.channelTitle) names.add(normalizeAuthorKey(data.channelTitle));
+    }
+  });
+  certifiedChannelIds = ids;
+  certifiedChannelNames = names;
+  renderAllSections();
+}, (err)=>{ console.error('Erreur suivi des chaînes certifiées :', err); });
+
+function isChannelCertified(v){
+  if(!v) return false;
+  if(v.channelId && certifiedChannelIds.has(v.channelId)) return true;
+  if(v.author && certifiedChannelNames.has(normalizeAuthorKey(v.author))) return true;
+  return false;
+}
+const CERT_BADGE_SVG = '<svg class="cert-badge" viewBox="0 0 24 24" width="14" height="14" title="Chaîne certifiée" aria-label="Chaîne certifiée"><path fill="#ffd447" stroke="#c98a00" stroke-width="1" d="M12 1.5l2.6 2.02 3.28-.4 1.02 3.16 2.9 1.68-1.02 3.16 1.02 3.16-2.9 1.68-1.02 3.16-3.28-.4L12 21.7l-2.6-2.02-3.28.4-1.02-3.16-2.9-1.68 1.02-3.16-1.02-3.16 2.9-1.68 1.02-3.16 3.28.4z"/><path fill="#fff" d="M10.6 15.4l-3.1-3.1 1.2-1.2 1.9 1.9 4.2-4.2 1.2 1.2z"/></svg>';
+function certifiedBadgeHtml(v){
+  return isChannelCertified(v) ? CERT_BADGE_SVG : '';
+}
 const trackedTwitchChannelsRef = db.collection('trackedTwitchChannels');
 const liveStreamsRef = db.collection('liveStreams');
 const liveChatMessagesRef = db.collection('liveChatMessages');
@@ -3030,6 +3113,54 @@ function sectionKeyOfLoadedVideo(id){
 document.getElementById('load-more-home').addEventListener('click', ()=> loadMore('long'));
 document.getElementById('load-more-videos').addEventListener('click', ()=> loadMore('long'));
 document.getElementById('load-more-shorts').addEventListener('click', ()=> loadMore('short'));
+
+/* ---------- Shorts : molette + glisser-déposer pour le rail horizontal ----------
+   Convertit le scroll vertical de la molette en scroll horizontal quand la
+   souris survole un rail .shorts-grid, et permet de "glisser" le rail à la
+   souris (comme au doigt sur mobile) pour les navigateurs desktop. */
+(function setupShortsHorizontalScroll(){
+  function bindRail(el){
+    if(!el || el.dataset.hscrollBound) return;
+    el.dataset.hscrollBound = '1';
+
+    el.addEventListener('wheel', (e)=>{
+      if(Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // déjà horizontal (trackpad) : laisser faire
+      if(el.scrollWidth <= el.clientWidth) return; // rien à défiler
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    }, { passive:false });
+
+    let isDown = false, startX = 0, startScroll = 0, moved = false;
+    el.addEventListener('mousedown', (e)=>{
+      isDown = true; moved = false;
+      startX = e.pageX; startScroll = el.scrollLeft;
+      el.classList.add('is-dragging');
+    });
+    window.addEventListener('mouseup', ()=>{ isDown = false; el.classList.remove('is-dragging'); });
+    window.addEventListener('mousemove', (e)=>{
+      if(!isDown) return;
+      const dx = e.pageX - startX;
+      if(Math.abs(dx) > 4) moved = true;
+      el.scrollLeft = startScroll - dx;
+    });
+    // Empêche le clic sur une carte de déclencher l'ouverture de la vidéo
+    // juste après un glisser (sinon on ouvrirait une vidéo par erreur).
+    el.addEventListener('click', (e)=>{
+      if(moved){ e.stopPropagation(); e.preventDefault(); moved = false; }
+    }, true);
+  }
+
+  function bindAllRails(){
+    document.querySelectorAll('.grid.shorts-grid').forEach(bindRail);
+  }
+
+  bindAllRails();
+  // Les rails "shorts" sont regénérés dynamiquement (nouvelles vidéos,
+  // changement de section...) : on ré-attache automatiquement le
+  // comportement de scroll à chaque mutation du DOM.
+  const shortsObserver = new MutationObserver(bindAllRails);
+  shortsObserver.observe(document.body, { childList:true, subtree:true });
+})();
 
 document.getElementById('refresh-home-link').addEventListener('click', ()=> loadFirstPage('long', true));
 document.getElementById('refresh-videos-link').addEventListener('click', ()=> loadFirstPage('long', true));
@@ -4243,7 +4374,7 @@ function cardHtml(v, i){
       <div class="card-body">
         <p class="card-title">${escapeHtml(v.title)}</p>
         <div class="card-date">${formatDate(effectiveDate(v))}</div>
-        ${v.author ? `<div class="card-author">${escapeHtml(v.author)}${subsCountHtml(v)}</div>` : ''}
+        ${v.author ? `<div class="card-author">${escapeHtml(v.author)}${certifiedBadgeHtml(v)}${subsCountHtml(v)}</div>` : ''}
         ${v.description ? `<p class="card-desc">${escapeHtml(v.description)}</p>` : ''}
         <div class="card-actions">
           ${reactionButtonsHtml(v)}
@@ -4393,7 +4524,7 @@ function renderSubsSection(){
         <div class="sub-channel-card ${isSelected ? 'selected' : ''}" data-channel-cdid="${ch.cdId}">
           <button class="sub-channel-untrack" data-unsubscribe-cdid="${ch.cdId}" title="Se désabonner">✕</button>
           <div class="sub-channel-avatar">${escapeHtml(initial)}</div>
-          <div class="sub-channel-name">${escapeHtml(ch.name)}</div>
+          <div class="sub-channel-name">${escapeHtml(ch.name)}${certifiedBadgeHtml({ author: ch.name })}</div>
           <div class="sub-channel-meta">${ch.count} abonné${ch.count > 1 ? 's' : ''}</div>
           <div class="sub-channel-hint">${isSelected ? 'Vidéos affichées ↓' : 'Voir les vidéos →'}</div>
         </div>
@@ -4488,7 +4619,7 @@ function liveCardHtml(l){
       </div>
       <div class="card-body">
         <p class="card-title">${escapeHtml(l.title || 'Live')}</p>
-        ${l.author ? `<div class="card-author">${escapeHtml(l.author)}</div>` : ''}
+        ${l.author ? `<div class="card-author">${escapeHtml(l.author)}${certifiedBadgeHtml(l)}</div>` : ''}
       </div>
     </div>
   `;
@@ -5019,7 +5150,7 @@ function playLiveStream(l){
 
   document.getElementById('player-info-bar').style.display = 'flex';
   document.getElementById('player-info-title').textContent = l.title || 'Live';
-  document.getElementById('player-info-author').textContent = l.author || '';
+  document.getElementById('player-info-author').innerHTML = l.author ? `${escapeHtml(l.author)}${certifiedBadgeHtml(l)}` : '';
   document.getElementById('player-info-desc').textContent = '';
   resetDescToggle();
   document.getElementById('player-info-avatar').textContent = (l.author || l.title || '?').trim().charAt(0).toUpperCase();
@@ -5341,7 +5472,7 @@ function playVideo(v){
   const infoDesc = document.getElementById('player-info-desc');
   infoBar.style.display = 'flex';
   document.getElementById('player-info-title').textContent = title || 'Vidéo sans titre';
-  document.getElementById('player-info-author').textContent = author || '';
+  document.getElementById('player-info-author').innerHTML = author ? `${escapeHtml(author)}${certifiedBadgeHtml(v)}` : '';
   infoDesc.textContent = description || '';
   resetDescToggle();
   const avatar = document.getElementById('player-info-avatar');
@@ -6338,10 +6469,18 @@ async function renderChannelsList(){
     });
     container.innerHTML = docsSorted.map(doc=>{
       const ch = doc.data();
+      const isCertified = !!ch.certified;
+      const name = ch.channelTitle || ('Chaîne sans nom (' + doc.id + ')');
       return `
         <div class="channel-row" data-channel-id="${escapeHtml(doc.id)}">
-          <span class="channel-row-name">${escapeHtml(ch.channelTitle || ('Chaîne sans nom (' + doc.id + ')'))}</span>
-          <button class="channel-row-untrack" data-untrack-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
+          <span class="channel-row-name"><span class="channel-row-name-text">${escapeHtml(name)}</span>${isCertified ? CERT_BADGE_SVG : ''}</span>
+          <div class="channel-row-actions">
+            <label class="channel-row-certify" title="Afficher un badge doré à côté du nom de cette chaîne partout sur le site">
+              <input type="checkbox" data-certify-id="${escapeHtml(doc.id)}" ${isCertified ? 'checked' : ''}>
+              Certifiée
+            </label>
+            <button class="channel-row-untrack" data-untrack-id="${escapeHtml(doc.id)}">Ne plus suivre</button>
+          </div>
         </div>
       `;
     }).join('');
@@ -6349,7 +6488,7 @@ async function renderChannelsList(){
       btn.addEventListener('click', async ()=>{
         const id = btn.dataset.untrackId;
         const row = btn.closest('.channel-row');
-        const name = row.querySelector('.channel-row-name').textContent;
+        const name = row.querySelector('.channel-row-name-text').textContent;
         if(!confirm(`Arrêter de suivre « ${name} » ? (les vidéos déjà importées resteront sur le site)`)) return;
         btn.disabled = true;
         btn.textContent = '…';
@@ -6361,6 +6500,28 @@ async function renderChannelsList(){
           alert("Impossible de retirer cette chaîne.");
           btn.disabled = false;
           btn.textContent = 'Ne plus suivre';
+        }
+      });
+    });
+    container.querySelectorAll('[data-certify-id]').forEach(chk=>{
+      chk.addEventListener('change', async ()=>{
+        const id = chk.dataset.certifyId;
+        chk.disabled = true;
+        try{
+          await trackedChannelsRef.doc(id).set({ certified: chk.checked }, { merge:true });
+          const nameEl = chk.closest('.channel-row').querySelector('.channel-row-name');
+          const existingBadge = nameEl.querySelector('.cert-badge');
+          if(chk.checked && !existingBadge){
+            nameEl.insertAdjacentHTML('beforeend', CERT_BADGE_SVG);
+          }else if(!chk.checked && existingBadge){
+            existingBadge.remove();
+          }
+        }catch(err){
+          console.error(err);
+          alert("Impossible de mettre à jour la certification de cette chaîne.");
+          chk.checked = !chk.checked;
+        }finally{
+          chk.disabled = false;
         }
       });
     });
@@ -6962,7 +7123,7 @@ function renderSearchChannelsGrid(list){
     return `
       <div class="sub-channel-card" data-search-channel-name="${escapeHtml(ch.name)}">
         <div class="sub-channel-avatar">${escapeHtml(initial)}</div>
-        <div class="sub-channel-name">${escapeHtml(ch.name)}</div>
+        <div class="sub-channel-name">${escapeHtml(ch.name)}${certifiedBadgeHtml({ author: ch.name })}</div>
         <div class="sub-channel-meta">${ch.count} abonné${ch.count > 1 ? 's' : ''}</div>
         <div class="sub-channel-hint">Voir les vidéos →</div>
       </div>
