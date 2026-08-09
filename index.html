@@ -1868,6 +1868,12 @@
       <div class="section-count" id="history-videos-count"></div>
     </div>
     <div class="grid" id="history-grid"></div>
+
+    <div class="section-head" id="history-shorts-head" style="margin-top:2.4rem; display:none;">
+      <div class="section-subtitle" style="margin:0;">Shorts déjà regardés</div>
+      <div class="section-count" id="history-shorts-count"></div>
+    </div>
+    <div class="grid shorts-grid" id="history-shorts-grid"></div>
   </section>
 
   <section class="page-section" id="section-search">
@@ -4412,11 +4418,14 @@ function renderAllSections(){
 function renderHistorySection(){
   const intro = document.getElementById('history-intro');
   const clearBtn = document.getElementById('clear-history-btn');
+  const shortsHead = document.getElementById('history-shorts-head');
 
   if(!isConnected){
     intro.textContent = "Connecte-toi pour retrouver ici les vidéos que tu as déjà regardées.";
     clearBtn.style.display = 'none';
     renderVideoGrid('history-grid', 'history-videos-count', [], "Connecte-toi pour voir ton historique de visionnage.", null, false);
+    renderVideoGrid('history-shorts-grid', 'history-shorts-count', [], "", null, false);
+    shortsHead.style.display = 'none';
     return;
   }
 
@@ -4425,17 +4434,31 @@ function renderHistorySection(){
   if(historyLoading && !historyLoaded){
     intro.textContent = "Chargement de ton historique…";
     renderVideoGrid('history-grid', 'history-videos-count', [], "Chargement…", null, false);
+    renderVideoGrid('history-shorts-grid', 'history-shorts-count', [], "", null, false);
+    shortsHead.style.display = 'none';
     return;
   }
 
   if(historyVideos.length === 0){
     intro.textContent = "Tu n'as encore regardé aucune vidéo. Les vidéos que tu regardes apparaîtront ici, dans l'ordre de ton dernier visionnage.";
     renderVideoGrid('history-grid', 'history-videos-count', [], "Aucune vidéo dans ton historique pour l'instant.", null, false);
+    renderVideoGrid('history-shorts-grid', 'history-shorts-count', [], "", null, false);
+    shortsHead.style.display = 'none';
     return;
   }
 
+  // Sépare les vidéos "longues" des shorts, chacun classé de la plus
+  // récente à la plus ancienne (l'ordre déjà présent dans historyVideos
+  // est conservé), pour afficher deux listes distinctes plutôt qu'un
+  // mélange, avec les vidéos en premier et les shorts en dessous.
+  const historyLong = historyVideos.filter(v => !v.isShort);
+  const historyShorts = historyVideos.filter(v => v.isShort);
+
   intro.textContent = `${historyVideos.length} vidéo${historyVideos.length > 1 ? 's' : ''} déjà regardée${historyVideos.length > 1 ? 's' : ''}, classée${historyVideos.length > 1 ? 's' : ''} de la plus récente à la plus ancienne.`;
-  renderVideoGrid('history-grid', 'history-videos-count', historyVideos, "Aucune vidéo dans ton historique pour l'instant.", null, false);
+  renderVideoGrid('history-grid', 'history-videos-count', historyLong, "Aucune vidéo (format long) dans ton historique pour l'instant.", null, false);
+
+  shortsHead.style.display = historyShorts.length > 0 ? '' : 'none';
+  renderVideoGrid('history-shorts-grid', 'history-shorts-count', historyShorts, "", null, false);
 }
 
 function renderSubsSection(){
