@@ -440,38 +440,8 @@
   .grid{
     display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.8rem;
   }
-  /* ---------- Shorts : défilement horizontal ----------
-     Au lieu d'un grid qui s'enroule sur plusieurs lignes, la section
-     Shorts (et toute liste partageant .shorts-grid : abonnements,
-     recherche...) devient un rail qui défile horizontalement, comme
-     sur YouTube/TikTok. Chaque carte garde une largeur fixe, le
-     scroll-snap permet un défilement propre au doigt/trackpad, et la
-     molette verticale est convertie en scroll horizontal en JS pour
-     un usage confortable à la souris. */
   .grid.shorts-grid{
-    display:flex;
-    flex-wrap:nowrap;
-    overflow-x:auto;
-    overflow-y:hidden;
-    scroll-snap-type:x proximity;
-    -webkit-overflow-scrolling:touch;
-    scroll-behavior:smooth;
-    padding-bottom:0.9rem;
-    margin-bottom:-0.9rem;
-    cursor:grab;
-  }
-  .grid.shorts-grid.is-dragging{ cursor:grabbing; scroll-snap-type:none; }
-  .grid.shorts-grid > *{
-    flex:0 0 auto;
-    width:200px;
-    scroll-snap-align:start;
-  }
-  .grid.shorts-grid::-webkit-scrollbar{ height:8px; }
-  .grid.shorts-grid::-webkit-scrollbar-track{ background:rgba(255,255,255,0.15); border-radius:10px; }
-  .grid.shorts-grid::-webkit-scrollbar-thumb{ background: var(--red); border-radius:10px; }
-  .grid.shorts-grid{ scrollbar-width:thin; scrollbar-color: var(--red) rgba(255,255,255,0.15); }
-  @media (max-width: 640px){
-    .grid.shorts-grid > *{ width:150px; }
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   }
 
   .card{
@@ -795,6 +765,25 @@
   }
   .player-media.short-media{ aspect-ratio:9/16; max-width:420px; margin:0 auto; }
   .player-media iframe, .player-media video{ width:100%; height:100%; display:block; border:none; background:#000; object-fit:contain; }
+
+  /* ---------- Shorts : navigation verticale (molette / swipe) ----------
+     Quand un short est en lecture, on affiche deux petites flèches
+     (haut/bas) sur les bords du lecteur, cliquables, en plus du geste
+     de défilement (molette ou glissement tactile) qui passe au short
+     suivant/précédent, comme sur YouTube Shorts/TikTok. */
+  .shorts-nav-btn{
+    position:absolute; left:50%; transform:translateX(-50%);
+    width:38px; height:38px; border-radius:50%;
+    background: rgba(10,6,14,0.55); border:2px solid rgba(255,255,255,0.65);
+    color:#fff; display:none; align-items:center; justify-content:center;
+    cursor:pointer; z-index:5; opacity:0.75; transition: opacity .2s ease, background .2s ease;
+  }
+  .shorts-nav-btn:hover{ opacity:1; background: rgba(10,6,14,0.8); }
+  .shorts-nav-btn svg{ width:18px; height:18px; }
+  .shorts-nav-prev{ top:10px; }
+  .shorts-nav-next{ bottom:10px; }
+  .player-media.short-media .shorts-nav-btn{ display:flex; }
+  .player-media.short-media .shorts-nav-btn.is-disabled{ opacity:0.25; cursor:default; pointer-events:none; }
 
 
   .player-media.direct-mode::after{
@@ -2301,6 +2290,12 @@
       <div class="player-media" id="player-media">
         <iframe id="player-iframe" src="" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
         <div class="player-loading-overlay" id="player-loading-overlay"><div class="player-loading-spinner"></div></div>
+        <button type="button" class="shorts-nav-btn shorts-nav-prev" id="shorts-nav-prev" title="Short précédent">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+        </button>
+        <button type="button" class="shorts-nav-btn shorts-nav-next" id="shorts-nav-next" title="Short suivant">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
 
         <div class="custom-controls" id="custom-controls" style="display:none;">
           <button class="glass-btn" id="cc-playpause" title="Lecture / Pause">
@@ -3113,54 +3108,6 @@ function sectionKeyOfLoadedVideo(id){
 document.getElementById('load-more-home').addEventListener('click', ()=> loadMore('long'));
 document.getElementById('load-more-videos').addEventListener('click', ()=> loadMore('long'));
 document.getElementById('load-more-shorts').addEventListener('click', ()=> loadMore('short'));
-
-/* ---------- Shorts : molette + glisser-déposer pour le rail horizontal ----------
-   Convertit le scroll vertical de la molette en scroll horizontal quand la
-   souris survole un rail .shorts-grid, et permet de "glisser" le rail à la
-   souris (comme au doigt sur mobile) pour les navigateurs desktop. */
-(function setupShortsHorizontalScroll(){
-  function bindRail(el){
-    if(!el || el.dataset.hscrollBound) return;
-    el.dataset.hscrollBound = '1';
-
-    el.addEventListener('wheel', (e)=>{
-      if(Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // déjà horizontal (trackpad) : laisser faire
-      if(el.scrollWidth <= el.clientWidth) return; // rien à défiler
-      e.preventDefault();
-      el.scrollLeft += e.deltaY;
-    }, { passive:false });
-
-    let isDown = false, startX = 0, startScroll = 0, moved = false;
-    el.addEventListener('mousedown', (e)=>{
-      isDown = true; moved = false;
-      startX = e.pageX; startScroll = el.scrollLeft;
-      el.classList.add('is-dragging');
-    });
-    window.addEventListener('mouseup', ()=>{ isDown = false; el.classList.remove('is-dragging'); });
-    window.addEventListener('mousemove', (e)=>{
-      if(!isDown) return;
-      const dx = e.pageX - startX;
-      if(Math.abs(dx) > 4) moved = true;
-      el.scrollLeft = startScroll - dx;
-    });
-    // Empêche le clic sur une carte de déclencher l'ouverture de la vidéo
-    // juste après un glisser (sinon on ouvrirait une vidéo par erreur).
-    el.addEventListener('click', (e)=>{
-      if(moved){ e.stopPropagation(); e.preventDefault(); moved = false; }
-    }, true);
-  }
-
-  function bindAllRails(){
-    document.querySelectorAll('.grid.shorts-grid').forEach(bindRail);
-  }
-
-  bindAllRails();
-  // Les rails "shorts" sont regénérés dynamiquement (nouvelles vidéos,
-  // changement de section...) : on ré-attache automatiquement le
-  // comportement de scroll à chaque mutation du DOM.
-  const shortsObserver = new MutationObserver(bindAllRails);
-  shortsObserver.observe(document.body, { childList:true, subtree:true });
-})();
 
 document.getElementById('refresh-home-link').addEventListener('click', ()=> loadFirstPage('long', true));
 document.getElementById('refresh-videos-link').addEventListener('click', ()=> loadFirstPage('long', true));
@@ -5538,6 +5485,7 @@ function playVideo(v){
     }
     markVideoFullyWatchedNoProgress(v.id);
   }
+  updateShortsNavButtons();
   openOverlay('player-overlay');
 }
 
@@ -5594,6 +5542,104 @@ function setupCustomControls(videoTag){
     else if(media.requestFullscreen){ media.requestFullscreen(); }
   };
 }
+
+/* ============================================================
+   Shorts : passer au short suivant/précédent en défilant
+   ============================================================
+   Comme sur YouTube Shorts/TikTok : quand un short est ouvert dans le
+   lecteur, faire défiler la molette vers le bas (ou glisser le doigt
+   vers le haut sur mobile) passe au short suivant ; défiler vers le
+   haut revient au précédent. La liste de référence est celle des
+   shorts déjà chargés dans la section "Shorts" (videoSections.short).
+   Si on approche de la fin de cette liste et qu'il en reste d'autres
+   côté serveur, on les charge automatiquement pour ne jamais rester
+   bloqué. */
+function getShortsNavContext(){
+  if(!currentPlayingVideo || !currentPlayingVideo.isShort) return null;
+  const list = videoSections.short.docs;
+  const idx = list.findIndex(d => d.id === currentPlayingVideo.id);
+  if(idx === -1) return null;
+  return { list, idx };
+}
+function updateShortsNavButtons(){
+  const prevBtn = document.getElementById('shorts-nav-prev');
+  const nextBtn = document.getElementById('shorts-nav-next');
+  if(!prevBtn || !nextBtn) return;
+  const ctx = getShortsNavContext();
+  if(!ctx){
+    prevBtn.classList.add('is-disabled');
+    nextBtn.classList.add('is-disabled');
+    return;
+  }
+  prevBtn.classList.toggle('is-disabled', ctx.idx <= 0);
+  nextBtn.classList.toggle('is-disabled', ctx.idx >= ctx.list.length - 1 && !videoSections.short.hasMore);
+}
+let shortsNavBusy = false;
+async function playShortOffset(direction){
+  if(shortsNavBusy) return;
+  const ctx = getShortsNavContext();
+  if(!ctx) return;
+  let targetIdx = ctx.idx + direction;
+
+  // Plus qu'un short ou deux avant la fin de la liste chargée : on
+  // essaie de charger la suite avant de bloquer la navigation.
+  if(direction > 0 && targetIdx >= ctx.list.length && videoSections.short.hasMore && !videoSections.short.loading){
+    shortsNavBusy = true;
+    try{ await loadMore('short'); }catch(e){ console.error(e); }
+    shortsNavBusy = false;
+  }
+
+  const freshCtx = getShortsNavContext();
+  if(!freshCtx) return;
+  targetIdx = freshCtx.idx + direction;
+  if(targetIdx < 0 || targetIdx >= freshCtx.list.length) return;
+  playVideo(freshCtx.list[targetIdx]);
+}
+document.getElementById('shorts-nav-prev').addEventListener('click', ()=> playShortOffset(-1));
+document.getElementById('shorts-nav-next').addEventListener('click', ()=> playShortOffset(1));
+
+(function setupShortsSwipeNavigation(){
+  const media = document.getElementById('player-media');
+  if(!media) return;
+  let navCooldown = false;
+  function triggerNav(direction){
+    if(navCooldown) return;
+    if(!media.classList.contains('short-media')) return;
+    navCooldown = true;
+    playShortOffset(direction);
+    setTimeout(()=>{ navCooldown = false; }, 550);
+  }
+
+  // Molette de la souris : vers le bas = short suivant, vers le haut = précédent.
+  media.addEventListener('wheel', (e)=>{
+    if(!media.classList.contains('short-media')) return;
+    if(Math.abs(e.deltaY) < Math.abs(e.deltaX)) return; // scroll horizontal : ignorer
+    e.preventDefault();
+    triggerNav(e.deltaY > 0 ? 1 : -1);
+  }, { passive:false });
+
+  // Glissement tactile : glisser vers le haut = short suivant (comme si
+  // on faisait défiler le flux vers le bas), glisser vers le bas = précédent.
+  let touchStartY = null;
+  media.addEventListener('touchstart', (e)=>{
+    if(!media.classList.contains('short-media')) return;
+    touchStartY = e.touches[0].clientY;
+  }, { passive:true });
+  media.addEventListener('touchend', (e)=>{
+    if(!media.classList.contains('short-media') || touchStartY == null) return;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    touchStartY = null;
+    if(Math.abs(dy) < 60) return;
+    triggerNav(dy < 0 ? 1 : -1);
+  }, { passive:true });
+
+  // Flèches du clavier (haut/bas) quand le lecteur est ouvert sur un short.
+  document.addEventListener('keydown', (e)=>{
+    if(!isPlayerOverlayOpen() || !media.classList.contains('short-media')) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); triggerNav(1); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); triggerNav(-1); }
+  });
+})();
 
 document.querySelector('[data-close="player-overlay"]').addEventListener('click', closePlayerOverlay);
 
