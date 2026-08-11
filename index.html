@@ -1925,6 +1925,7 @@
     <button class="site-nav-btn" data-section="section-categories">Catégories</button>
     <button class="site-nav-btn" data-section="section-lives">Lives</button>
     <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
+    <button class="site-nav-btn" data-section="section-clips">Clips</button>
     <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
     <button class="site-nav-btn" data-section="section-historique">Historique</button>
     <button class="site-nav-btn" data-section="section-environment">Mon Environnement</button>
@@ -2031,6 +2032,15 @@
       <div class="section-count" id="playlist-videos-count"></div>
     </div>
     <div class="grid" id="playlist-videos-grid"></div>
+  </section>
+
+  <section class="page-section" id="section-clips">
+    <div class="section-head">
+      <div class="section-title">Clips</div>
+      <div class="section-count" id="clips-count"></div>
+    </div>
+    <p class="subs-intro" id="clips-intro">Connecte-toi pour créer et retrouver tes clips.</p>
+    <div class="grid" id="clips-grid"></div>
   </section>
 
   <section class="page-section" id="section-subs">
@@ -2401,6 +2411,32 @@
   </div>
 </div>
 
+<!-- Clip creation modal -->
+<div class="overlay" id="clip-create-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="clip-create-overlay">&times;</button>
+    <h2>Créer un clip</h2>
+    <label for="clip-create-title">Titre du clip</label>
+    <input type="text" id="clip-create-title" placeholder="Ex : Le meilleur moment">
+    <label for="clip-create-start">Début (secondes)</label>
+    <div class="modal-time-row" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.9rem;">
+      <input type="number" id="clip-create-start" min="0" step="1" style="flex:1;">
+      <button type="button" class="btn" id="clip-create-start-capture" style="padding:0.55rem 0.8rem; font-size:0.7rem; white-space:nowrap;">⏱ Temps actuel</button>
+    </div>
+    <label for="clip-create-end">Fin (secondes)</label>
+    <div class="modal-time-row" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.9rem;">
+      <input type="number" id="clip-create-end" min="0" step="1" style="flex:1;">
+      <button type="button" class="btn" id="clip-create-end-capture" style="padding:0.55rem 0.8rem; font-size:0.7rem; white-space:nowrap;">⏱ Temps actuel</button>
+    </div>
+    <div class="modal-hint">Le clip reprend l'extrait choisi de la vidéo (5 minutes maximum) et se met en pause automatiquement à la fin.</div>
+    <div class="modal-error" id="clip-create-error"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="clip-create-overlay">Annuler</button>
+      <button class="btn primary" id="clip-create-submit">Créer le clip</button>
+    </div>
+  </div>
+</div>
+
 <!-- Playlist rename modal -->
 <div class="overlay" id="playlist-rename-overlay">
   <div class="modal">
@@ -2615,6 +2651,9 @@
           </button>
           <button class="glass-btn" id="player-playlist-btn" title="Ajouter à une playlist">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/><line x1="18" y1="14" x2="18" y2="21"/><line x1="14.5" y1="17.5" x2="21.5" y2="17.5"/></svg>
+          </button>
+          <button class="glass-btn" id="player-clip-btn" title="Créer un clip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
           </button>
           <button class="glass-btn" id="player-share-btn" title="Partager cette vidéo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
@@ -2934,6 +2973,7 @@ const userReactionsRef = db.collection('userReactions');
 const userWatchedRef = db.collection('userWatched');
 const channelsRef = db.collection('channels');
 const playlistsRef = db.collection('playlists');
+const clipsRef = db.collection('clips');
 const siteContentRef = db.collection('siteContent');
 let legalContentCache = {};
 function userSubsCollection(uid){
