@@ -3068,6 +3068,14 @@ let playlistPickerVideo = null;
 let playlistOpInFlight = new Set();
 let playlistListenerUnsubs = [];
 let playlistListenerUid = null;
+
+let userClips = [];
+let clipsInitialized = false;
+let clipListenerUnsub = null;
+let clipListenerUid = null;
+let clipCreateBaseVideo = null;
+let clipEndWatchTimer = null;
+let clipEndTargetSeconds = null;
 let playlistDeleteChoiceId = null;
 
 
@@ -3487,6 +3495,8 @@ function showSection(id){
     loadFirstPage('long');
   }else if(id === 'section-playlists'){
     if(isConnected) loadUserPlaylists(auth.currentUser.uid);
+  }else if(id === 'section-clips'){
+    if(isConnected) loadUserClips(auth.currentUser.uid);
   }else if(id === 'section-historique'){
     if(isConnected && !historyLoaded && !historyLoading) refreshHistoryVideos();
   }else if(id === 'section-lives'){
@@ -4750,6 +4760,270 @@ document.getElementById('playlist-delete-choice-everyone').addEventListener('cli
   await deletePlaylistById(id);
 });
 
+/* =========================================================
+   CLIPS — extraits d'une vidéo YouTube (début/fin en secondes),
+   créés depuis le lecteur, retrouvables dans la section "Clips",
+   et partageables via un lien direct (?clip=...).
+
+   Modèle de données Firestore (collection "clips") :
+   { ownerUid, videoDocId, videoId (id YouTube), title, sourceTitle,
+     author, startSeconds, endSeconds, createdAt }
+   ========================================================= */
+function clipCacheKey(uid){ return 'clips_' + uid; }
+function persistClipsCache(){
+  if(!auth.currentUser || auth.currentUser.isAnonymous) return;
+  lsSet(clipCacheKey(auth.currentUser.uid), { ts: Date.now(), data: userClips });
+}
+function detachClipsListener(){
+  if(clipListenerUnsub){ try{ clipListenerUnsub(); }catch(e){} clipListenerUnsub = null; }
+  clipListenerUid = null;
+}
+function attachClipsListener(uid){
+  if(clipListenerUid === uid) return;
+  detachClipsListener();
+  clipListenerUid = uid;
+
+  const cacheKey = clipCacheKey(uid);
+  const cached = lsGet(cacheKey);
+  if(cached){
+    userClips = cached.data || [];
+    renderAllSections();
+  }
+
+  clipListenerUnsub = clipsRef.where('ownerUid', '==', uid).orderBy('createdAt', 'desc')
+    .onSnapshot(snap=>{
+      userClips = snap.docs.map(doc=> ({ id: doc.id, ...doc.data() }));
+      clipsInitialized = true;
+      persistClipsCache();
+      renderAllSections();
+    }, e=> console.error('Clips indisponibles :', e));
+}
+function loadUserClips(uid){
+  attachClipsListener(uid);
+}
+async function deleteClip(id){
+  if(!confirm('Supprimer ce clip ?')) return;
+  try{
+    await clipsRef.doc(id).delete();
+  }catch(e){
+    console.error(e);
+    alert('Impossible de supprimer ce clip pour le moment.');
+  }
+}
+
+/* --- Surveillance de la fin de clip pendant la lecture --- */
+function startClipEndWatcher(endSeconds){
+  stopClipEndWatcher();
+  clipEndTargetSeconds = endSeconds;
+  clipEndWatchTimer = setInterval(()=>{
+    try{
+      if(!ytPlayerInstance || typeof ytPlayerInstance.getCurrentTime !== 'function') return;
+      if(typeof ytPlayerInstance.getPlayerState === 'function' && ytPlayerInstance.getPlayerState() !== YT.PlayerState.PLAYING) return;
+      const cur = ytPlayerInstance.getCurrentTime();
+      if(clipEndTargetSeconds != null && cur >= clipEndTargetSeconds){
+        ytPlayerInstance.pauseVideo();
+      }
+    }catch(err){}
+  }, 400);
+}
+function stopClipEndWatcher(){
+  if(clipEndWatchTimer){ clearInterval(clipEndWatchTimer); clipEndWatchTimer = null; }
+  clipEndTargetSeconds = null;
+}
+
+/* --- Ouverture / soumission de la modale de création --- */
+function openClipCreateModal(){
+  if(!currentPlayingVideo || currentPlayingVideo.platform !== 'youtube') return;
+  if(!isConnected){
+    clearAuthErrors();
+    openOverlay('account-overlay');
+    return;
+  }
+  clipCreateBaseVideo = currentPlayingVideo;
+  let curTime = 0, dur = 0;
+  try{
+    if(ytPlayerInstance && typeof ytPlayerInstance.getCurrentTime === 'function'){
+      curTime = ytPlayerInstance.getCurrentTime() || 0;
+      dur = ytPlayerInstance.getDuration() || 0;
+    }
+  }catch(e){}
+  const startVal = Math.max(0, Math.floor(curTime));
+  const endVal = dur ? Math.min(Math.floor(dur), startVal + 30) : startVal + 30;
+  document.getElementById('clip-create-title').value = clipCreateBaseVideo.title ? `${clipCreateBaseVideo.title} — clip` : '';
+  document.getElementById('clip-create-start').value = startVal;
+  document.getElementById('clip-create-end').value = endVal;
+  document.getElementById('clip-create-error').style.display = 'none';
+  openOverlay('clip-create-overlay');
+}
+function captureClipCurrentTime(inputId){
+  try{
+    if(ytPlayerInstance && typeof ytPlayerInstance.getCurrentTime === 'function'){
+      document.getElementById(inputId).value = Math.floor(ytPlayerInstance.getCurrentTime());
+    }
+  }catch(e){}
+}
+document.getElementById('player-clip-btn').addEventListener('click', openClipCreateModal);
+document.getElementById('clip-create-start-capture').addEventListener('click', ()=> captureClipCurrentTime('clip-create-start'));
+document.getElementById('clip-create-end-capture').addEventListener('click', ()=> captureClipCurrentTime('clip-create-end'));
+document.getElementById('clip-create-submit').addEventListener('click', async ()=>{
+  const errorEl = document.getElementById('clip-create-error');
+  errorEl.style.display = 'none';
+  if(!clipCreateBaseVideo || !isConnected) return;
+  const title = document.getElementById('clip-create-title').value.trim();
+  const start = parseFloat(document.getElementById('clip-create-start').value);
+  const end = parseFloat(document.getElementById('clip-create-end').value);
+  if(!title){ errorEl.textContent = "Merci de donner un titre au clip."; errorEl.style.display = 'block'; return; }
+  if(isNaN(start) || isNaN(end) || start < 0 || end <= start){
+    errorEl.textContent = "L'heure de fin doit être supérieure à l'heure de début.";
+    errorEl.style.display = 'block';
+    return;
+  }
+  if(end - start > 300){
+    errorEl.textContent = "Un clip ne peut pas dépasser 5 minutes.";
+    errorEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('clip-create-submit');
+  btn.disabled = true; btn.textContent = 'Création…';
+  try{
+    await clipsRef.add({
+      ownerUid: auth.currentUser.uid,
+      videoDocId: clipCreateBaseVideo.id,
+      videoId: clipCreateBaseVideo.videoId,
+      title,
+      sourceTitle: clipCreateBaseVideo.title || null,
+      author: clipCreateBaseVideo.author || null,
+      startSeconds: start,
+      endSeconds: end,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeOverlay('clip-create-overlay');
+  }catch(e){
+    console.error(e);
+    errorEl.textContent = "Impossible de créer le clip pour le moment.";
+    errorEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Créer le clip';
+  }
+});
+
+/* --- Lecture d'un clip : charge la vidéo source puis coupe à la fin --- */
+function playClip(clip){
+  const launch = (video)=>{
+    playVideo(video, clip.startSeconds);
+    startClipEndWatcher(clip.endSeconds);
+  };
+  const baseVideo = findLoadedVideoById(clip.videoDocId);
+  if(baseVideo){ launch(baseVideo); return; }
+  videosRef.doc(clip.videoDocId).get().then(snap=>{
+    if(snap.exists){ launch({ id: snap.id, ...snap.data() }); }
+    else{
+      launch({ id: clip.videoDocId, videoId: clip.videoId, platform: 'youtube', isShort: false, title: clip.sourceTitle || clip.title, author: clip.author });
+    }
+  }).catch(e=>{
+    console.warn('Vidéo source du clip introuvable, lecture directe :', e);
+    launch({ id: clip.videoDocId, videoId: clip.videoId, platform: 'youtube', isShort: false, title: clip.sourceTitle || clip.title, author: clip.author });
+  });
+}
+
+/* --- Partage d'un clip via un lien direct --- */
+function buildClipShareUrl(clip){
+  const url = new URL(location.href);
+  url.hash = '';
+  url.search = '';
+  url.searchParams.set('clip', clip.id);
+  return url.toString();
+}
+async function shareClip(clip){
+  const shareUrl = buildClipShareUrl(clip);
+  const shareText = clip.title ? `Regarde le clip « ${clip.title} » sur RIJOUL VISION` : 'Regarde ce clip sur RIJOUL VISION';
+  const shareData = { title: clip.title || 'Clip RIJOUL VISION', text: shareText, url: shareUrl };
+
+  if(navigator.share){
+    try{ await navigator.share(shareData); }catch(e){}
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(shareUrl);
+    alert('Lien du clip copié dans le presse-papiers !');
+  }catch(e){
+    window.prompt('Copie ce lien pour partager le clip :', shareUrl);
+  }
+}
+async function handleSharedClipLink(){
+  const params = new URLSearchParams(location.search);
+  const sharedClipId = params.get('clip');
+  if(!sharedClipId) return;
+  try{
+    const snap = await clipsRef.doc(sharedClipId).get();
+    if(snap.exists) playClip({ id: snap.id, ...snap.data() });
+  }catch(e){
+    console.warn('Clip partagé introuvable :', e);
+  }
+}
+
+/* --- Rendu de la section "Clips" --- */
+function clipCardHtml(clip){
+  const thumb = `https://i.ytimg.com/vi/${clip.videoId}/hqdefault.jpg`;
+  return `
+    <div class="card" data-clip-id="${clip.id}">
+      <button class="delete-btn" data-delete-clip="${clip.id}" title="Supprimer">✕</button>
+      <div class="thumb-wrap">
+        <img src="${thumb}" alt="${escapeHtml(clip.title)}" loading="lazy">
+        <div class="play-badge"><div class="play-icon"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
+        <span class="thumb-progress-badge">${formatSeconds(clip.startSeconds)} → ${formatSeconds(clip.endSeconds)}</span>
+      </div>
+      <div class="card-body">
+        <p class="card-title">${escapeHtml(clip.title)}</p>
+        ${clip.sourceTitle ? `<div class="card-desc">Extrait de « ${escapeHtml(clip.sourceTitle)} »</div>` : ''}
+        <div class="card-actions">
+          <button class="reaction-btn share-btn" data-share-clip="${clip.id}" title="Partager ce clip">
+            <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function renderClipsSection(){
+  const intro = document.getElementById('clips-intro');
+  const grid = document.getElementById('clips-grid');
+  const countEl = document.getElementById('clips-count');
+  if(!intro || !grid) return;
+
+  if(!isConnected){
+    intro.textContent = "Connecte-toi pour créer et retrouver tes clips.";
+    if(countEl) countEl.textContent = '';
+    grid.innerHTML = '';
+    return;
+  }
+  if(countEl) countEl.textContent = userClips.length ? (userClips.length + (userClips.length > 1 ? ' clips' : ' clip')) : '';
+  if(userClips.length === 0){
+    intro.textContent = "Tu n'as pas encore créé de clip. Ouvre une vidéo YouTube et clique sur l'icône ciseaux dans le lecteur pour en créer un.";
+    grid.innerHTML = '';
+    return;
+  }
+  intro.textContent = '';
+  grid.innerHTML = userClips.map(clipCardHtml).join('');
+  grid.querySelectorAll('[data-clip-id]').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      if(e.target.closest('.delete-btn') || e.target.closest('.card-actions')) return;
+      const clip = userClips.find(c => c.id === card.dataset.clipId);
+      if(clip) playClip(clip);
+    });
+  });
+  grid.querySelectorAll('[data-delete-clip]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{ e.stopPropagation(); deleteClip(btn.dataset.deleteClip); });
+  });
+  grid.querySelectorAll('[data-share-clip]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const clip = userClips.find(c => c.id === btn.dataset.shareClip);
+      if(clip) shareClip(clip);
+    });
+  });
+}
+
 function openPlaylistPicker(v){
   if(!isConnected){
     clearAuthErrors();
@@ -5225,6 +5499,7 @@ function renderAllSections(){
   }
   renderSubsSection();
   renderPlaylistsSection();
+  renderClipsSection();
   renderHistorySection();
   renderLivesSection();
   if(selectedCategoryKey) renderCategoryVideosView();
@@ -5943,6 +6218,8 @@ function playLiveStream(l){
   document.getElementById('player-info-actions').style.display = 'flex';
   document.getElementById('player-playlist-btn').style.display = 'none';
   document.getElementById('player-share-btn').style.display = 'none';
+  const liveClipBtnEl = document.getElementById('player-clip-btn');
+  if(liveClipBtnEl) liveClipBtnEl.style.display = 'none';
 
   document.getElementById('player-media').classList.remove('direct-mode');
   document.getElementById('player-media').classList.remove('short-media');
@@ -6127,6 +6404,7 @@ function mountYouTubePlayer(wrapper, customControls, videoId, docId, startSecond
 }
 
 function stopYtProgressTracking(){
+  stopClipEndWatcher();
   if(ytProgressInterval){ clearInterval(ytProgressInterval); ytProgressInterval = null; }
   if(ytPlayerInstance){
     try{
@@ -6188,6 +6466,8 @@ function closePlayerOverlay(){
   document.getElementById('player-info-actions').style.display = '';
   document.getElementById('player-playlist-btn').style.display = '';
   document.getElementById('player-share-btn').style.display = '';
+  const closeClipBtnEl = document.getElementById('player-clip-btn');
+  if(closeClipBtnEl) closeClipBtnEl.style.display = '';
   document.getElementById('player-live-chat').classList.remove('visible');
   document.getElementById('player-overlay').classList.remove('twitch-chat-mode');
   const twitchChatIframeEl = document.getElementById('twitch-chat-iframe');
@@ -6205,7 +6485,7 @@ function closePlayerOverlay(){
   closeOverlay('player-overlay');
 }
 
-function playVideo(v){
+function playVideo(v, forceStartSeconds){
   const { videoId, platform, twitchType, title, author, description, isShort } = v;
   currentPlayingVideo = v;
   currentPlayingLive = null;
@@ -6220,6 +6500,8 @@ function playVideo(v){
   if(customChatContainerInVideo) customChatContainerInVideo.style.display = '';
   document.getElementById('player-playlist-btn').style.display = '';
   document.getElementById('player-share-btn').style.display = '';
+  const clipBtnEl = document.getElementById('player-clip-btn');
+  if(clipBtnEl) clipBtnEl.style.display = (platform === 'youtube') ? '' : 'none';
   currentDirectVideoTag = null;
   document.getElementById('player-info-actions').style.display = '';
   updatePlayerActionButtons();
@@ -6238,7 +6520,9 @@ function playVideo(v){
 
   const watchEntry = userWatched[v.id];
   const alreadyCompleted = isVideoCompleted(v.id);
-  const resumeSeconds = (watchEntry && watchEntry.duration && !alreadyCompleted && watchEntry.seconds > 5) ? watchEntry.seconds : 0;
+  const resumeSeconds = (forceStartSeconds != null)
+    ? Math.max(0, forceStartSeconds)
+    : ((watchEntry && watchEntry.duration && !alreadyCompleted && watchEntry.seconds > 5) ? watchEntry.seconds : 0);
 
   const iframe = document.getElementById('player-iframe');
   const wrapper = iframe.parentElement;
@@ -8900,6 +9184,7 @@ auth.onAuthStateChanged(async (user)=>{
   if(realUser){
     loadUserSubs(realUser.uid);
     loadUserPlaylists(realUser.uid);
+    loadUserClips(realUser.uid);
   }else{
     detachPlaylistListeners();
     userSubscribedKeys = new Set();
@@ -8907,6 +9192,9 @@ auth.onAuthStateChanged(async (user)=>{
     playlistsInitialized = false;
     selectedPlaylistId = null;
     playlistVideosCache = {};
+    detachClipsListener();
+    userClips = [];
+    clipsInitialized = false;
   }
 
   renderAllSections();
@@ -8944,6 +9232,7 @@ auth.onAuthStateChanged(async (user)=>{
 attachLiveStreamsListener();
 
 handleSharedVideoLink();
+handleSharedClipLink();
 
 /* =========================================================
    Popup d'installation (PWA) et de partage du site
