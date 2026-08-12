@@ -3081,6 +3081,7 @@ let clipCreateBaseVideo = null;
 let clipEndWatchTimer = null;
 let clipEndTargetSeconds = null;
 let clipModalPausedPlayer = false;
+let clipsLoadError = null;
 let playlistDeleteChoiceId = null;
 
 
@@ -4797,11 +4798,17 @@ function attachClipsListener(uid){
 
   clipListenerUnsub = clipsRef.where('ownerUid', '==', uid).orderBy('createdAt', 'desc')
     .onSnapshot(snap=>{
+      clipsLoadError = null;
       userClips = snap.docs.map(doc=> ({ id: doc.id, ...doc.data() }));
       clipsInitialized = true;
       persistClipsCache();
       renderAllSections();
-    }, e=> console.error('Clips indisponibles :', e));
+    }, e=>{
+      console.error('Clips indisponibles :', e);
+      clipsLoadError = e;
+      clipsInitialized = true;
+      renderAllSections();
+    });
 }
 function loadUserClips(uid){
   attachClipsListener(uid);
@@ -4929,7 +4936,9 @@ document.getElementById('clip-create-submit').addEventListener('click', async ()
     resumeAfterClipCreation();
   }catch(e){
     console.error(e);
-    errorEl.textContent = "Impossible de créer le clip pour le moment.";
+    errorEl.textContent = (e && e.code === 'permission-denied')
+      ? "Création refusée par Firestore : il manque la règle de sécurité pour la collection « clips »."
+      : "Impossible de créer le clip pour le moment.";
     errorEl.style.display = 'block';
   }finally{
     btn.disabled = false; btn.textContent = 'Créer le clip';
@@ -5027,6 +5036,16 @@ function renderClipsSection(){
     intro.textContent = "Connecte-toi pour créer et retrouver tes clips.";
     if(countEl) countEl.textContent = '';
     grid.innerHTML = '';
+    return;
+  }
+  if(clipsLoadError){
+    intro.textContent = '';
+    if(countEl) countEl.textContent = '';
+    const code = clipsLoadError.code || '';
+    const hint = code === 'permission-denied'
+      ? "Il manque la règle Firestore pour la collection « clips » (voir la console Firebase → Firestore → Règles)."
+      : "Un index Firestore est probablement requis (ownerUid + createdAt) — regarde la console du navigateur (F12) : Firestore y affiche un lien pour le créer en un clic.";
+    grid.innerHTML = `<div class="empty-state">Impossible de charger tes clips.<br>${hint}</div>`;
     return;
   }
   if(countEl) countEl.textContent = userClips.length ? (userClips.length + (userClips.length > 1 ? ' clips' : ' clip')) : '';
