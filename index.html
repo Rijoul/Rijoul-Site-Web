@@ -3082,6 +3082,7 @@ let clipEndWatchTimer = null;
 let clipEndTargetSeconds = null;
 let clipModalPausedPlayer = false;
 let clipsLoadError = null;
+let isPlayingClip = false;
 let playlistDeleteChoiceId = null;
 
 
@@ -4952,6 +4953,7 @@ document.querySelectorAll('[data-close="clip-create-overlay"]').forEach(btn=>{
 function playClip(clip){
   const launch = (video)=>{
     playVideo(video, clip.startSeconds);
+    isPlayingClip = true;
     startClipEndWatcher(clip.endSeconds);
   };
   const baseVideo = findLoadedVideoById(clip.videoDocId);
@@ -6425,6 +6427,7 @@ function mountYouTubePlayer(wrapper, customControls, videoId, docId, startSecond
             if(ytProgressInterval){ clearInterval(ytProgressInterval); }
             ytProgressInterval = setInterval(()=>{
               try{
+                if(isPlayingClip) return;
                 if(!ytPlayerInstance || typeof ytPlayerInstance.getPlayerState !== 'function') return;
                 if(ytPlayerInstance.getPlayerState() !== YT.PlayerState.PLAYING) return;
                 const dur = ytPlayerInstance.getDuration();
@@ -6442,6 +6445,7 @@ function mountYouTubePlayer(wrapper, customControls, videoId, docId, startSecond
               if(ov) ov.classList.remove('visible');
             }
             try{
+              if(isPlayingClip) return;
               if(!ytPlayerInstance) return;
               const dur = ytPlayerInstance.getDuration();
               const cur = ytPlayerInstance.getCurrentTime();
@@ -6459,7 +6463,7 @@ function stopYtProgressTracking(){
   if(ytProgressInterval){ clearInterval(ytProgressInterval); ytProgressInterval = null; }
   if(ytPlayerInstance){
     try{
-      if(ytCurrentVideoId && ytPlayerInstance.getDuration){
+      if(!isPlayingClip && ytCurrentVideoId && ytPlayerInstance.getDuration){
         const dur = ytPlayerInstance.getDuration();
         const cur = ytPlayerInstance.getCurrentTime();
         if(dur) saveWatchProgress(ytCurrentVideoId, cur, dur);
@@ -6538,6 +6542,7 @@ function closePlayerOverlay(){
 
 function playVideo(v, forceStartSeconds){
   const { videoId, platform, twitchType, title, author, description, isShort } = v;
+  isPlayingClip = false;
   currentPlayingVideo = v;
   currentPlayingLive = null;
   currentLiveMyReaction = null;
