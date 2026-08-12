@@ -667,6 +667,10 @@
     display:none; align-items:center; justify-content:center; padding:2rem;
   }
   .overlay.open{ display:flex; }
+  /* Le clip peut être créé alors que le lecteur vidéo est déjà ouvert
+     (même z-index de base que les autres modales) : on le fait passer
+     au-dessus pour qu'il ne soit jamais masqué par le lecteur. */
+  #clip-create-overlay{ z-index:150; }
 
   .modal{
     background: var(--panel); border:4px solid var(--cream-2); border-radius:28px; max-width:520px; width:100%;
@@ -3076,6 +3080,7 @@ let clipListenerUid = null;
 let clipCreateBaseVideo = null;
 let clipEndWatchTimer = null;
 let clipEndTargetSeconds = null;
+let clipModalPausedPlayer = false;
 let playlistDeleteChoiceId = null;
 
 
@@ -4832,6 +4837,28 @@ function stopClipEndWatcher(){
 }
 
 /* --- Ouverture / soumission de la modale de création --- */
+/* --- Mise en pause pendant la création du clip, reprise à la fermeture ---
+   Ne concerne que YouTube (ytPlayerInstance n'existe que pour ce lecteur) :
+   un live Twitch continue de tourner normalement pendant la création. */
+function pauseForClipCreation(){
+  clipModalPausedPlayer = false;
+  try{
+    if(ytPlayerInstance && typeof ytPlayerInstance.pauseVideo === 'function'){
+      ytPlayerInstance.pauseVideo();
+      clipModalPausedPlayer = true;
+    }
+  }catch(e){}
+}
+function resumeAfterClipCreation(){
+  if(!clipModalPausedPlayer) return;
+  clipModalPausedPlayer = false;
+  try{
+    if(ytPlayerInstance && typeof ytPlayerInstance.playVideo === 'function'){
+      ytPlayerInstance.playVideo();
+    }
+  }catch(e){}
+}
+
 function openClipCreateModal(){
   if(!currentPlayingVideo || currentPlayingVideo.platform !== 'youtube') return;
   if(!isConnected){
@@ -4854,6 +4881,7 @@ function openClipCreateModal(){
   document.getElementById('clip-create-end').value = endVal;
   document.getElementById('clip-create-error').style.display = 'none';
   openOverlay('clip-create-overlay');
+  pauseForClipCreation();
 }
 function captureClipCurrentTime(inputId){
   try{
@@ -4898,6 +4926,7 @@ document.getElementById('clip-create-submit').addEventListener('click', async ()
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     closeOverlay('clip-create-overlay');
+    resumeAfterClipCreation();
   }catch(e){
     console.error(e);
     errorEl.textContent = "Impossible de créer le clip pour le moment.";
@@ -4905,6 +4934,9 @@ document.getElementById('clip-create-submit').addEventListener('click', async ()
   }finally{
     btn.disabled = false; btn.textContent = 'Créer le clip';
   }
+});
+document.querySelectorAll('[data-close="clip-create-overlay"]').forEach(btn=>{
+  btn.addEventListener('click', resumeAfterClipCreation);
 });
 
 /* --- Lecture d'un clip : charge la vidéo source puis coupe à la fin --- */
