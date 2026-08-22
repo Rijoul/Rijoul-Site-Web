@@ -5101,7 +5101,8 @@ function downloadBlob(blob, filename){
   setTimeout(()=>URL.revokeObjectURL(url), 8000);
 }
 
-/* --- Capture d'écran commune : lance le clip, ouvre le partage d'onglet --- */
+/* --- Capture d'écran commune : lance le clip, ouvre le partage d'onglet, puis
+   met en pause en attendant le clic de l'utilisateur sur "Démarrer" --- */
 async function startClipCapture(clip){
   playClip(clip);
   const ready = await waitForClipPlaybackReady(clip);
@@ -5109,6 +5110,8 @@ async function startClipCapture(clip){
     alert("Impossible de démarrer la lecture du clip pour l'enregistrement. Réessaie.");
     return null;
   }
+  try{ ytPlayerInstance.pauseVideo(); }catch(e){}
+  stopClipEndWatcher();
   try{
     return await navigator.mediaDevices.getDisplayMedia({
       video: { displaySurface: 'browser' },
@@ -5120,6 +5123,33 @@ async function startClipCapture(clip){
     return null; // partage annulé par l'utilisateur
   }
 }
+
+/* --- Écran "prêt à enregistrer" : attend le clic manuel avant de démarrer --- */
+function askUserToStartRecording(clip){
+  ensureClipRecordingStyles();
+  return new Promise((resolve)=>{
+    const old = document.getElementById('clip-start-overlay');
+    if(old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'clip-start-overlay';
+    overlay.innerHTML = `
+      <div class="clip-format-menu-box">
+        <p class="clip-format-menu-title">Prêt à enregistrer « ${escapeHtml(clip.title || 'ce clip')} »</p>
+        <p class="clip-format-menu-sub">Le partage d'écran est actif. Clique ci-dessous quand tu es prêt à démarrer l'enregistrement du clip.</p>
+        <div class="clip-format-menu-actions">
+          <button type="button" data-start="1">⏺ Démarrer l'enregistrement</button>
+        </div>
+        <button type="button" class="clip-format-menu-cancel">Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result)=>{ overlay.remove(); resolve(result); };
+    overlay.querySelector('[data-start]').addEventListener('click', ()=> cleanup(true));
+    overlay.querySelector('.clip-format-menu-cancel').addEventListener('click', ()=> cleanup(false));
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) cleanup(false); });
+  });
+}
+
 /* --- Export vidéo (MP4, ou WEBM en repli si le navigateur ne sait pas encoder MP4) --- */
 function pickVideoMimeType(){
   const mp4Candidates = ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4'];
@@ -5128,7 +5158,18 @@ function pickVideoMimeType(){
   for(const c of webmCandidates){ if(MediaRecorder.isTypeSupported(c)) return { mime:c, ext:'webm', outType:'video/webm' }; }
   return { mime:'', ext:'webm', outType:'video/webm' };
 }
-function recordClipAsVideo(clip, stream){
+async function recordClipAsVideo(clip, stream){
+  const proceed = await askUserToStartRecording(clip);
+  if(!proceed){
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    return;
+  }
+  try{
+    ytPlayerInstance.seekTo(clip.startSeconds, true);
+    ytPlayerInstance.playVideo();
+  }catch(e){}
+  startClipEndWatcher(clip.endSeconds);
+
   return new Promise((resolve)=>{
     const { mime, ext, outType } = pickVideoMimeType();
     const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
@@ -5205,6 +5246,17 @@ function audioBufferToMp3(audioBuffer){
   return new Blob(mp3Data, { type: 'audio/mp3' });
 }
 async function recordClipAsMp3(clip, stream){
+  const proceed = await askUserToStartRecording(clip);
+  if(!proceed){
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    return;
+  }
+  try{
+    ytPlayerInstance.seekTo(clip.startSeconds, true);
+    ytPlayerInstance.playVideo();
+  }catch(e){}
+  startClipEndWatcher(clip.endSeconds);
+
   const audioTracks = stream.getAudioTracks();
   if(audioTracks.length === 0){
     try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
