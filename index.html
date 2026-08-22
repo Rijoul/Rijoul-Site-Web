@@ -4973,8 +4973,11 @@ function playClip(clip){
    YouTube ne permet aucun accès direct au flux vidéo brut depuis le navigateur
    (iframe protégée, pas de CORS possible). La seule méthode fiable et légitime
    côté client est l'enregistrement de l'onglet (image + son) pendant exactement
-   la durée du clip, via getDisplayMedia + MediaRecorder, puis export en .webm. */
+   la durée du clip, via getDisplayMedia + MediaRecorder :
+   - format vidéo -> export MP4 (ou WEBM si le navigateur ne sait pas encoder du MP4)
+   - format audio -> export MP3 réel (conversion via lamejs après capture) */
 let clipDownloadActive = false;
+
 function waitForClipPlaybackReady(clip){
   return new Promise(resolve=>{
     const startedAt = Date.now();
@@ -4995,6 +4998,7 @@ function waitForClipPlaybackReady(clip){
     setTimeout(check, 500);
   });
 }
+
 function ensureClipRecordingStyles(){
   if(document.getElementById('clip-recording-style')) return;
   const style = document.createElement('style');
@@ -5010,115 +5014,276 @@ function ensureClipRecordingStyles(){
     #clip-recording-banner button{background:transparent;border:1px solid rgba(255,255,255,0.35);
       color:#fff;border-radius:999px;padding:0.2rem 0.65rem;font-size:0.72rem;cursor:pointer;}
     #clip-recording-banner button:hover{background:rgba(255,255,255,0.12);}
+    #clip-format-menu-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100000;
+      display:flex;align-items:center;justify-content:center;}
+    .clip-format-menu-box{background:#1a1a1a;color:#fff;padding:1.4rem 1.6rem;border-radius:14px;
+      max-width:320px;width:88%;text-align:center;border:1px solid rgba(255,215,0,0.35);
+      box-shadow:0 10px 40px rgba(0,0,0,0.5);font-family:inherit;}
+    .clip-format-menu-title{font-weight:700;margin:0 0 0.35rem;font-size:0.95rem;}
+    .clip-format-menu-sub{margin:0 0 0.9rem;font-size:0.8rem;opacity:0.75;}
+    .clip-format-menu-actions{display:flex;flex-direction:column;gap:0.55rem;margin-bottom:0.7rem;}
+    .clip-format-menu-actions button{background:#f4c430;color:#111;border:none;border-radius:999px;
+      padding:0.6rem 1rem;font-weight:600;font-size:0.85rem;cursor:pointer;}
+    .clip-format-menu-actions button:hover{filter:brightness(1.08);}
+    .clip-format-menu-cancel{background:transparent;border:1px solid rgba(255,255,255,0.3);
+      color:#fff;border-radius:999px;padding:0.4rem 0.9rem;font-size:0.78rem;cursor:pointer;}
+    .clip-format-menu-cancel:hover{background:rgba(255,255,255,0.1);}
   `;
   document.head.appendChild(style);
 }
-function showClipRecordingBanner(onStopClick){
+
+function showClipRecordingBanner(label, onStopClick){
   ensureClipRecordingStyles();
   let el = document.getElementById('clip-recording-banner');
   if(!el){
     el = document.createElement('div');
     el.id = 'clip-recording-banner';
-    el.innerHTML = `<span class="dot"></span><span id="clip-recording-label">Enregistrement du clip en cours…</span><button type="button" id="clip-recording-stop-btn">Arrêter</button>`;
+    el.innerHTML = `<span class="dot"></span><span id="clip-recording-label"></span><button type="button" id="clip-recording-stop-btn">Arrêter</button>`;
     document.body.appendChild(el);
   }
-  el.style.display = 'flex';
+  document.getElementById('clip-recording-label').textContent = label;
   const stopBtn = document.getElementById('clip-recording-stop-btn');
-  stopBtn.onclick = onStopClick;
+  if(onStopClick){
+    stopBtn.style.display = 'inline-block';
+    stopBtn.onclick = onStopClick;
+  }else{
+    stopBtn.style.display = 'none';
+    stopBtn.onclick = null;
+  }
+  el.style.display = 'flex';
 }
 function hideClipRecordingBanner(){
   const el = document.getElementById('clip-recording-banner');
   if(el) el.style.display = 'none';
 }
+
+/* --- Menu de choix du format juste après le clic sur "Télécharger" --- */
+function askClipDownloadFormat(clip){
+  ensureClipRecordingStyles();
+  return new Promise((resolve)=>{
+    const old = document.getElementById('clip-format-menu-overlay');
+    if(old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'clip-format-menu-overlay';
+    overlay.innerHTML = `
+      <div class="clip-format-menu-box">
+        <p class="clip-format-menu-title">Télécharger « ${escapeHtml(clip.title || 'ce clip')} »</p>
+        <p class="clip-format-menu-sub">Choisis un format :</p>
+        <div class="clip-format-menu-actions">
+          <button type="button" data-fmt="mp4">🎬 Vidéo (MP4)</button>
+          <button type="button" data-fmt="mp3">🎵 Audio (MP3)</button>
+        </div>
+        <button type="button" class="clip-format-menu-cancel">Annuler</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result)=>{ overlay.remove(); resolve(result); };
+    overlay.querySelectorAll('[data-fmt]').forEach(btn=>{
+      btn.addEventListener('click', ()=> cleanup(btn.dataset.fmt));
+    });
+    overlay.querySelector('.clip-format-menu-cancel').addEventListener('click', ()=> cleanup(null));
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) cleanup(null); });
+  });
+}
+
+function buildClipFilename(clip, ext){
+  const safeName = (clip.title || 'clip').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'clip';
+  return safeName + '.' + ext;
+}
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 8000);
+}
+
+/* --- Capture d'écran commune : lance le clip, ouvre le partage d'onglet --- */
+async function startClipCapture(clip){
+  playClip(clip);
+  const ready = await waitForClipPlaybackReady(clip);
+  if(!ready){
+    alert("Impossible de démarrer la lecture du clip pour l'enregistrement. Réessaie.");
+    return null;
+  }
+  try{
+    return await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser' },
+      audio: true,
+      preferCurrentTab: true,
+      selfBrowserSurface: 'include'
+    });
+  }catch(e){
+    return null; // partage annulé par l'utilisateur
+  }
+}
+/* --- Export vidéo (MP4, ou WEBM en repli si le navigateur ne sait pas encoder MP4) --- */
+function pickVideoMimeType(){
+  const mp4Candidates = ['video/mp4;codecs="avc1.42E01E,mp4a.40.2"', 'video/mp4'];
+  for(const c of mp4Candidates){ if(MediaRecorder.isTypeSupported(c)) return { mime:c, ext:'mp4', outType:'video/mp4' }; }
+  const webmCandidates = ['video/webm;codecs=vp9,opus', 'video/webm'];
+  for(const c of webmCandidates){ if(MediaRecorder.isTypeSupported(c)) return { mime:c, ext:'webm', outType:'video/webm' }; }
+  return { mime:'', ext:'webm', outType:'video/webm' };
+}
+function recordClipAsVideo(clip, stream){
+  return new Promise((resolve)=>{
+    const { mime, ext, outType } = pickVideoMimeType();
+    const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    const chunks = [];
+    recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    let endWatcher = null;
+    let clipEndReached = () => {
+      try{
+        const cur = ytPlayerInstance.getCurrentTime();
+        return cur >= clip.endSeconds - 0.15;
+      }catch(e){ return true; }
+    };
+    endWatcher = setInterval(()=>{
+      if(clipEndReached() && recorder.state !== 'inactive') recorder.stop();
+    }, 200);
+    recorder.onstop = ()=>{
+      if(endWatcher){ clearInterval(endWatcher); endWatcher = null; }
+      hideClipRecordingBanner();
+      try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+      const blob = new Blob(chunks, { type: outType });
+      downloadBlob(blob, buildClipFilename(clip, ext));
+      resolve();
+    };
+    stream.getVideoTracks()[0].addEventListener('ended', ()=>{
+      if(recorder.state !== 'inactive') recorder.stop();
+    });
+    showClipRecordingBanner('Enregistrement du clip en cours…', ()=>{
+      if(recorder.state !== 'inactive') recorder.stop();
+    });
+    recorder.start();
+  });
+}
+
+/* --- Export audio (MP3 réel via conversion lamejs après capture) --- */
+function loadLamejs(){
+  return new Promise((resolve, reject)=>{
+    if(window.lamejs){ resolve(window.lamejs); return; }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.all.js';
+    script.onload = ()=> resolve(window.lamejs);
+    script.onerror = ()=> reject(new Error("Impossible de charger l'encodeur MP3."));
+    document.head.appendChild(script);
+  });
+}
+function floatTo16BitPCM(floatArray){
+  const output = new Int16Array(floatArray.length);
+  for(let i=0;i<floatArray.length;i++){
+    const s = Math.max(-1, Math.min(1, floatArray[i]));
+    output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  return output;
+}
+function audioBufferToMp3(audioBuffer){
+  const channels = audioBuffer.numberOfChannels > 1 ? 2 : 1;
+  const sampleRate = audioBuffer.sampleRate;
+  const encoder = new window.lamejs.Mp3Encoder(channels, sampleRate, 128);
+  const blockSize = 1152;
+  const left = floatTo16BitPCM(audioBuffer.getChannelData(0));
+  const right = channels === 2 ? floatTo16BitPCM(audioBuffer.getChannelData(1)) : null;
+  const mp3Data = [];
+  for(let i=0; i<left.length; i+=blockSize){
+    const leftChunk = left.subarray(i, i+blockSize);
+    let buf;
+    if(channels === 2){
+      const rightChunk = right.subarray(i, i+blockSize);
+      buf = encoder.encodeBuffer(leftChunk, rightChunk);
+    }else{
+      buf = encoder.encodeBuffer(leftChunk);
+    }
+    if(buf.length > 0) mp3Data.push(buf);
+  }
+  const end = encoder.flush();
+  if(end.length > 0) mp3Data.push(end);
+  return new Blob(mp3Data, { type: 'audio/mp3' });
+}
+async function recordClipAsMp3(clip, stream){
+  const audioTracks = stream.getAudioTracks();
+  if(audioTracks.length === 0){
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    alert("Aucun son n'a été partagé (vérifie la case « partager l'audio » dans la fenêtre de partage). Impossible de créer le MP3.");
+    return;
+  }
+  const audioOnlyStream = new MediaStream(audioTracks);
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+  const recorder = new MediaRecorder(audioOnlyStream, { mimeType: mime });
+  const chunks = [];
+  recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
+
+  await new Promise((resolve)=>{
+    let endWatcher = setInterval(()=>{
+      try{
+        const cur = ytPlayerInstance.getCurrentTime();
+        if(cur >= clip.endSeconds - 0.15 && recorder.state !== 'inactive') recorder.stop();
+      }catch(e){
+        if(recorder.state !== 'inactive') recorder.stop();
+      }
+    }, 200);
+    recorder.onstop = ()=>{
+      if(endWatcher){ clearInterval(endWatcher); endWatcher = null; }
+      try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+      resolve();
+    };
+    stream.getVideoTracks()[0].addEventListener('ended', ()=>{
+      if(recorder.state !== 'inactive') recorder.stop();
+    });
+    showClipRecordingBanner('Enregistrement audio du clip…', ()=>{
+      if(recorder.state !== 'inactive') recorder.stop();
+    });
+    recorder.start();
+  });
+
+  try{
+    showClipRecordingBanner('Conversion en MP3…', null);
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    const arrayBuffer = await blob.arrayBuffer();
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioCtx();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    await loadLamejs();
+    const mp3Blob = audioBufferToMp3(audioBuffer);
+    downloadBlob(mp3Blob, buildClipFilename(clip, 'mp3'));
+    audioCtx.close();
+  }catch(err){
+    console.error('Conversion MP3 impossible :', err);
+    alert("La conversion en MP3 a échoué (le clip n'a pas pu être exporté).");
+  }finally{
+    hideClipRecordingBanner();
+  }
+}
+
+/* --- Point d'entrée : clic sur le bouton "Télécharger" d'un clip --- */
 async function downloadClip(clip){
   if(clipDownloadActive){ alert("Un téléchargement de clip est déjà en cours."); return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || typeof MediaRecorder === 'undefined'){
     alert("Ton navigateur ne permet pas l'enregistrement d'écran nécessaire pour télécharger un clip. Essaie avec Chrome ou Edge à jour.");
     return;
   }
+  const format = await askClipDownloadFormat(clip);
+  if(!format) return;
+
   clipDownloadActive = true;
   try{
-    playClip(clip);
-    const ready = await waitForClipPlaybackReady(clip);
-    if(!ready){
-      alert("Impossible de démarrer la lecture du clip pour l'enregistrement. Réessaie.");
-      clipDownloadActive = false;
-      return;
+    const stream = await startClipCapture(clip);
+    if(!stream) return;
+    if(format === 'mp3'){
+      await recordClipAsMp3(clip, stream);
+    }else{
+      await recordClipAsVideo(clip, stream);
     }
-
-    let stream;
-    try{
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser' },
-        audio: true,
-        preferCurrentTab: true,
-        selfBrowserSurface: 'include'
-      });
-    }catch(e){
-      clipDownloadActive = false;
-      return; // partage annulé par l'utilisateur
-    }
-
-    let mimeType = 'video/webm;codecs=vp9,opus';
-    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
-    const recorder = new MediaRecorder(stream, { mimeType });
-    const chunks = [];
-    recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
-
-    let watchTimer = null;
-    const cleanupStream = ()=>{
-      try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
-    };
-    const finalizeStop = ()=>{
-      if(watchTimer){ clearInterval(watchTimer); watchTimer = null; }
-      hideClipRecordingBanner();
-      cleanupStream();
-    };
-
-    recorder.onstop = ()=>{
-      finalizeStop();
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const safeName = (clip.title || 'clip').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'clip';
-      a.download = safeName + '.webm';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url), 8000);
-      clipDownloadActive = false;
-    };
-
-    stream.getVideoTracks()[0].addEventListener('ended', ()=>{
-      if(recorder.state !== 'inactive') recorder.stop();
-    });
-
-    showClipRecordingBanner(()=>{
-      if(recorder.state !== 'inactive') recorder.stop();
-    });
-
-    recorder.start();
-
-    watchTimer = setInterval(()=>{
-      try{
-        if(!ytPlayerInstance || typeof ytPlayerInstance.getCurrentTime !== 'function'){
-          if(recorder.state !== 'inactive') recorder.stop();
-          return;
-        }
-        const cur = ytPlayerInstance.getCurrentTime();
-        if(cur >= clip.endSeconds - 0.15){
-          if(recorder.state !== 'inactive') recorder.stop();
-        }
-      }catch(err){
-        if(recorder.state !== 'inactive') recorder.stop();
-      }
-    }, 200);
   }catch(err){
-    clipDownloadActive = false;
-    hideClipRecordingBanner();
     console.error('Erreur téléchargement clip :', err);
     alert("Une erreur est survenue pendant l'enregistrement du clip.");
+  }finally{
+    clipDownloadActive = false;
+    hideClipRecordingBanner();
   }
 }
 
