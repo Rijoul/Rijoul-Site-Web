@@ -5028,6 +5028,7 @@ function ensureClipRecordingStyles(){
     .clip-format-menu-cancel{background:transparent;border:1px solid rgba(255,255,255,0.3);
       color:#fff;border-radius:999px;padding:0.4rem 0.9rem;font-size:0.78rem;cursor:pointer;}
     .clip-format-menu-cancel:hover{background:rgba(255,255,255,0.1);}
+    .clip-countdown-display{font-size:2.8rem;font-weight:800;color:#f4c430;margin:0.3rem 0 1rem;line-height:1;}
   `;
   document.head.appendChild(style);
 }
@@ -5124,7 +5125,10 @@ async function startClipCapture(clip){
   }
 }
 
-/* --- Écran "prêt à enregistrer" : attend le clic manuel avant de démarrer --- */
+/* --- Écran "prêt à enregistrer" : compte à rebours de 10s pendant lequel
+   l'utilisateur peut positionner le curseur de la vidéo à l'endroit voulu.
+   Le décompte peut être prolongé de 10s, ou l'enregistrement peut être
+   démarré ou annulé manuellement à tout moment. --- */
 function askUserToStartRecording(clip){
   ensureClipRecordingStyles();
   return new Promise((resolve)=>{
@@ -5134,19 +5138,43 @@ function askUserToStartRecording(clip){
     overlay.id = 'clip-start-overlay';
     overlay.innerHTML = `
       <div class="clip-format-menu-box">
-        <p class="clip-format-menu-title">Prêt à enregistrer « ${escapeHtml(clip.title || 'ce clip')} »</p>
-        <p class="clip-format-menu-sub">Le partage d'écran est actif. Clique ci-dessous quand tu es prêt à démarrer l'enregistrement du clip.</p>
+        <p class="clip-format-menu-title">Prépare le début de ton clip</p>
+        <p class="clip-format-menu-sub">Positionne le curseur de la vidéo à l'endroit où tu veux démarrer l'enregistrement. Ça démarre automatiquement à la fin du décompte.</p>
+        <div class="clip-countdown-display" id="clip-countdown-display">10</div>
         <div class="clip-format-menu-actions">
-          <button type="button" data-start="1">⏺ Démarrer l'enregistrement</button>
+          <button type="button" data-action="start">⏺ Démarrer maintenant</button>
+          <button type="button" data-action="extend">+10 secondes</button>
         </div>
-        <button type="button" class="clip-format-menu-cancel">Annuler</button>
+        <button type="button" class="clip-format-menu-cancel" data-action="cancel">Annuler</button>
       </div>
     `;
     document.body.appendChild(overlay);
-    const cleanup = (result)=>{ overlay.remove(); resolve(result); };
-    overlay.querySelector('[data-start]').addEventListener('click', ()=> cleanup(true));
-    overlay.querySelector('.clip-format-menu-cancel').addEventListener('click', ()=> cleanup(false));
-    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) cleanup(false); });
+
+    let remaining = 10;
+    const displayEl = overlay.querySelector('#clip-countdown-display');
+    const updateDisplay = ()=>{ displayEl.textContent = remaining; };
+
+    let timer = setInterval(()=>{
+      remaining -= 1;
+      if(remaining <= 0){
+        finish(true);
+        return;
+      }
+      updateDisplay();
+    }, 1000);
+
+    const finish = (result)=>{
+      if(timer){ clearInterval(timer); timer = null; }
+      overlay.remove();
+      resolve(result);
+    };
+
+    overlay.querySelector('[data-action="start"]').addEventListener('click', ()=> finish(true));
+    overlay.querySelector('[data-action="cancel"]').addEventListener('click', ()=> finish(false));
+    overlay.querySelector('[data-action="extend"]').addEventListener('click', ()=>{
+      remaining += 10;
+      updateDisplay();
+    });
   });
 }
 
@@ -5164,11 +5192,13 @@ async function recordClipAsVideo(clip, stream){
     try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
     return;
   }
+  const clipDuration = Math.max(1, clip.endSeconds - clip.startSeconds);
+  let effectiveEnd = Infinity;
   try{
-    ytPlayerInstance.seekTo(clip.startSeconds, true);
+    const startedAt = ytPlayerInstance.getCurrentTime();
+    effectiveEnd = startedAt + clipDuration;
     ytPlayerInstance.playVideo();
   }catch(e){}
-  startClipEndWatcher(clip.endSeconds);
 
   return new Promise((resolve)=>{
     const { mime, ext, outType } = pickVideoMimeType();
@@ -5179,7 +5209,7 @@ async function recordClipAsVideo(clip, stream){
     let clipEndReached = () => {
       try{
         const cur = ytPlayerInstance.getCurrentTime();
-        return cur >= clip.endSeconds - 0.15;
+        return cur >= effectiveEnd - 0.15;
       }catch(e){ return true; }
     };
     endWatcher = setInterval(()=>{
@@ -5251,11 +5281,13 @@ async function recordClipAsMp3(clip, stream){
     try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
     return;
   }
+  const clipDuration = Math.max(1, clip.endSeconds - clip.startSeconds);
+  let effectiveEnd = Infinity;
   try{
-    ytPlayerInstance.seekTo(clip.startSeconds, true);
+    const startedAt = ytPlayerInstance.getCurrentTime();
+    effectiveEnd = startedAt + clipDuration;
     ytPlayerInstance.playVideo();
   }catch(e){}
-  startClipEndWatcher(clip.endSeconds);
 
   const audioTracks = stream.getAudioTracks();
   if(audioTracks.length === 0){
@@ -5273,7 +5305,7 @@ async function recordClipAsMp3(clip, stream){
     let endWatcher = setInterval(()=>{
       try{
         const cur = ytPlayerInstance.getCurrentTime();
-        if(cur >= clip.endSeconds - 0.15 && recorder.state !== 'inactive') recorder.stop();
+        if(cur >= effectiveEnd - 0.15 && recorder.state !== 'inactive') recorder.stop();
       }catch(e){
         if(recorder.state !== 'inactive') recorder.stop();
       }
