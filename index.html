@@ -4969,6 +4969,159 @@ function playClip(clip){
   });
 }
 
+/* --- Téléchargement d'un clip (durée du clip uniquement, pas toute la vidéo) ---
+   YouTube ne permet aucun accès direct au flux vidéo brut depuis le navigateur
+   (iframe protégée, pas de CORS possible). La seule méthode fiable et légitime
+   côté client est l'enregistrement de l'onglet (image + son) pendant exactement
+   la durée du clip, via getDisplayMedia + MediaRecorder, puis export en .webm. */
+let clipDownloadActive = false;
+function waitForClipPlaybackReady(clip){
+  return new Promise(resolve=>{
+    const startedAt = Date.now();
+    const check = ()=>{
+      try{
+        if(ytPlayerInstance && typeof ytPlayerInstance.getCurrentTime === 'function' && typeof ytPlayerInstance.getPlayerState === 'function'){
+          const state = ytPlayerInstance.getPlayerState();
+          const cur = ytPlayerInstance.getCurrentTime();
+          if(state === YT.PlayerState.PLAYING && cur >= Math.max(0, clip.startSeconds - 1)){
+            resolve(true);
+            return;
+          }
+        }
+      }catch(e){}
+      if(Date.now() - startedAt > 12000){ resolve(false); return; }
+      setTimeout(check, 250);
+    };
+    setTimeout(check, 500);
+  });
+}
+function ensureClipRecordingStyles(){
+  if(document.getElementById('clip-recording-style')) return;
+  const style = document.createElement('style');
+  style.id = 'clip-recording-style';
+  style.textContent = `
+    @keyframes clipRecPulse{0%,100%{opacity:1}50%{opacity:0.25}}
+    #clip-recording-banner{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;
+      background:#111;color:#fff;padding:0.6rem 1.1rem;border-radius:999px;font-size:0.8rem;
+      display:none;align-items:center;gap:0.65rem;box-shadow:0 4px 18px rgba(0,0,0,0.45);
+      border:1px solid rgba(255,215,0,0.35);font-family:inherit;}
+    #clip-recording-banner .dot{width:9px;height:9px;border-radius:50%;background:#e53e3e;
+      display:inline-block;animation:clipRecPulse 1s infinite;flex-shrink:0;}
+    #clip-recording-banner button{background:transparent;border:1px solid rgba(255,255,255,0.35);
+      color:#fff;border-radius:999px;padding:0.2rem 0.65rem;font-size:0.72rem;cursor:pointer;}
+    #clip-recording-banner button:hover{background:rgba(255,255,255,0.12);}
+  `;
+  document.head.appendChild(style);
+}
+function showClipRecordingBanner(onStopClick){
+  ensureClipRecordingStyles();
+  let el = document.getElementById('clip-recording-banner');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'clip-recording-banner';
+    el.innerHTML = `<span class="dot"></span><span id="clip-recording-label">Enregistrement du clip en cours…</span><button type="button" id="clip-recording-stop-btn">Arrêter</button>`;
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  const stopBtn = document.getElementById('clip-recording-stop-btn');
+  stopBtn.onclick = onStopClick;
+}
+function hideClipRecordingBanner(){
+  const el = document.getElementById('clip-recording-banner');
+  if(el) el.style.display = 'none';
+}
+async function downloadClip(clip){
+  if(clipDownloadActive){ alert("Un téléchargement de clip est déjà en cours."); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || typeof MediaRecorder === 'undefined'){
+    alert("Ton navigateur ne permet pas l'enregistrement d'écran nécessaire pour télécharger un clip. Essaie avec Chrome ou Edge à jour.");
+    return;
+  }
+  clipDownloadActive = true;
+  try{
+    playClip(clip);
+    const ready = await waitForClipPlaybackReady(clip);
+    if(!ready){
+      alert("Impossible de démarrer la lecture du clip pour l'enregistrement. Réessaie.");
+      clipDownloadActive = false;
+      return;
+    }
+
+    let stream;
+    try{
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser' },
+        audio: true,
+        preferCurrentTab: true,
+        selfBrowserSurface: 'include'
+      });
+    }catch(e){
+      clipDownloadActive = false;
+      return; // partage annulé par l'utilisateur
+    }
+
+    let mimeType = 'video/webm;codecs=vp9,opus';
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks = [];
+    recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
+
+    let watchTimer = null;
+    const cleanupStream = ()=>{
+      try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    };
+    const finalizeStop = ()=>{
+      if(watchTimer){ clearInterval(watchTimer); watchTimer = null; }
+      hideClipRecordingBanner();
+      cleanupStream();
+    };
+
+    recorder.onstop = ()=>{
+      finalizeStop();
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (clip.title || 'clip').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'clip';
+      a.download = safeName + '.webm';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 8000);
+      clipDownloadActive = false;
+    };
+
+    stream.getVideoTracks()[0].addEventListener('ended', ()=>{
+      if(recorder.state !== 'inactive') recorder.stop();
+    });
+
+    showClipRecordingBanner(()=>{
+      if(recorder.state !== 'inactive') recorder.stop();
+    });
+
+    recorder.start();
+
+    watchTimer = setInterval(()=>{
+      try{
+        if(!ytPlayerInstance || typeof ytPlayerInstance.getCurrentTime !== 'function'){
+          if(recorder.state !== 'inactive') recorder.stop();
+          return;
+        }
+        const cur = ytPlayerInstance.getCurrentTime();
+        if(cur >= clip.endSeconds - 0.15){
+          if(recorder.state !== 'inactive') recorder.stop();
+        }
+      }catch(err){
+        if(recorder.state !== 'inactive') recorder.stop();
+      }
+    }, 200);
+  }catch(err){
+    clipDownloadActive = false;
+    hideClipRecordingBanner();
+    console.error('Erreur téléchargement clip :', err);
+    alert("Une erreur est survenue pendant l'enregistrement du clip.");
+  }
+}
+
 /* --- Partage d'un clip via un lien direct --- */
 function buildClipShareUrl(clip){
   const url = new URL(location.href);
@@ -5020,6 +5173,9 @@ function clipCardHtml(clip){
         <p class="card-title">${escapeHtml(clip.title)}</p>
         ${clip.sourceTitle ? `<div class="card-desc">Extrait de « ${escapeHtml(clip.sourceTitle)} »</div>` : ''}
         <div class="card-actions">
+          <button class="reaction-btn download-clip-btn" data-download-clip="${clip.id}" title="Télécharger ce clip">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>
+          </button>
           <button class="reaction-btn share-btn" data-share-clip="${clip.id}" title="Partager ce clip">
             <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
@@ -5073,6 +5229,13 @@ function renderClipsSection(){
       e.stopPropagation();
       const clip = userClips.find(c => c.id === btn.dataset.shareClip);
       if(clip) shareClip(clip);
+    });
+  });
+  grid.querySelectorAll('[data-download-clip]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const clip = userClips.find(c => c.id === btn.dataset.downloadClip);
+      if(clip) downloadClip(clip);
     });
   });
 }
