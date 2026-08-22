@@ -5347,10 +5347,17 @@ async function recordClipAsMp3(clip, stream){
 }
 
 /* --- Point d'entrée : clic sur le bouton "Télécharger" d'un clip --- */
+function isMobileDevice(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 async function downloadClip(clip){
   if(clipDownloadActive){ alert("Un téléchargement de clip est déjà en cours."); return; }
   if(!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || typeof MediaRecorder === 'undefined'){
-    alert("Ton navigateur ne permet pas l'enregistrement d'écran nécessaire pour télécharger un clip. Essaie avec Chrome ou Edge à jour.");
+    if(isMobileDevice()){
+      alert("Le téléchargement de clip n'est pas possible sur mobile : les navigateurs (Chrome, Safari…) sur téléphone ne permettent pas la capture d'écran depuis un site web, c'est une limite du système et non de l'application.\n\nPour récupérer ce clip depuis ton téléphone, utilise l'enregistreur d'écran intégré :\n• Android : ouvre les réglages rapides (glisse depuis le haut) et lance « Enregistrement d'écran »\n• iPhone : ajoute « Enregistrement de l'écran » dans le Centre de contrôle puis lance-le\n\nLance l'enregistrement, joue le clip, puis coupe la vidéo obtenue à la bonne durée avec une appli de montage.");
+    }else{
+      alert("Ton navigateur ne permet pas l'enregistrement d'écran nécessaire pour télécharger un clip. Essaie avec Chrome ou Edge à jour sur ordinateur.");
+    }
     return;
   }
   const format = await askClipDownloadFormat(clip);
