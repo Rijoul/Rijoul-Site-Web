@@ -410,18 +410,50 @@
   }
   .btn.primary:hover{ background: #ff2d4d; color: var(--navy); }
 
-  /* ---------- Nav de sections ---------- */
+  /* ---------- Nav de sections ----------
+     Avant : 10 gros boutons pilule qui passaient à la ligne (parfois sur
+     3-4 rangées), ce qui alourdissait beaucoup la page d'accueil.
+     Maintenant : une seule rangée compacte, qui défile horizontalement
+     si tous les boutons ne tiennent pas (glisser au doigt / à la souris,
+     ou molette), avec un léger fondu sur les bords en indice visuel.
+     La barre reste aussi "collante" (position:sticky) sous les boutons
+     Connexion/Notifications lorsqu'on fait défiler la page, pour rester
+     accessible sans avoir à remonter tout en haut. */
+  .site-nav-wrap{
+    position: sticky; top: 7.3rem; z-index: 40;
+    display:flex; justify-content:center; margin-top:2.2rem;
+    pointer-events:none;
+  }
   .site-nav{
-    position:relative; z-index:2; display:flex; justify-content:center; gap:0.6rem;
-    flex-wrap:wrap; margin-top:2.4rem;
+    position:relative; z-index:2; display:flex; flex-wrap:nowrap; gap:0.5rem;
+    max-width:min(92vw, 980px); overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    padding:0.55rem 1.6rem; border-radius:999px; pointer-events:auto;
+    background: rgba(255,255,255,0.14);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
+    border:1px solid rgba(255,255,255,0.35);
+    box-shadow: 0 10px 28px -14px rgba(0,0,0,0.35);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+  }
+  .site-nav::-webkit-scrollbar{ display:none; }
+  body.dark-mode .site-nav{
+    background: rgba(20,14,20,0.55); border-color: rgba(255,255,255,0.16);
+    box-shadow: 0 10px 28px -14px rgba(0,0,0,0.6);
   }
   .site-nav-btn{
-    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.82rem; letter-spacing:0.03em; text-transform:uppercase;
-    padding:0.65rem 1.4rem; border-radius:999px; cursor:pointer; border:2px solid rgba(255,255,255,0.55);
+    flex-shrink:0; white-space:nowrap;
+    font-family:'Fredoka', sans-serif; font-weight:600; font-size:0.74rem; letter-spacing:0.03em; text-transform:uppercase;
+    padding:0.55rem 1.05rem; border-radius:999px; cursor:pointer; border:2px solid rgba(255,255,255,0.55);
     background:rgba(255,255,255,0.08); color: var(--cream); transition: all .2s ease;
   }
   .site-nav-btn:hover{ background: rgba(255,255,255,0.2); }
   .site-nav-btn.active{ background: var(--cream); color: var(--dark-text); border-color: var(--cream); }
+  @media (max-width:640px){
+    .site-nav-wrap{ top:6.9rem; }
+    .site-nav{ max-width:94vw; padding:0.5rem 1.1rem; gap:0.4rem; }
+    .site-nav-btn{ font-size:0.7rem; padding:0.5rem 0.9rem; }
+  }
 
   /* ---------- Gallery ---------- */
   main{ position:relative; z-index:1; padding: 3vh 6vw 10vh; max-width:1400px; margin:0 auto; }
@@ -1971,18 +2003,20 @@
 
 <header>
   <h1 class="brand">RIJOUL VISION</h1>
-  <nav class="site-nav" id="site-nav">
-    <button class="site-nav-btn" data-section="section-home">Accueil</button>
-    <button class="site-nav-btn" data-section="section-videos">Vidéos</button>
-    <button class="site-nav-btn" data-section="section-shorts">Shorts</button>
-    <button class="site-nav-btn" data-section="section-categories">Catégories</button>
-    <button class="site-nav-btn" data-section="section-lives">Lives</button>
-    <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
-    <button class="site-nav-btn" data-section="section-clips">Clips</button>
-    <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
-    <button class="site-nav-btn" data-section="section-historique">Historique</button>
-    <button class="site-nav-btn" data-section="section-environment">Mon Environnement</button>
-  </nav>
+  <div class="site-nav-wrap">
+    <nav class="site-nav" id="site-nav">
+      <button class="site-nav-btn" data-section="section-home">Accueil</button>
+      <button class="site-nav-btn" data-section="section-videos">Vidéos</button>
+      <button class="site-nav-btn" data-section="section-shorts">Shorts</button>
+      <button class="site-nav-btn" data-section="section-categories">Catégories</button>
+      <button class="site-nav-btn" data-section="section-lives">Lives</button>
+      <button class="site-nav-btn" data-section="section-playlists">Playlists</button>
+      <button class="site-nav-btn" data-section="section-clips">Clips</button>
+      <button class="site-nav-btn" data-section="section-subs">Abonnements</button>
+      <button class="site-nav-btn" data-section="section-historique">Historique</button>
+      <button class="site-nav-btn" data-section="section-environment">Mon Environnement</button>
+    </nav>
+  </div>
 </header>
 
 <main>
@@ -10036,6 +10070,41 @@ handleSharedClipLink();
   }
 
   syncAvailability();
+})();
+</script>
+
+<script>
+/* =========================================================
+   Barre de navigation principale (Accueil / Vidéos / Shorts / ...) :
+   maintenant compacte et défilable horizontalement. Ce petit script ne
+   fait qu'améliorer le confort d'usage, sans toucher à la logique
+   existante (showSection() et les écouteurs de clic restent inchangés) :
+   - molette de souris → défilement horizontal (plus naturel que de
+     devoir maintenir Shift sur une barre qui défile en largeur) ;
+   - le bouton de la section active est toujours ramené dans la zone
+     visible, y compris quand la section change par un autre biais que
+     le clic (lien direct avec #hash, recherche, etc.).
+   ========================================================= */
+(function(){
+  var nav = document.getElementById('site-nav');
+  if(!nav) return;
+
+  nav.addEventListener('wheel', function(e){
+    if(nav.scrollWidth <= nav.clientWidth) return;
+    var delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+    if(!delta) return;
+    e.preventDefault();
+    nav.scrollLeft += delta;
+  }, { passive:false });
+
+  function scrollActiveIntoView(){
+    var active = nav.querySelector('.site-nav-btn.active');
+    if(active) active.scrollIntoView({ behavior:'smooth', block:'nearest', inline:'center' });
+  }
+
+  new MutationObserver(scrollActiveIntoView).observe(nav, {
+    subtree:true, attributes:true, attributeFilter:['class']
+  });
 })();
 </script>
 </body>
