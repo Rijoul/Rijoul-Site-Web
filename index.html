@@ -384,29 +384,28 @@
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
-    -webkit-text-stroke: 2.5px var(--title-stroke);
-    paint-order: stroke fill;
-    /* Remplace l'ancien "filter: drop-shadow(...)" par des text-shadow :
-       combiner filter + -webkit-text-stroke + background-clip:text force
-       Chrome/Edge à recomposer le texte sur un calque séparé et produit
-       ce rendu "dédoublé/craquelé" des lettres. text-shadow reste un
-       effet purement typographique et n'a pas ce problème.
-       Même système de halo qu'en mode sombre (glow proche + glow diffus
-       + ombre de base), mais en version mate (opacité réduite, pas
-       d'effet néon) et dans une teinte ambre/or plutôt que rouge. */
+    /* Lueur sombre derrière le texte plutôt qu'un contour : plusieurs
+       text-shadow superposés (halo proche + halo diffus + ombre portée)
+       en noir semi-transparent, pour détacher nettement le titre du fond
+       dégradé clair sans passer par un stroke (qui abîme les courbes de
+       la police avec background-clip:text). */
     text-shadow:
-      0 0 10px rgba(255,166,64,0.35),
-      0 0 26px rgba(255,166,64,0.18),
-      0 6px 16px rgba(0,0,0,0.12);
+      0 0 2px rgba(0,0,0,0.55),
+      0 0 18px rgba(0,0,0,0.45),
+      0 0 46px rgba(0,0,0,0.3),
+      0 8px 20px rgba(0,0,0,0.35);
     transition: text-shadow .4s ease;
   }
-  /* Version "néon braise" du titre en mode sombre : double lueur rouge
-     (proche + diffuse) façon enseigne lumineuse, assortie à la couleur
-     de marque. */
+  /* En mode sombre, le fond est déjà très foncé : on garde une lueur
+     sombre discrète pour la texture, mais on ajoute surtout un halo rouge
+     néon (identité de marque) pour que le titre reste visible et vivant
+     sur un fond quasi noir. */
   body.dark-mode h1.brand{
     text-shadow:
-      0 0 14px rgba(238,28,60,0.65),
-      0 0 38px rgba(238,28,60,0.35),
+      0 0 2px rgba(0,0,0,0.7),
+      0 0 16px rgba(0,0,0,0.6),
+      0 0 14px rgba(238,28,60,0.55),
+      0 0 38px rgba(238,28,60,0.3),
       0 8px 18px rgba(0,0,0,0.7);
   }
   .rule{ display:none; }
