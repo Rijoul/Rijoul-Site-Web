@@ -68,6 +68,7 @@
     --glass: rgba(255,255,255,0.14);
     --glass-strong: rgba(255,255,255,0.22);
     --glass-border: rgba(255,255,255,0.4);
+    --title-stroke: rgba(44,19,48,0.55);
   }
 
   /* ---------- Mode sombre ----------
@@ -90,6 +91,7 @@
     --glass: rgba(255,255,255,0.06);
     --glass-strong: rgba(255,255,255,0.1);
     --glass-border: rgba(255,255,255,0.14);
+    --title-stroke: rgba(255,84,112,0.5);
   }
 
   *{ box-sizing: border-box; }
@@ -382,6 +384,7 @@
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
+    -webkit-text-stroke: 2.5px var(--title-stroke);
     paint-order: stroke fill;
     /* Remplace l'ancien "filter: drop-shadow(...)" par des text-shadow :
        combiner filter + -webkit-text-stroke + background-clip:text force
@@ -865,6 +868,14 @@
     max-height: calc(100vh - 1.2rem);
     max-height: calc(100dvh - 1.2rem);
     margin: auto;
+  }
+  /* Sur les grands écrans (PC), le lecteur profite de la largeur
+     disponible au lieu de rester plafonné à 960px comme sur mobile/tablette. */
+  @media (min-width:1100px){
+    .player-shell{ max-width:1280px; }
+  }
+  @media (min-width:1500px){
+    .player-shell{ max-width:1480px; }
   }
 
   .player-topbar{
