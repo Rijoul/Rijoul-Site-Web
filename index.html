@@ -957,6 +957,18 @@
   }
   .player-media.short-media{ aspect-ratio:9/16; max-width:420px; margin:0 auto; }
   .player-media iframe, .player-media video{ width:100%; height:100%; display:block; border:none; background:#000; object-fit:contain; }
+  /* Certaines vidéos YouTube ne sont pas parfaitement au format 16:9 : le
+     lecteur YouTube (dans son iframe, contenu d'un autre domaine que l'on
+     ne peut pas styliser) ajoute alors lui-même de fines bandes floutées
+     de part et d'autre. On zoome très légèrement sur l'iframe pour les
+     repousser hors du cadre visible - au prix d'un tout petit recadrage
+     du haut/bas de l'image. Ne s'applique pas aux Shorts (déjà en 9:16).
+     Effet purement esthétique, sans impact sur les contrôles/fonctions du
+     lecteur YouTube. */
+  .player-media:not(.short-media):not(.direct-mode) iframe{
+    transform: scale(1.14);
+    transform-origin: center center;
+  }
 
   /* ---------- Shorts : navigation verticale (molette / swipe) ----------
      Quand un short est en lecture, on affiche deux petites flèches
