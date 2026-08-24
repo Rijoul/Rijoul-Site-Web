@@ -384,29 +384,28 @@
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
-    /* Lueur sombre derrière le texte plutôt qu'un contour : plusieurs
-       text-shadow superposés (halo proche + halo diffus + ombre portée)
-       en noir semi-transparent, pour détacher nettement le titre du fond
-       dégradé clair sans passer par un stroke (qui abîme les courbes de
-       la police avec background-clip:text). */
-    text-shadow:
-      0 0 2px rgba(0,0,0,0.55),
-      0 0 18px rgba(0,0,0,0.45),
-      0 0 46px rgba(0,0,0,0.3),
-      0 8px 20px rgba(0,0,0,0.35);
-    transition: text-shadow .4s ease;
+    /* Halo sombre affiché derrière les lettres (et non un contour) : on
+       utilise "filter: drop-shadow(...)" plutôt que "text-shadow" ici,
+       car il suit la forme réelle des glyphes et se fond en dégradé flou
+       autour d'eux, sans jamais changer la couleur du texte lui-même
+       (le dégradé du fill reste intact). Plusieurs couches empilées pour
+       un halo proche + un halo diffus + une ombre portée plus large. */
+    filter:
+      drop-shadow(0 0 3px rgba(0,0,0,0.55))
+      drop-shadow(0 0 20px rgba(0,0,0,0.45))
+      drop-shadow(0 10px 24px rgba(0,0,0,0.35));
+    transition: filter .4s ease;
   }
-  /* En mode sombre, le fond est déjà très foncé : on garde une lueur
-     sombre discrète pour la texture, mais on ajoute surtout un halo rouge
-     néon (identité de marque) pour que le titre reste visible et vivant
-     sur un fond quasi noir. */
+  /* En mode sombre, le fond est déjà très foncé : on garde le halo sombre
+     pour la profondeur, et on ajoute un halo rouge néon (identité de
+     marque) par-dessus pour que le titre reste vivant sur fond quasi noir. */
   body.dark-mode h1.brand{
-    text-shadow:
-      0 0 2px rgba(0,0,0,0.7),
-      0 0 16px rgba(0,0,0,0.6),
-      0 0 14px rgba(238,28,60,0.55),
-      0 0 38px rgba(238,28,60,0.3),
-      0 8px 18px rgba(0,0,0,0.7);
+    filter:
+      drop-shadow(0 0 3px rgba(0,0,0,0.7))
+      drop-shadow(0 0 16px rgba(0,0,0,0.6))
+      drop-shadow(0 0 14px rgba(238,28,60,0.55))
+      drop-shadow(0 0 34px rgba(238,28,60,0.3))
+      drop-shadow(0 10px 20px rgba(0,0,0,0.6));
   }
   .rule{ display:none; }
   .tagline{
