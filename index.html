@@ -420,6 +420,7 @@
     -webkit-background-clip:text;
     background-clip:text;
     color:transparent;
+    -webkit-text-fill-color:transparent;
     /* Halo sombre affiché derrière les lettres (et non un contour) : on
        utilise "filter: drop-shadow(...)" plutôt que "text-shadow" ici,
        car il suit la forme réelle des glyphes et se fond en dégradé flou
@@ -2064,6 +2065,10 @@
     font-family:'Space Grotesk', ui-rounded, -apple-system, BlinkMacSystemFont, sans-serif;
     background: linear-gradient(100deg, var(--neon-a) 0%, var(--neon-b) 45%, var(--neon-c) 75%, var(--neon-d) 100%);
     background-size: 220% 220%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
     animation: gradientSweep 8s ease-in-out infinite;
     filter:
       drop-shadow(0 0 18px rgba(109,243,255,0.35))
