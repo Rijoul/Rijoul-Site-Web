@@ -2253,22 +2253,22 @@
   }
   .multiview-select-row{
     display:flex; align-items:center; gap:0.8rem;
-    background: rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1);
+    background: rgba(20,10,35,0.05); border:1.5px solid rgba(20,10,35,0.12);
     border-radius:14px; padding:0.6rem 0.8rem; cursor:pointer;
     transition: all .2s ease;
   }
-  .multiview-select-row:hover{ border-color: var(--neon-a); background: rgba(109,243,255,0.08); }
-  .multiview-select-row.checked{ border-color: var(--neon-c); background: rgba(255,47,176,0.1); }
+  .multiview-select-row:hover{ border-color: var(--navy); background: rgba(109,59,255,0.08); }
+  .multiview-select-row.checked{ border-color: var(--red); background: rgba(255,47,86,0.08); }
   .multiview-select-row input[type=checkbox]{ width:18px; height:18px; accent-color: var(--red); flex-shrink:0; }
   .multiview-select-row img{
     width:64px; height:36px; object-fit:cover; border-radius:8px; flex-shrink:0; background:#050208;
   }
   .multiview-select-row-info{ min-width:0; flex:1; }
   .multiview-select-row-title{
-    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.85rem; color: var(--card-text);
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.85rem; color: var(--dark-text);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .multiview-select-row-author{ font-size:0.75rem; color: var(--card-text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .multiview-select-row-author{ font-size:0.75rem; color: rgba(23,12,38,0.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   .multiview-modal{
     position:relative; width:min(1400px, 96vw); height:min(900px, 92vh);
@@ -2321,6 +2321,24 @@
     background: rgba(0,0,0,0.65); color:#fff; font-size:0.68rem; font-family:'Space Grotesk', sans-serif;
     padding:0.25rem 0.55rem; border-radius:999px; pointer-events:none;
   }
+  .multiview-add-tile{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.5rem;
+    background: rgba(255,255,255,0.03); border:2px dashed rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.65); cursor:pointer; font-family:'Space Grotesk', sans-serif;
+    transition: all .2s ease;
+  }
+  .multiview-add-tile:hover{
+    background: rgba(109,243,255,0.1); border-color: var(--neon-a); color:#fff;
+  }
+  .multiview-add-icon{
+    width:44px; height:44px; border-radius:50%; border:2px solid currentColor;
+    display:flex; align-items:center; justify-content:center; font-size:1.6rem; line-height:1;
+  }
+  .multiview-add-label{ font-size:0.8rem; font-weight:600; }
+  /* Surélève la fenêtre de sélection au-dessus de la grille multi-lives :
+     utile quand elle est rouverte depuis la tuile "+" pendant que la
+     grille reste affichée (ajout d'un live à chaud, sans tout fermer). */
+  #multiview-select-overlay{ z-index:110; }
   @media (max-width:900px){
     .multiview-modal{ width:100vw; height:100vh; border-radius:0; }
     .multiview-grid, .multiview-grid[data-count="2"], .multiview-grid[data-count="3"], .multiview-grid[data-count="4"]{
@@ -6882,7 +6900,13 @@ function openMultiviewSelect(){
   const list = document.getElementById('multiview-select-list');
   const errorEl = document.getElementById('multiview-select-error');
   errorEl.style.display = 'none';
-  multiviewSelectedIds = multiviewSelectedIds.filter(id => currentLiveStreams.some(l => l.id === id));
+  // Si une grille multi-lives est déjà active (ouverture via la tuile "+"),
+  // on repart de sa sélection actuelle plutôt que de l'ancienne sélection
+  // mémorisée, pour que la case à cocher reflète fidèlement ce qui est
+  // affiché à l'écran.
+  multiviewSelectedIds = multiviewActiveLives.length
+    ? multiviewActiveLives.map(x => x.id)
+    : multiviewSelectedIds.filter(id => currentLiveStreams.some(l => l.id === id));
 
   if(currentLiveStreams.length === 0){
     list.innerHTML = `<div class="empty-state">Aucun live en cours pour l'instant.</div>`;
@@ -6917,12 +6941,16 @@ function openMultiviewSelect(){
           multiviewSelectedIds = multiviewSelectedIds.filter(x => x !== id);
         }
         cb.closest('.multiview-select-row').classList.toggle('checked', cb.checked);
-        document.getElementById('multiview-launch-btn').textContent = `Lancer (${multiviewSelectedIds.length})`;
+        updateMultiviewLaunchBtnLabel();
       });
     });
   }
-  document.getElementById('multiview-launch-btn').textContent = `Lancer (${multiviewSelectedIds.length})`;
+  updateMultiviewLaunchBtnLabel();
   openOverlay('multiview-select-overlay');
+}
+function updateMultiviewLaunchBtnLabel(){
+  const label = multiviewActiveLives.length ? 'Mettre à jour' : 'Lancer';
+  document.getElementById('multiview-launch-btn').textContent = `${label} (${multiviewSelectedIds.length})`;
 }
 document.getElementById('open-multiview-btn').addEventListener('click', openMultiviewSelect);
 
@@ -6935,65 +6963,95 @@ function multiviewEmbedSrc(l, muted){
   }
   return '';
 }
+function multiviewTileHtml(entry){
+  return `
+    <iframe src="${multiviewEmbedSrc(entry, entry.muted)}" allow="autoplay; fullscreen" allowfullscreen></iframe>
+    <div class="multiview-tile-bar">
+      <span class="multiview-tile-title">${escapeHtml(entry.title || 'Live')}</span>
+      <div class="multiview-tile-actions">
+        <button type="button" class="multiview-tile-btn" data-tile-mute="${entry.id}" title="${entry.muted ? 'Activer le son' : 'Couper le son'}">${entry.muted ? '🔇' : '🔊'}</button>
+        <button type="button" class="multiview-tile-btn" data-tile-remove="${entry.id}" title="Retirer ce live">✕</button>
+      </div>
+    </div>
+    ${entry.muted ? `<span class="multiview-tile-muted-badge">🔇 Muet — clique 🔊 pour activer le son</span>` : ''}
+  `;
+}
+function bindMultiviewTileEvents(tile, entry){
+  tile.querySelector('[data-tile-mute]').addEventListener('click', ()=>{
+    const turningOn = entry.muted; // true → on va l'activer (démuter)
+    // On coupe d'abord le son des autres tuiles (une seule à la fois), puis
+    // on (dé)coupe celle demandée. On ne recharge que les tuiles dont
+    // l'état a réellement changé, pour ne pas interrompre les autres lives.
+    multiviewActiveLives.forEach(x=>{
+      const newMuted = (x.id === entry.id) ? !turningOn : true;
+      if(x.muted === newMuted) return;
+      x.muted = newMuted;
+      const t = document.querySelector(`#multiview-grid .multiview-tile[data-tile-id="${x.id}"]`);
+      if(!t) return;
+      const iframe = t.querySelector('iframe');
+      if(iframe) iframe.src = multiviewEmbedSrc(x, x.muted);
+      const muteBtn = t.querySelector('[data-tile-mute]');
+      if(muteBtn){
+        muteBtn.textContent = x.muted ? '🔇' : '🔊';
+        muteBtn.title = x.muted ? 'Activer le son' : 'Couper le son';
+      }
+      let badge = t.querySelector('.multiview-tile-muted-badge');
+      if(x.muted && !badge){
+        badge = document.createElement('span');
+        badge.className = 'multiview-tile-muted-badge';
+        badge.textContent = '🔇 Muet — clique 🔊 pour activer le son';
+        t.appendChild(badge);
+      }else if(!x.muted && badge){
+        badge.remove();
+      }
+    });
+  });
+  tile.querySelector('[data-tile-remove]').addEventListener('click', ()=>{
+    multiviewActiveLives = multiviewActiveLives.filter(x => x.id !== entry.id);
+    if(multiviewActiveLives.length === 0){ closeMultiview(); return; }
+    renderMultiviewGrid();
+  });
+}
+// Rendu "en diff" : ne recrée que les tuiles nouvellement ajoutées et ne
+// supprime que celles retirées, sans jamais recharger les iframes des
+// lives déjà en train de jouer (indispensable pour que "Ajouter un live"
+// n'interrompe pas ceux déjà en cours de visionnage).
 function renderMultiviewGrid(){
   const grid = document.getElementById('multiview-grid');
-  grid.dataset.count = String(multiviewActiveLives.length);
-  grid.innerHTML = multiviewActiveLives.map((entry, i)=>`
-    <div class="multiview-tile" data-tile-id="${entry.id}">
-      <iframe src="${multiviewEmbedSrc(entry, entry.muted)}" allow="autoplay; fullscreen" allowfullscreen></iframe>
-      <div class="multiview-tile-bar">
-        <span class="multiview-tile-title">${escapeHtml(entry.title || 'Live')}</span>
-        <div class="multiview-tile-actions">
-          <button type="button" class="multiview-tile-btn" data-tile-mute="${entry.id}" title="${entry.muted ? 'Activer le son' : 'Couper le son'}">${entry.muted ? '🔇' : '🔊'}</button>
-          <button type="button" class="multiview-tile-btn" data-tile-remove="${entry.id}" title="Retirer ce live">✕</button>
-        </div>
-      </div>
-      ${entry.muted ? `<span class="multiview-tile-muted-badge">🔇 Muet — clique 🔊 pour activer le son</span>` : ''}
-    </div>
-  `).join('');
 
-  grid.querySelectorAll('[data-tile-mute]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.dataset.tileMute;
-      const entry = multiviewActiveLives.find(x => x.id === id);
-      if(!entry) return;
-      const turningOn = entry.muted; // true → on va l'activer (démuter)
-      // On coupe d'abord le son des autres tuiles (une seule à la fois),
-      // puis on (dé)coupe celle demandée. On ne recharge que les tuiles
-      // dont l'état a réellement changé, pour ne pas interrompre les
-      // autres lives en cours de visionnage.
-      multiviewActiveLives.forEach(x=>{
-        const newMuted = (x.id === id) ? !turningOn : true;
-        if(x.muted === newMuted) return;
-        x.muted = newMuted;
-        const tile = grid.querySelector(`.multiview-tile[data-tile-id="${x.id}"]`);
-        if(!tile) return;
-        const iframe = tile.querySelector('iframe');
-        if(iframe) iframe.src = multiviewEmbedSrc(x, x.muted);
-        const muteBtn = tile.querySelector('[data-tile-mute]');
-        if(muteBtn){
-          muteBtn.textContent = x.muted ? '🔇' : '🔊';
-          muteBtn.title = x.muted ? 'Activer le son' : 'Couper le son';
-        }
-        let badge = tile.querySelector('.multiview-tile-muted-badge');
-        if(x.muted && !badge){
-          badge = document.createElement('span');
-          badge.className = 'multiview-tile-muted-badge';
-          badge.textContent = '🔇 Muet — clique 🔊 pour activer le son';
-          tile.appendChild(badge);
-        }else if(!x.muted && badge){
-          badge.remove();
-        }
-      });
-    });
+  const existingTiles = {};
+  grid.querySelectorAll('.multiview-tile[data-tile-id]').forEach(t => { existingTiles[t.dataset.tileId] = t; });
+  Object.keys(existingTiles).forEach(id=>{
+    if(!multiviewActiveLives.some(x => x.id === id)) existingTiles[id].remove();
   });
-  grid.querySelectorAll('[data-tile-remove]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      multiviewActiveLives = multiviewActiveLives.filter(x => x.id !== btn.dataset.tileRemove);
-      if(multiviewActiveLives.length === 0){ closeMultiview(); return; }
-      renderMultiviewGrid();
-    });
+
+  multiviewActiveLives.forEach(entry=>{
+    if(existingTiles[entry.id]) return; // déjà affichée, on n'y touche pas
+    const tile = document.createElement('div');
+    tile.className = 'multiview-tile';
+    tile.dataset.tileId = entry.id;
+    tile.innerHTML = multiviewTileHtml(entry);
+    bindMultiviewTileEvents(tile, entry);
+    const addTileRef = grid.querySelector('.multiview-add-tile');
+    grid.insertBefore(tile, addTileRef || null);
   });
+
+  const oldAddTile = grid.querySelector('.multiview-add-tile');
+  if(oldAddTile) oldAddTile.remove();
+  const canAddMore = multiviewActiveLives.length < MULTIVIEW_MAX
+    && currentLiveStreams.some(l => !multiviewActiveLives.some(x => x.id === l.id));
+  if(canAddMore){
+    const addTile = document.createElement('button');
+    addTile.type = 'button';
+    addTile.className = 'multiview-tile multiview-add-tile';
+    addTile.title = 'Ajouter un autre live à cette vue';
+    addTile.innerHTML = `<span class="multiview-add-icon">+</span><span class="multiview-add-label">Ajouter un live</span>`;
+    addTile.addEventListener('click', openMultiviewSelect);
+    grid.appendChild(addTile);
+  }
+  // Le nombre total de cellules (lives actifs + tuile "+" éventuelle)
+  // détermine la disposition de la grille CSS.
+  grid.dataset.count = String(multiviewActiveLives.length + (canAddMore ? 1 : 0));
 }
 function launchMultiview(){
   const errorEl = document.getElementById('multiview-select-error');
@@ -7002,10 +7060,13 @@ function launchMultiview(){
     errorEl.style.display = 'block';
     return;
   }
-  multiviewActiveLives = multiviewSelectedIds
-    .map(id => currentLiveStreams.find(l => l.id === id))
-    .filter(Boolean)
-    .map((l, i) => ({ ...l, muted: true }));
+  const previous = multiviewActiveLives;
+  multiviewActiveLives = multiviewSelectedIds.map(id=>{
+    const existing = previous.find(x => x.id === id);
+    if(existing) return existing; // conserve l'état (son activé, iframe) inchangé
+    const live = currentLiveStreams.find(l => l.id === id);
+    return live ? { ...live, muted: true } : null;
+  }).filter(Boolean);
   closeOverlay('multiview-select-overlay');
   renderMultiviewGrid();
   openOverlay('multiview-overlay');
