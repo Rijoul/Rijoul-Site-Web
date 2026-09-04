@@ -2245,6 +2245,90 @@
   footer .footer-legal-btn{ background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }
   footer .footer-legal-btn:hover{ background: rgba(109,243,255,0.16); border-color: var(--neon-a); }
 
+  /* ---------- Multi-lives : regarder plusieurs lives en même temps ---------- */
+  .multiview-open-btn{ padding:0.6rem 1.2rem; font-size:0.78rem; }
+  .multiview-select-list{
+    display:flex; flex-direction:column; gap:0.6rem;
+    max-height:50vh; overflow-y:auto; margin-bottom:1rem;
+  }
+  .multiview-select-row{
+    display:flex; align-items:center; gap:0.8rem;
+    background: rgba(255,255,255,0.05); border:1.5px solid rgba(255,255,255,0.1);
+    border-radius:14px; padding:0.6rem 0.8rem; cursor:pointer;
+    transition: all .2s ease;
+  }
+  .multiview-select-row:hover{ border-color: var(--neon-a); background: rgba(109,243,255,0.08); }
+  .multiview-select-row.checked{ border-color: var(--neon-c); background: rgba(255,47,176,0.1); }
+  .multiview-select-row input[type=checkbox]{ width:18px; height:18px; accent-color: var(--red); flex-shrink:0; }
+  .multiview-select-row img{
+    width:64px; height:36px; object-fit:cover; border-radius:8px; flex-shrink:0; background:#050208;
+  }
+  .multiview-select-row-info{ min-width:0; flex:1; }
+  .multiview-select-row-title{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.85rem; color: var(--card-text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .multiview-select-row-author{ font-size:0.75rem; color: var(--card-text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  .multiview-modal{
+    position:relative; width:min(1400px, 96vw); height:min(900px, 92vh);
+    background: rgba(8,5,14,0.85); border-radius:20px;
+    border:1.5px solid rgba(255,255,255,0.14);
+    box-shadow: 0 50px 110px -24px rgba(0,0,0,0.85), 0 0 60px -10px rgba(178,91,255,0.25);
+    display:flex; flex-direction:column; overflow:hidden;
+    animation: popIn .28s cubic-bezier(.2,.8,.2,1) both;
+  }
+  .multiview-topbar{
+    display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    padding:0.9rem 1.2rem; border-bottom:1px solid rgba(255,255,255,0.1);
+    background: rgba(10,7,16,0.85); flex-shrink:0;
+  }
+  .multiview-topbar-title{ font-family:'Space Grotesk', sans-serif; font-weight:600; color:#fff; font-size:0.95rem; }
+  .multiview-close-btn{ padding:0.5rem 1rem; font-size:0.8rem; }
+  .multiview-grid{
+    flex:1; min-height:0; display:grid; gap:0.5rem; padding:0.5rem;
+    grid-template-columns:1fr; grid-template-rows:1fr;
+  }
+  .multiview-grid[data-count="2"]{ grid-template-columns:1fr 1fr; grid-template-rows:1fr; }
+  .multiview-grid[data-count="3"]{ grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; }
+  .multiview-grid[data-count="4"]{ grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; }
+  .multiview-tile{
+    position:relative; background:#000; border-radius:12px; overflow:hidden;
+    border:1.5px solid rgba(255,255,255,0.08); min-height:0; min-width:0;
+  }
+  .multiview-tile iframe{ width:100%; height:100%; border:none; display:block; }
+  .multiview-tile-bar{
+    position:absolute; top:0; left:0; right:0; z-index:2;
+    display:flex; align-items:center; justify-content:space-between; gap:0.5rem;
+    padding:0.4rem 0.6rem; background: linear-gradient(180deg, rgba(0,0,0,0.75), transparent);
+    opacity:0; transition: opacity .2s ease; pointer-events:none;
+  }
+  .multiview-tile:hover .multiview-tile-bar{ opacity:1; pointer-events:auto; }
+  .multiview-tile-title{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.75rem; color:#fff;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 4px rgba(0,0,0,0.8);
+  }
+  .multiview-tile-actions{ display:flex; gap:0.35rem; flex-shrink:0; }
+  .multiview-tile-btn{
+    width:26px; height:26px; border-radius:50%; border:1px solid rgba(255,255,255,0.3);
+    background: rgba(0,0,0,0.6); color:#fff; font-size:0.75rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    transition: background .2s ease;
+  }
+  .multiview-tile-btn:hover{ background: rgba(255,47,86,0.8); }
+  .multiview-tile-muted-badge{
+    position:absolute; bottom:0.5rem; left:0.5rem; z-index:2;
+    background: rgba(0,0,0,0.65); color:#fff; font-size:0.68rem; font-family:'Space Grotesk', sans-serif;
+    padding:0.25rem 0.55rem; border-radius:999px; pointer-events:none;
+  }
+  @media (max-width:900px){
+    .multiview-modal{ width:100vw; height:100vh; border-radius:0; }
+    .multiview-grid, .multiview-grid[data-count="2"], .multiview-grid[data-count="3"], .multiview-grid[data-count="4"]{
+      grid-template-columns:1fr; grid-auto-rows:minmax(200px, 1fr); overflow-y:auto;
+    }
+    .multiview-tile-bar{ opacity:1; pointer-events:auto; background: linear-gradient(180deg, rgba(0,0,0,0.75), transparent 70%); }
+  }
+
   @media (prefers-reduced-motion: reduce){
     .reveal, .grid > *, header, .eyebrow::before, .card-flag-badge.badge-live,
     h1.brand, .card:hover .play-icon, body::before{ animation:none !important; }
@@ -2480,6 +2564,7 @@
       <div class="section-title">Lives en cours</div>
       <div class="section-count-row">
         <div class="section-count" id="lives-count">chargement…</div>
+        <button class="btn multiview-open-btn" id="open-multiview-btn" type="button">🖥 Plusieurs lives</button>
         <a class="refresh-link" id="refresh-lives-link">↻ Actualiser</a>
       </div>
     </div>
@@ -2737,6 +2822,32 @@
       <button class="btn" data-close="legal-edit-overlay">Annuler</button>
       <button class="btn primary" id="legal-edit-save">Enregistrer</button>
     </div>
+  </div>
+</div>
+
+<!-- Sélection des lives à regarder simultanément -->
+<div class="overlay" id="multiview-select-overlay">
+  <div class="modal">
+    <button class="modal-close" data-close="multiview-select-overlay">&times;</button>
+    <h2>Regarder plusieurs lives</h2>
+    <div class="modal-hint">Sélectionne de 2 à 4 lives à afficher côte à côte, en même temps.</div>
+    <div id="multiview-select-list" class="multiview-select-list"></div>
+    <div class="modal-error" id="multiview-select-error" style="display:none;"></div>
+    <div class="modal-actions">
+      <button class="btn" data-close="multiview-select-overlay">Annuler</button>
+      <button class="btn primary" id="multiview-launch-btn">Lancer (0)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vue simultanée de plusieurs lives -->
+<div class="overlay" id="multiview-overlay">
+  <div class="multiview-modal">
+    <div class="multiview-topbar">
+      <span class="multiview-topbar-title">🖥 Plusieurs lives en même temps</span>
+      <button class="btn multiview-close-btn" id="multiview-close-btn" type="button">✕ Fermer</button>
+    </div>
+    <div class="multiview-grid" id="multiview-grid"></div>
   </div>
 </div>
 
@@ -6756,6 +6867,164 @@ function renderLivesSection(){
     });
   });
 }
+
+/* =========================================================
+   MULTI-LIVES — regarder plusieurs lives en même temps
+   Fonctionnalité indépendante du lecteur principal (#player-overlay) :
+   ouvre une grille de mini-lecteurs (iframes) dans sa propre fenêtre,
+   sans toucher à l'état du lecteur solo (réactions, tchat, PIP, etc.).
+   ========================================================= */
+let multiviewSelectedIds = [];
+let multiviewActiveLives = [];
+const MULTIVIEW_MAX = 4;
+
+function openMultiviewSelect(){
+  const list = document.getElementById('multiview-select-list');
+  const errorEl = document.getElementById('multiview-select-error');
+  errorEl.style.display = 'none';
+  multiviewSelectedIds = multiviewSelectedIds.filter(id => currentLiveStreams.some(l => l.id === id));
+
+  if(currentLiveStreams.length === 0){
+    list.innerHTML = `<div class="empty-state">Aucun live en cours pour l'instant.</div>`;
+  }else{
+    list.innerHTML = currentLiveStreams.map(l=>{
+      const thumb = l.thumbnail || (l.platform === 'youtube' ? `https://i.ytimg.com/vi/${l.videoId}/hqdefault.jpg` : '');
+      const checked = multiviewSelectedIds.includes(l.id);
+      return `
+        <label class="multiview-select-row${checked ? ' checked' : ''}" data-id="${l.id}">
+          <input type="checkbox" data-multiview-check="${l.id}" ${checked ? 'checked' : ''}>
+          ${thumb ? `<img src="${thumb}" alt="">` : `<div style="width:64px;height:36px;border-radius:8px;background:#050208;flex-shrink:0;"></div>`}
+          <div class="multiview-select-row-info">
+            <div class="multiview-select-row-title">${escapeHtml(l.title || 'Live')}</div>
+            ${l.author ? `<div class="multiview-select-row-author">${escapeHtml(l.author)}</div>` : ''}
+          </div>
+        </label>
+      `;
+    }).join('');
+    list.querySelectorAll('[data-multiview-check]').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        const id = cb.dataset.multiviewCheck;
+        if(cb.checked){
+          if(multiviewSelectedIds.length >= MULTIVIEW_MAX){
+            cb.checked = false;
+            errorEl.textContent = `Tu peux regarder au maximum ${MULTIVIEW_MAX} lives en même temps.`;
+            errorEl.style.display = 'block';
+            return;
+          }
+          errorEl.style.display = 'none';
+          multiviewSelectedIds.push(id);
+        }else{
+          multiviewSelectedIds = multiviewSelectedIds.filter(x => x !== id);
+        }
+        cb.closest('.multiview-select-row').classList.toggle('checked', cb.checked);
+        document.getElementById('multiview-launch-btn').textContent = `Lancer (${multiviewSelectedIds.length})`;
+      });
+    });
+  }
+  document.getElementById('multiview-launch-btn').textContent = `Lancer (${multiviewSelectedIds.length})`;
+  openOverlay('multiview-select-overlay');
+}
+document.getElementById('open-multiview-btn').addEventListener('click', openMultiviewSelect);
+
+function multiviewEmbedSrc(l, muted){
+  if(l.platform === 'youtube'){
+    return `https://www.youtube.com/embed/${l.videoId}?autoplay=1&mute=${muted ? 1 : 0}&playsinline=1`;
+  }else if(l.platform === 'twitch'){
+    const parent = window.location.hostname || 'localhost';
+    return `https://player.twitch.tv/?channel=${encodeURIComponent(l.videoId)}&parent=${parent}&autoplay=true&muted=${muted ? 'true' : 'false'}`;
+  }
+  return '';
+}
+function renderMultiviewGrid(){
+  const grid = document.getElementById('multiview-grid');
+  grid.dataset.count = String(multiviewActiveLives.length);
+  grid.innerHTML = multiviewActiveLives.map((entry, i)=>`
+    <div class="multiview-tile" data-tile-id="${entry.id}">
+      <iframe src="${multiviewEmbedSrc(entry, entry.muted)}" allow="autoplay; fullscreen" allowfullscreen></iframe>
+      <div class="multiview-tile-bar">
+        <span class="multiview-tile-title">${escapeHtml(entry.title || 'Live')}</span>
+        <div class="multiview-tile-actions">
+          <button type="button" class="multiview-tile-btn" data-tile-mute="${entry.id}" title="${entry.muted ? 'Activer le son' : 'Couper le son'}">${entry.muted ? '🔇' : '🔊'}</button>
+          <button type="button" class="multiview-tile-btn" data-tile-remove="${entry.id}" title="Retirer ce live">✕</button>
+        </div>
+      </div>
+      ${entry.muted ? `<span class="multiview-tile-muted-badge">🔇 Muet — clique 🔊 pour activer le son</span>` : ''}
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('[data-tile-mute]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.tileMute;
+      const entry = multiviewActiveLives.find(x => x.id === id);
+      if(!entry) return;
+      const turningOn = entry.muted; // true → on va l'activer (démuter)
+      // On coupe d'abord le son des autres tuiles (une seule à la fois),
+      // puis on (dé)coupe celle demandée. On ne recharge que les tuiles
+      // dont l'état a réellement changé, pour ne pas interrompre les
+      // autres lives en cours de visionnage.
+      multiviewActiveLives.forEach(x=>{
+        const newMuted = (x.id === id) ? !turningOn : true;
+        if(x.muted === newMuted) return;
+        x.muted = newMuted;
+        const tile = grid.querySelector(`.multiview-tile[data-tile-id="${x.id}"]`);
+        if(!tile) return;
+        const iframe = tile.querySelector('iframe');
+        if(iframe) iframe.src = multiviewEmbedSrc(x, x.muted);
+        const muteBtn = tile.querySelector('[data-tile-mute]');
+        if(muteBtn){
+          muteBtn.textContent = x.muted ? '🔇' : '🔊';
+          muteBtn.title = x.muted ? 'Activer le son' : 'Couper le son';
+        }
+        let badge = tile.querySelector('.multiview-tile-muted-badge');
+        if(x.muted && !badge){
+          badge = document.createElement('span');
+          badge.className = 'multiview-tile-muted-badge';
+          badge.textContent = '🔇 Muet — clique 🔊 pour activer le son';
+          tile.appendChild(badge);
+        }else if(!x.muted && badge){
+          badge.remove();
+        }
+      });
+    });
+  });
+  grid.querySelectorAll('[data-tile-remove]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      multiviewActiveLives = multiviewActiveLives.filter(x => x.id !== btn.dataset.tileRemove);
+      if(multiviewActiveLives.length === 0){ closeMultiview(); return; }
+      renderMultiviewGrid();
+    });
+  });
+}
+function launchMultiview(){
+  const errorEl = document.getElementById('multiview-select-error');
+  if(multiviewSelectedIds.length < 2){
+    errorEl.textContent = "Sélectionne au moins 2 lives pour les regarder en même temps.";
+    errorEl.style.display = 'block';
+    return;
+  }
+  multiviewActiveLives = multiviewSelectedIds
+    .map(id => currentLiveStreams.find(l => l.id === id))
+    .filter(Boolean)
+    .map((l, i) => ({ ...l, muted: true }));
+  closeOverlay('multiview-select-overlay');
+  renderMultiviewGrid();
+  openOverlay('multiview-overlay');
+}
+document.getElementById('multiview-launch-btn').addEventListener('click', launchMultiview);
+
+function closeMultiview(){
+  // On vide bien le src de chaque iframe pour couper le son/la lecture
+  // immédiatement (le simple retrait du DOM ou display:none ne suffit
+  // pas toujours à interrompre un flux déjà démarré).
+  document.querySelectorAll('#multiview-grid iframe').forEach(f => { f.src = 'about:blank'; });
+  document.getElementById('multiview-grid').innerHTML = '';
+  multiviewActiveLives = [];
+  closeOverlay('multiview-overlay');
+}
+document.getElementById('multiview-close-btn').addEventListener('click', closeMultiview);
+document.getElementById('multiview-overlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'multiview-overlay') closeMultiview();
+});
 
 /* --- Twitch : jeton d'application (client_credentials) --- */
 let twitchAppToken = null;
