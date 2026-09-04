@@ -2652,10 +2652,10 @@
     <div class="legal-body" id="mentions-legal-body">
       <p><em>Dernière mise à jour : 3 septembre 2026.</em></p>
       <h3>Éditeur du site</h3>
-      <p>Le site et l'application RIJOUL VISION sont édités à titre non professionnel par : <strong>[Nom, prénom ou raison sociale de l'éditeur à compléter]</strong>, joignable à l'adresse : <strong>[adresse e-mail de contact à compléter]</strong>.</p>
+      <p>Le site et l'application RIJOUL VISION sont édités à titre non professionnel par : <strong>Édition à titre non professionnel (particulier)</strong>, joignable à l'adresse : <strong>Rijoulcontactpro@gmail.com</strong>.</p>
       <p>Conformément à l'article 6-III de la loi n°2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique, l'éditeur exerçant à titre non professionnel est autorisé à ne pas faire figurer publiquement son identité complète (adresse postale, numéro de téléphone), sous réserve de l'avoir communiquée à son hébergeur. Cette identité complète peut être obtenue par toute personne en formulant une demande motivée auprès de l'hébergeur, ou sur réquisition de l'autorité judiciaire.</p>
       <h3>Directeur de la publication</h3>
-      <p><strong>[Nom du directeur de la publication à compléter]</strong>, joignable à l'adresse indiquée ci-dessus.</p>
+      <p><strong>Édition à titre non professionnel (particulier)</strong>, joignable à l'adresse indiquée ci-dessus.</p>
       <h3>Hébergement</h3>
       <p>Le Service (pages du site et données applicatives : comptes utilisateurs, réactions, abonnements, playlists, messages de tchat) est hébergé par la plateforme Firebase, exploitée par :</p>
       <p>Google Ireland Limited — Gordon House, Barrow Street, Dublin 4, Irlande.</p>
@@ -2671,7 +2671,7 @@
       <h3>Médiation et réclamation</h3>
       <p>En cas de litige relatif à la protection de vos données personnelles, vous disposez du droit d'introduire une réclamation auprès de la Commission Nationale de l'Informatique et des Libertés (CNIL) — <span style="white-space:nowrap">3 Place de Fontenoy, 75007 Paris</span> — <span style="white-space:nowrap">www.cnil.fr</span>.</p>
       <h3>Contact</h3>
-      <p>Pour toute question relative au Service, à son contenu ou aux présentes mentions légales : <strong>[adresse e-mail de contact à compléter]</strong>.</p>
+      <p>Pour toute question relative au Service, à son contenu ou aux présentes mentions légales : <strong>Rijoulcontactpro@gmail.com</strong>.</p>
     </div>
     <div class="modal-actions">
       <button class="btn edit-legal-btn" data-edit-legal="mentions">✎ Modifier</button>
@@ -2689,7 +2689,7 @@
     <div class="legal-body" id="confidentialite-legal-body">
       <p><em>Dernière mise à jour : 3 septembre 2026.</em></p>
       <h3>Responsable du traitement</h3>
-      <p>Le responsable du traitement des données à caractère personnel collectées via RIJOUL VISION est : <strong>[Nom, prénom ou raison sociale à compléter]</strong>, joignable à l'adresse : <strong>[adresse e-mail de contact à compléter]</strong>.</p>
+      <p>Le responsable du traitement des données à caractère personnel collectées via RIJOUL VISION est : <strong>Édition à titre non professionnel (particulier)</strong>, joignable à l'adresse : <strong>Rijoulcontactpro@gmail.com</strong>.</p>
       <h3>Données collectées</h3>
       <p>Lors de la création d'un compte (par e-mail/mot de passe ou via connexion Google), RIJOUL VISION collecte une adresse e-mail, un nom affiché et, si disponible, une photo de profil. En utilisant le Service, tu génères également des données liées à ton usage : réactions (j'aime/je n'aime pas), abonnements à des chaînes, vidéos et lives regardés (historique), playlists créées, messages envoyés dans le tchat des lives, commentaires, ainsi que tes préférences (thème, mode cinéma, notifications).</p>
       <p>Si tu utilises la fonctionnalité de commentaires liée à YouTube, une autorisation d'accès à ton compte Google (portée « youtube.force-ssl ») t'est demandée afin de publier des commentaires en ton nom sur YouTube ; cette autorisation est distincte de la connexion au Service et peut être révoquée à tout moment depuis les paramètres de sécurité de ton compte Google.</p>
@@ -2728,10 +2728,12 @@
     <button class="modal-close" data-close="legal-edit-overlay">&times;</button>
     <h2 id="legal-edit-title">Modifier le texte</h2>
     <div class="modal-hint">Le texte accepte du HTML simple (utilise des balises &lt;h3&gt; pour les titres de section et &lt;p&gt; pour les paragraphes), afin de conserver la même mise en forme que le reste du texte légal.</div>
+    <div class="modal-hint" id="legal-edit-custom-hint" style="display:none; color: var(--red); font-weight:600;">⚠️ Une version personnalisée de cette page est actuellement enregistrée et remplace le texte par défaut du site.</div>
     <input type="hidden" id="legal-edit-key">
     <textarea id="legal-edit-textarea" style="width:100%; min-height:320px; background:#fffaf1; border:2px solid var(--cream-2); color:var(--dark-text); border-radius:14px; padding:0.8rem 0.9rem; font-family:'Inter'; font-size:0.88rem; line-height:1.5; margin-bottom:1.2rem; resize:vertical;"></textarea>
     <div class="modal-error" id="legal-edit-error"></div>
     <div class="modal-actions">
+      <button class="btn" id="legal-edit-reset" title="Supprime la version personnalisée enregistrée dans Firestore et restaure le texte par défaut du site">↺ Réinitialiser au texte par défaut</button>
       <button class="btn" data-close="legal-edit-overlay">Annuler</button>
       <button class="btn primary" id="legal-edit-save">Enregistrer</button>
     </div>
@@ -3905,6 +3907,14 @@ const LEGAL_PAGES = {
   mentions: { overlayId: 'mentions-overlay', bodyElId: 'mentions-legal-body', editTitle: "Modifier les mentions légales" },
   confidentialite: { overlayId: 'confidentialite-overlay', bodyElId: 'confidentialite-legal-body', editTitle: "Modifier la politique de confidentialité" }
 };
+// Mémorise le texte par défaut (celui livré avec le site) de chaque page
+// légale, capturé avant toute éventuelle surcharge par une version
+// personnalisée stockée dans Firestore. Sert au bouton "Réinitialiser".
+Object.keys(LEGAL_PAGES).forEach(key=>{
+  const page = LEGAL_PAGES[key];
+  const el = document.getElementById(page.bodyElId);
+  page.defaultHtml = el ? el.innerHTML.trim() : '';
+});
 document.querySelectorAll('[data-open-legal]').forEach(link=>{
   link.addEventListener('click', async (e)=>{
     e.preventDefault();
@@ -3960,7 +3970,7 @@ document.querySelectorAll('[data-share-legal]').forEach(btn=>{
   });
 });
 document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
+  btn.addEventListener('click', async ()=>{
     if(!isAdmin) return;
     const key = btn.dataset.editLegal;
     const page = LEGAL_PAGES[key];
@@ -3970,6 +3980,8 @@ document.querySelectorAll('[data-edit-legal]').forEach(btn=>{
     document.getElementById('legal-edit-textarea').value = document.getElementById(page.bodyElId).innerHTML.trim();
     document.getElementById('legal-edit-error').style.display = 'none';
     openOverlay('legal-edit-overlay');
+    const customHtml = await loadLegalContent(key);
+    document.getElementById('legal-edit-custom-hint').style.display = customHtml ? 'block' : 'none';
   });
 });
 document.getElementById('legal-edit-save').addEventListener('click', async ()=>{
@@ -4000,10 +4012,31 @@ document.getElementById('legal-edit-save').addEventListener('click', async ()=>{
     btn.disabled = false; btn.textContent = 'Enregistrer';
   }
 });
+document.getElementById('legal-edit-reset').addEventListener('click', async ()=>{
+  if(!isAdmin) return;
+  const key = document.getElementById('legal-edit-key').value;
+  const page = LEGAL_PAGES[key];
+  const errorEl = document.getElementById('legal-edit-error');
+  errorEl.style.display = 'none';
+  if(!key || !page) return;
+  if(!confirm("Supprimer la version personnalisée enregistrée pour cette page et revenir au texte par défaut du site ? Cette action est irréversible.")) return;
 
-/* =========================================================
-   Navigation entre sections
-   ========================================================= */
+  const btn = document.getElementById('legal-edit-reset');
+  btn.disabled = true; btn.textContent = 'Réinitialisation…';
+  try{
+    await siteContentRef.doc(key).delete();
+    legalContentCache[key] = null;
+    document.getElementById(page.bodyElId).innerHTML = page.defaultHtml;
+    document.getElementById('legal-edit-textarea').value = page.defaultHtml;
+    document.getElementById('legal-edit-custom-hint').style.display = 'none';
+  }catch(e){
+    console.error(e);
+    errorEl.textContent = "Erreur lors de la réinitialisation (droits administrateur requis).";
+    errorEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = '↺ Réinitialiser au texte par défaut';
+  }
+});
 let lastNonEnvSection = 'section-home';
 function showSection(id){
   document.querySelectorAll('.page-section').forEach(sec=>{
