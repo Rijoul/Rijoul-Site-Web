@@ -2247,21 +2247,52 @@
 
   /* ---------- Multi-lives : regarder plusieurs lives en même temps ---------- */
   .multiview-open-btn{ padding:0.6rem 1.2rem; font-size:0.78rem; }
+
+  /* -- Sélecteur : recherche + actions rapides -- */
+  .multiview-search-row{ position:relative; margin-bottom:0.7rem; }
+  .multiview-search-input{
+    width:100%; background:#fffaf1; border:2px solid var(--cream-2); color: var(--dark-text);
+    border-radius:14px; padding:0.75rem 2.4rem 0.75rem 1rem; font-family:'Inter'; font-size:0.92rem;
+    transition: border-color .2s ease;
+  }
+  .multiview-search-input:focus{ outline:none; border-color: var(--red); }
+  .multiview-search-clear{
+    position:absolute; right:0.6rem; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:#a3856f; font-size:1.1rem; cursor:pointer;
+    width:26px; height:26px; display:none; align-items:center; justify-content:center; padding:0;
+  }
+  .multiview-search-clear.visible{ display:flex; }
+  .multiview-quick-actions{ display:flex; align-items:center; gap:0.5rem; margin-bottom:0.8rem; flex-wrap:wrap; }
+  .multiview-quick-btn{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.72rem; letter-spacing:0.01em;
+    padding:0.42rem 0.85rem; border-radius:999px; border:1.5px solid rgba(20,10,35,0.16);
+    background: rgba(20,10,35,0.04); color: var(--dark-text); cursor:pointer; transition: all .2s ease;
+  }
+  .multiview-quick-btn:hover{ border-color: var(--navy); background: rgba(109,59,255,0.1); }
+  .multiview-quick-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .multiview-quick-counter{
+    margin-left:auto; font-size:0.72rem; font-weight:700; color:#a3856f;
+    font-family:'Space Grotesk', sans-serif; white-space:nowrap;
+  }
+  .multiview-quick-counter.at-max{ color: var(--red); }
+
   .multiview-select-list{
     display:flex; flex-direction:column; gap:0.6rem;
-    max-height:50vh; overflow-y:auto; margin-bottom:1rem;
+    max-height:44vh; overflow-y:auto; margin-bottom:1rem; scroll-behavior:smooth;
   }
   .multiview-select-row{
     display:flex; align-items:center; gap:0.8rem;
     background: rgba(20,10,35,0.05); border:1.5px solid rgba(20,10,35,0.12);
     border-radius:14px; padding:0.6rem 0.8rem; cursor:pointer;
-    transition: all .2s ease;
+    transition: border-color .2s ease, background .2s ease, opacity .2s ease;
   }
   .multiview-select-row:hover{ border-color: var(--navy); background: rgba(109,59,255,0.08); }
   .multiview-select-row.checked{ border-color: var(--red); background: rgba(255,47,86,0.08); }
+  .multiview-select-row.row-disabled{ opacity:0.4; cursor:not-allowed; }
   .multiview-select-row input[type=checkbox]{ width:18px; height:18px; accent-color: var(--red); flex-shrink:0; }
+  .multiview-select-row-thumb{ position:relative; width:64px; height:36px; flex-shrink:0; }
   .multiview-select-row img{
-    width:64px; height:36px; object-fit:cover; border-radius:8px; flex-shrink:0; background:#050208;
+    width:64px; height:36px; object-fit:cover; border-radius:8px; flex-shrink:0; background:#050208; display:block;
   }
   .multiview-select-row-info{ min-width:0; flex:1; }
   .multiview-select-row-title{
@@ -2269,6 +2300,21 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .multiview-select-row-author{ font-size:0.75rem; color: rgba(23,12,38,0.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .multiview-select-row-badges{ display:flex; align-items:center; gap:0.3rem; margin-top:0.25rem; flex-wrap:wrap; }
+  .multiview-select-row-badge{
+    font-family:'Space Grotesk', sans-serif; font-size:0.6rem; font-weight:700; letter-spacing:0.02em;
+    padding:0.14rem 0.45rem; border-radius:999px; display:inline-flex; align-items:center; gap:0.28rem;
+    white-space:nowrap;
+  }
+  .multiview-select-row-badge.live{ background: rgba(255,47,86,0.14); color: var(--red); }
+  .multiview-select-row-badge.live .live-dot-mini{
+    width:6px; height:6px; border-radius:50%; background: var(--red); animation: livePulse 1.6s ease-in-out infinite;
+  }
+  .multiview-select-row-badge.viewers{ background: rgba(20,10,35,0.08); color: var(--dark-text); }
+  .multiview-select-row-badge.platform-twitch{ background: rgba(145,70,255,0.15); color:#7c3aed; }
+  .multiview-select-row-badge.platform-youtube{ background: rgba(255,0,0,0.12); color:#d81c1c; }
+  .multiview-select-empty{ text-align:center; padding:1.6rem 1rem; color: rgba(23,12,38,0.55); font-size:0.85rem; }
+  #multiview-launch-btn:disabled{ opacity:0.4; cursor:not-allowed; pointer-events:none; transform:none; box-shadow:none; }
 
   .multiview-modal{
     position:relative; width:min(1400px, 96vw); height:min(900px, 92vh);
@@ -2281,9 +2327,24 @@
   .multiview-topbar{
     display:flex; align-items:center; justify-content:space-between; gap:1rem;
     padding:0.9rem 1.2rem; border-bottom:1px solid rgba(255,255,255,0.1);
-    background: rgba(10,7,16,0.85); flex-shrink:0;
+    background: rgba(10,7,16,0.85); flex-shrink:0; flex-wrap:wrap;
   }
-  .multiview-topbar-title{ font-family:'Space Grotesk', sans-serif; font-weight:600; color:#fff; font-size:0.95rem; }
+  .multiview-topbar-left{ display:flex; align-items:center; gap:0.6rem; min-width:0; }
+  .multiview-topbar-title{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; color:#fff; font-size:0.95rem;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .multiview-count-badge{
+    font-size:0.7rem; font-weight:700; font-family:'Space Grotesk', sans-serif; color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.14);
+    padding:0.22rem 0.6rem; border-radius:999px; flex-shrink:0;
+  }
+  .multiview-reorder-hint{
+    font-size:0.68rem; color: rgba(255,255,255,0.4); font-family:'Space Grotesk', sans-serif;
+    display:none; white-space:nowrap;
+  }
+  .multiview-reorder-hint.visible{ display:inline; }
+  .multiview-topbar-actions{ display:flex; align-items:center; gap:0.6rem; }
   .multiview-close-btn{ padding:0.5rem 1rem; font-size:0.8rem; }
   .multiview-grid{
     flex:1; min-height:0; display:grid; gap:0.5rem; padding:0.5rem;
@@ -2295,8 +2356,26 @@
   .multiview-tile{
     position:relative; background:#000; border-radius:12px; overflow:hidden;
     border:1.5px solid rgba(255,255,255,0.08); min-height:0; min-width:0;
+    transition: border-color .18s ease, box-shadow .18s ease, opacity .22s ease, transform .22s ease;
   }
-  .multiview-tile iframe{ width:100%; height:100%; border:none; display:block; }
+  .multiview-tile[draggable="true"]{ cursor:grab; }
+  .multiview-tile.dragging{ opacity:0.35; cursor:grabbing; }
+  .multiview-tile.drag-over{ border-color: var(--neon-a); box-shadow: inset 0 0 0 3px var(--neon-a); }
+  .multiview-tile.tile-entering{ animation: multiviewTileEnter .32s cubic-bezier(.2,.8,.2,1) both; }
+  .multiview-tile.tile-leaving{ animation: multiviewTileLeave .2s ease both; pointer-events:none; }
+  @keyframes multiviewTileEnter{ from{ opacity:0; transform:scale(.86); } to{ opacity:1; transform:scale(1); } }
+  @keyframes multiviewTileLeave{ from{ opacity:1; transform:scale(1); } to{ opacity:0; transform:scale(.86); } }
+  .multiview-tile iframe{ width:100%; height:100%; border:none; display:block; position:relative; z-index:0; }
+  .multiview-tile-loading{
+    position:absolute; inset:0; z-index:1; display:flex; align-items:center; justify-content:center;
+    background:#050208; transition: opacity .25s ease; pointer-events:none;
+  }
+  .multiview-tile-loading.hidden{ opacity:0; }
+  .multiview-tile-spinner{
+    width:32px; height:32px; border-radius:50%; border:3px solid rgba(255,255,255,0.14);
+    border-top-color: var(--neon-a); animation: multiviewSpin .8s linear infinite;
+  }
+  @keyframes multiviewSpin{ to{ transform: rotate(360deg); } }
   .multiview-tile-bar{
     position:absolute; top:0; left:0; right:0; z-index:2;
     display:flex; align-items:center; justify-content:space-between; gap:0.5rem;
@@ -2307,19 +2386,27 @@
   .multiview-tile-title{
     font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.75rem; color:#fff;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 1px 4px rgba(0,0,0,0.8);
+    display:flex; align-items:center; gap:0.35rem; min-width:0;
   }
+  .multiview-drag-handle{ cursor:grab; flex-shrink:0; opacity:0.7; }
   .multiview-tile-actions{ display:flex; gap:0.35rem; flex-shrink:0; }
   .multiview-tile-btn{
     width:26px; height:26px; border-radius:50%; border:1px solid rgba(255,255,255,0.3);
     background: rgba(0,0,0,0.6); color:#fff; font-size:0.75rem; cursor:pointer;
     display:flex; align-items:center; justify-content:center; flex-shrink:0;
-    transition: background .2s ease;
+    transition: background .2s ease, transform .15s ease;
   }
-  .multiview-tile-btn:hover{ background: rgba(255,47,86,0.8); }
+  .multiview-tile-btn:hover{ background: rgba(255,47,86,0.8); transform: scale(1.08); }
+  .multiview-tile-btn:active{ transform: scale(0.94); }
   .multiview-tile-muted-badge{
     position:absolute; bottom:0.5rem; left:0.5rem; z-index:2;
     background: rgba(0,0,0,0.65); color:#fff; font-size:0.68rem; font-family:'Space Grotesk', sans-serif;
     padding:0.25rem 0.55rem; border-radius:999px; pointer-events:none;
+  }
+  .multiview-tile-ended-badge{
+    position:absolute; inset:0; z-index:3; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:0.3rem; background: rgba(5,2,8,0.88); color:#fff;
+    font-family:'Space Grotesk', sans-serif; font-size:0.78rem; text-align:center; padding:1rem;
   }
   .multiview-add-tile{
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.5rem;
@@ -2345,6 +2432,9 @@
       grid-template-columns:1fr; grid-auto-rows:minmax(200px, 1fr); overflow-y:auto;
     }
     .multiview-tile-bar{ opacity:1; pointer-events:auto; background: linear-gradient(180deg, rgba(0,0,0,0.75), transparent 70%); }
+    .multiview-tile[draggable="true"]{ cursor:default; }
+    .multiview-reorder-hint{ display:none !important; }
+    .multiview-search-input{ font-size:16px; } /* évite le zoom auto iOS au focus */
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -2849,11 +2939,20 @@
     <button class="modal-close" data-close="multiview-select-overlay">&times;</button>
     <h2>Regarder plusieurs lives</h2>
     <div class="modal-hint">Sélectionne de 2 à 4 lives à afficher côte à côte, en même temps.</div>
+    <div class="multiview-search-row">
+      <input type="search" id="multiview-search-input" class="multiview-search-input" placeholder="Rechercher un live ou une chaîne…" autocomplete="off">
+      <button type="button" class="multiview-search-clear" id="multiview-search-clear" title="Effacer la recherche">&times;</button>
+    </div>
+    <div class="multiview-quick-actions">
+      <button type="button" class="multiview-quick-btn" id="multiview-select-all-btn">Tout sélectionner</button>
+      <button type="button" class="multiview-quick-btn" id="multiview-clear-btn">Tout désélectionner</button>
+      <span class="multiview-quick-counter" id="multiview-quick-counter">0/4 sélectionné</span>
+    </div>
     <div id="multiview-select-list" class="multiview-select-list"></div>
     <div class="modal-error" id="multiview-select-error" style="display:none;"></div>
     <div class="modal-actions">
       <button class="btn" data-close="multiview-select-overlay">Annuler</button>
-      <button class="btn primary" id="multiview-launch-btn">Lancer (0)</button>
+      <button class="btn primary" id="multiview-launch-btn" disabled>Lancer (0)</button>
     </div>
   </div>
 </div>
@@ -2862,8 +2961,14 @@
 <div class="overlay" id="multiview-overlay">
   <div class="multiview-modal">
     <div class="multiview-topbar">
-      <span class="multiview-topbar-title">🖥 Plusieurs lives en même temps</span>
-      <button class="btn multiview-close-btn" id="multiview-close-btn" type="button">✕ Fermer</button>
+      <div class="multiview-topbar-left">
+        <span class="multiview-topbar-title">🖥 Plusieurs lives en même temps</span>
+        <span class="multiview-count-badge" id="multiview-count-badge">0/4</span>
+        <span class="multiview-reorder-hint" id="multiview-reorder-hint">glisse une vignette pour la réorganiser</span>
+      </div>
+      <div class="multiview-topbar-actions">
+        <button class="btn multiview-close-btn" id="multiview-close-btn" type="button">✕ Fermer</button>
+      </div>
     </div>
     <div class="multiview-grid" id="multiview-grid"></div>
   </div>
@@ -6839,6 +6944,7 @@ function attachLiveStreamsListener(){
   liveStreamsUnsub = liveStreamsRef.orderBy('startedAt', 'desc').onSnapshot((snap)=>{
     currentLiveStreams = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderLivesSection();
+    if(typeof syncMultiviewWithLiveStreams === 'function') syncMultiviewWithLiveStreams();
   }, (e)=>{
     console.error('Lives indisponibles :', e);
     const grid = document.getElementById('lives-grid');
@@ -6891,36 +6997,64 @@ function renderLivesSection(){
    Fonctionnalité indépendante du lecteur principal (#player-overlay) :
    ouvre une grille de mini-lecteurs (iframes) dans sa propre fenêtre,
    sans toucher à l'état du lecteur solo (réactions, tchat, PIP, etc.).
+   Améliorations : recherche/tri dans le sélecteur, actions rapides,
+   animations d'entrée/sortie fluides, spinner de chargement par tuile,
+   réorganisation par glisser-déposer, et synchronisation automatique
+   quand un live se termine pendant qu'il est affiché.
    ========================================================= */
 let multiviewSelectedIds = [];
 let multiviewActiveLives = [];
+let multiviewSearchQuery = '';
+let multiviewDragId = null;
+let multiviewLaunching = false;
 const MULTIVIEW_MAX = 4;
 
-function openMultiviewSelect(){
+function multiviewFilteredLives(){
+  const q = multiviewSearchQuery.trim().toLowerCase();
+  const sorted = [...currentLiveStreams].sort((a, b) => (b.viewerCount || 0) - (a.viewerCount || 0));
+  if(!q) return sorted;
+  return sorted.filter(l =>
+    (l.title || '').toLowerCase().includes(q) ||
+    (l.author || '').toLowerCase().includes(q)
+  );
+}
+
+function multiviewSelectRowBadgesHtml(l){
+  const platformClass = l.platform === 'twitch' ? 'platform-twitch' : 'platform-youtube';
+  const platformLabel = l.platform === 'twitch' ? 'TWITCH' : 'YOUTUBE';
+  return `
+    <div class="multiview-select-row-badges">
+      <span class="multiview-select-row-badge live"><span class="live-dot-mini"></span>LIVE</span>
+      <span class="multiview-select-row-badge ${platformClass}">${platformLabel}</span>
+      ${l.viewerCount != null ? `<span class="multiview-select-row-badge viewers">${formatViewCount(l.viewerCount)} 👁</span>` : ''}
+    </div>
+  `;
+}
+
+function renderMultiviewSelectList(){
   const list = document.getElementById('multiview-select-list');
   const errorEl = document.getElementById('multiview-select-error');
-  errorEl.style.display = 'none';
-  // Si une grille multi-lives est déjà active (ouverture via la tuile "+"),
-  // on repart de sa sélection actuelle plutôt que de l'ancienne sélection
-  // mémorisée, pour que la case à cocher reflète fidèlement ce qui est
-  // affiché à l'écran.
-  multiviewSelectedIds = multiviewActiveLives.length
-    ? multiviewActiveLives.map(x => x.id)
-    : multiviewSelectedIds.filter(id => currentLiveStreams.some(l => l.id === id));
+  if(!list) return;
+  const scrollTop = list.scrollTop;
+  const lives = multiviewFilteredLives();
 
   if(currentLiveStreams.length === 0){
-    list.innerHTML = `<div class="empty-state">Aucun live en cours pour l'instant.</div>`;
+    list.innerHTML = `<div class="multiview-select-empty">Aucun live en cours pour l'instant.</div>`;
+  }else if(lives.length === 0){
+    list.innerHTML = `<div class="multiview-select-empty">Aucun résultat pour « ${escapeHtml(multiviewSearchQuery)} ».</div>`;
   }else{
-    list.innerHTML = currentLiveStreams.map(l=>{
+    list.innerHTML = lives.map(l=>{
       const thumb = l.thumbnail || (l.platform === 'youtube' ? `https://i.ytimg.com/vi/${l.videoId}/hqdefault.jpg` : '');
       const checked = multiviewSelectedIds.includes(l.id);
+      const disabledLook = !checked && multiviewSelectedIds.length >= MULTIVIEW_MAX;
       return `
-        <label class="multiview-select-row${checked ? ' checked' : ''}" data-id="${l.id}">
+        <label class="multiview-select-row${checked ? ' checked' : ''}${disabledLook ? ' row-disabled' : ''}" data-id="${l.id}">
           <input type="checkbox" data-multiview-check="${l.id}" ${checked ? 'checked' : ''}>
-          ${thumb ? `<img src="${thumb}" alt="">` : `<div style="width:64px;height:36px;border-radius:8px;background:#050208;flex-shrink:0;"></div>`}
+          ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : `<div style="width:64px;height:36px;border-radius:8px;background:#050208;flex-shrink:0;"></div>`}
           <div class="multiview-select-row-info">
             <div class="multiview-select-row-title">${escapeHtml(l.title || 'Live')}</div>
             ${l.author ? `<div class="multiview-select-row-author">${escapeHtml(l.author)}</div>` : ''}
+            ${multiviewSelectRowBadgesHtml(l)}
           </div>
         </label>
       `;
@@ -6940,19 +7074,94 @@ function openMultiviewSelect(){
         }else{
           multiviewSelectedIds = multiviewSelectedIds.filter(x => x !== id);
         }
-        cb.closest('.multiview-select-row').classList.toggle('checked', cb.checked);
         updateMultiviewLaunchBtnLabel();
+        renderMultiviewSelectList();
       });
     });
   }
+  list.scrollTop = scrollTop;
   updateMultiviewLaunchBtnLabel();
+}
+
+function openMultiviewSelect(){
+  const errorEl = document.getElementById('multiview-select-error');
+  const searchInput = document.getElementById('multiview-search-input');
+  errorEl.style.display = 'none';
+  multiviewSearchQuery = '';
+  if(searchInput) searchInput.value = '';
+  document.getElementById('multiview-search-clear').classList.remove('visible');
+  // Si une grille multi-lives est déjà active (ouverture via la tuile "+"),
+  // on repart de sa sélection actuelle plutôt que de l'ancienne sélection
+  // mémorisée, pour que la case à cocher reflète fidèlement ce qui est
+  // affiché à l'écran.
+  multiviewSelectedIds = multiviewActiveLives.length
+    ? multiviewActiveLives.map(x => x.id)
+    : multiviewSelectedIds.filter(id => currentLiveStreams.some(l => l.id === id));
+
+  renderMultiviewSelectList();
   openOverlay('multiview-select-overlay');
+  if(searchInput) setTimeout(()=> searchInput.focus(), 60);
 }
 function updateMultiviewLaunchBtnLabel(){
   const label = multiviewActiveLives.length ? 'Mettre à jour' : 'Lancer';
-  document.getElementById('multiview-launch-btn').textContent = `${label} (${multiviewSelectedIds.length})`;
+  const launchBtn = document.getElementById('multiview-launch-btn');
+  launchBtn.textContent = `${label} (${multiviewSelectedIds.length})`;
+  launchBtn.disabled = multiviewSelectedIds.length < 2;
+
+  const counter = document.getElementById('multiview-quick-counter');
+  if(counter){
+    counter.textContent = `${multiviewSelectedIds.length}/${MULTIVIEW_MAX} sélectionné${multiviewSelectedIds.length > 1 ? 's' : ''}`;
+    counter.classList.toggle('at-max', multiviewSelectedIds.length >= MULTIVIEW_MAX);
+  }
+  const selectAllBtn = document.getElementById('multiview-select-all-btn');
+  const clearBtn = document.getElementById('multiview-clear-btn');
+  if(selectAllBtn) selectAllBtn.disabled = multiviewSelectedIds.length >= MULTIVIEW_MAX || currentLiveStreams.length === 0;
+  if(clearBtn) clearBtn.disabled = multiviewSelectedIds.length === 0;
 }
 document.getElementById('open-multiview-btn').addEventListener('click', openMultiviewSelect);
+
+// Recherche en direct dans la liste de sélection.
+const multiviewSearchInputEl = document.getElementById('multiview-search-input');
+const multiviewSearchClearEl = document.getElementById('multiview-search-clear');
+if(multiviewSearchInputEl){
+  multiviewSearchInputEl.addEventListener('input', ()=>{
+    multiviewSearchQuery = multiviewSearchInputEl.value;
+    multiviewSearchClearEl.classList.toggle('visible', multiviewSearchQuery.length > 0);
+    renderMultiviewSelectList();
+  });
+}
+if(multiviewSearchClearEl){
+  multiviewSearchClearEl.addEventListener('click', ()=>{
+    multiviewSearchQuery = '';
+    multiviewSearchInputEl.value = '';
+    multiviewSearchClearEl.classList.remove('visible');
+    renderMultiviewSelectList();
+    multiviewSearchInputEl.focus();
+  });
+}
+// Sélection/désélection rapide, dans la limite de MULTIVIEW_MAX et en
+// tenant compte du filtre de recherche actif (on ne coche que ce qui est
+// visible à l'écran, pour rester intuitif).
+document.getElementById('multiview-select-all-btn').addEventListener('click', ()=>{
+  const errorEl = document.getElementById('multiview-select-error');
+  let hitMax = false;
+  multiviewFilteredLives().forEach(l=>{
+    if(multiviewSelectedIds.length >= MULTIVIEW_MAX){ hitMax = true; return; }
+    if(!multiviewSelectedIds.includes(l.id)) multiviewSelectedIds.push(l.id);
+  });
+  if(hitMax){
+    errorEl.textContent = `Tu peux regarder au maximum ${MULTIVIEW_MAX} lives en même temps.`;
+    errorEl.style.display = 'block';
+  }else{
+    errorEl.style.display = 'none';
+  }
+  renderMultiviewSelectList();
+});
+document.getElementById('multiview-clear-btn').addEventListener('click', ()=>{
+  multiviewSelectedIds = [];
+  document.getElementById('multiview-select-error').style.display = 'none';
+  renderMultiviewSelectList();
+});
 
 function multiviewEmbedSrc(l, muted){
   if(l.platform === 'youtube'){
@@ -6965,9 +7174,13 @@ function multiviewEmbedSrc(l, muted){
 }
 function multiviewTileHtml(entry){
   return `
-    <iframe src="${multiviewEmbedSrc(entry, entry.muted)}" allow="autoplay; fullscreen" allowfullscreen></iframe>
+    <div class="multiview-tile-loading" data-tile-loading><div class="multiview-tile-spinner"></div></div>
+    <iframe src="${multiviewEmbedSrc(entry, entry.muted)}" allow="autoplay; fullscreen" allowfullscreen loading="lazy"></iframe>
     <div class="multiview-tile-bar">
-      <span class="multiview-tile-title">${escapeHtml(entry.title || 'Live')}</span>
+      <span class="multiview-tile-title">
+        <svg class="multiview-drag-handle" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" title="Glisser pour réorganiser"><circle cx="8" cy="6" r="1.6"/><circle cx="8" cy="12" r="1.6"/><circle cx="8" cy="18" r="1.6"/><circle cx="16" cy="6" r="1.6"/><circle cx="16" cy="12" r="1.6"/><circle cx="16" cy="18" r="1.6"/></svg>
+        <span>${escapeHtml(entry.title || 'Live')}</span>
+      </span>
       <div class="multiview-tile-actions">
         <button type="button" class="multiview-tile-btn" data-tile-mute="${entry.id}" title="${entry.muted ? 'Activer le son' : 'Couper le son'}">${entry.muted ? '🔇' : '🔊'}</button>
         <button type="button" class="multiview-tile-btn" data-tile-remove="${entry.id}" title="Retirer ce live">✕</button>
@@ -6977,6 +7190,11 @@ function multiviewTileHtml(entry){
   `;
 }
 function bindMultiviewTileEvents(tile, entry){
+  const iframe = tile.querySelector('iframe');
+  const loadingEl = tile.querySelector('[data-tile-loading]');
+  if(iframe && loadingEl){
+    iframe.addEventListener('load', ()=> loadingEl.classList.add('hidden'), { once:true });
+  }
   tile.querySelector('[data-tile-mute]').addEventListener('click', ()=>{
     const turningOn = entry.muted; // true → on va l'activer (démuter)
     // On coupe d'abord le son des autres tuiles (une seule à la fois), puis
@@ -6988,8 +7206,12 @@ function bindMultiviewTileEvents(tile, entry){
       x.muted = newMuted;
       const t = document.querySelector(`#multiview-grid .multiview-tile[data-tile-id="${x.id}"]`);
       if(!t) return;
-      const iframe = t.querySelector('iframe');
-      if(iframe) iframe.src = multiviewEmbedSrc(x, x.muted);
+      const tIframe = t.querySelector('iframe');
+      const tLoading = t.querySelector('[data-tile-loading]');
+      if(tIframe){
+        if(tLoading) tLoading.classList.remove('hidden');
+        tIframe.src = multiviewEmbedSrc(x, x.muted);
+      }
       const muteBtn = t.querySelector('[data-tile-mute]');
       if(muteBtn){
         muteBtn.textContent = x.muted ? '🔇' : '🔊';
@@ -7011,29 +7233,86 @@ function bindMultiviewTileEvents(tile, entry){
     if(multiviewActiveLives.length === 0){ closeMultiview(); return; }
     renderMultiviewGrid();
   });
+
+  // Réorganisation par glisser-déposer : on ne touche jamais aux iframes
+  // des autres tuiles, on ne fait que déplacer les nœuds DOM existants
+  // (ce qui n'interrompt pas leur lecture), puis on met à jour l'ordre
+  // du tableau multiviewActiveLives en conséquence.
+  tile.setAttribute('draggable', 'true');
+  tile.addEventListener('dragstart', (e)=>{
+    multiviewDragId = entry.id;
+    tile.classList.add('dragging');
+    if(e.dataTransfer){ e.dataTransfer.effectAllowed = 'move'; try{ e.dataTransfer.setData('text/plain', entry.id); }catch(err){} }
+  });
+  tile.addEventListener('dragend', ()=>{
+    tile.classList.remove('dragging');
+    document.querySelectorAll('#multiview-grid .multiview-tile.drag-over').forEach(t => t.classList.remove('drag-over'));
+    multiviewDragId = null;
+  });
+  tile.addEventListener('dragover', (e)=>{
+    if(!multiviewDragId || multiviewDragId === entry.id) return;
+    e.preventDefault();
+    if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    tile.classList.add('drag-over');
+  });
+  tile.addEventListener('dragleave', ()=> tile.classList.remove('drag-over'));
+  tile.addEventListener('drop', (e)=>{
+    e.preventDefault();
+    tile.classList.remove('drag-over');
+    if(!multiviewDragId || multiviewDragId === entry.id) return;
+    const fromIdx = multiviewActiveLives.findIndex(x => x.id === multiviewDragId);
+    const toIdx = multiviewActiveLives.findIndex(x => x.id === entry.id);
+    if(fromIdx === -1 || toIdx === -1) return;
+    const [moved] = multiviewActiveLives.splice(fromIdx, 1);
+    multiviewActiveLives.splice(toIdx, 0, moved);
+    renderMultiviewGrid();
+  });
 }
-// Rendu "en diff" : ne recrée que les tuiles nouvellement ajoutées et ne
-// supprime que celles retirées, sans jamais recharger les iframes des
+// Rendu "en diff" : ne recrée que les tuiles nouvellement ajoutées, anime
+// l'entrée/la sortie des tuiles, replace les tuiles existantes dans le bon
+// ordre (glisser-déposer / ajout) sans jamais recharger les iframes des
 // lives déjà en train de jouer (indispensable pour que "Ajouter un live"
-// n'interrompe pas ceux déjà en cours de visionnage).
+// ou une réorganisation n'interrompe pas ceux déjà en cours de visionnage).
 function renderMultiviewGrid(){
   const grid = document.getElementById('multiview-grid');
+  if(!grid) return;
 
   const existingTiles = {};
   grid.querySelectorAll('.multiview-tile[data-tile-id]').forEach(t => { existingTiles[t.dataset.tileId] = t; });
+
+  // Tuiles retirées : on coupe le flux immédiatement puis on les fait
+  // disparaître en douceur avant de les enlever du DOM.
   Object.keys(existingTiles).forEach(id=>{
-    if(!multiviewActiveLives.some(x => x.id === id)) existingTiles[id].remove();
+    if(multiviewActiveLives.some(x => x.id === id)) return;
+    const t = existingTiles[id];
+    if(t.classList.contains('tile-leaving')) return;
+    const f = t.querySelector('iframe');
+    if(f) f.src = 'about:blank';
+    t.classList.add('tile-leaving');
+    const finish = ()=> t.remove();
+    t.addEventListener('animationend', finish, { once:true });
+    setTimeout(finish, 260); // filet de sécurité si l'animation ne se déclenche pas
+    delete existingTiles[id];
   });
 
+  // Place chaque tuile (existante ou nouvelle) dans l'ordre voulu par
+  // multiviewActiveLives, juste avant la tuile "+" le cas échéant.
+  let insertRef = grid.querySelector('.multiview-add-tile');
   multiviewActiveLives.forEach(entry=>{
-    if(existingTiles[entry.id]) return; // déjà affichée, on n'y touche pas
-    const tile = document.createElement('div');
-    tile.className = 'multiview-tile';
-    tile.dataset.tileId = entry.id;
-    tile.innerHTML = multiviewTileHtml(entry);
-    bindMultiviewTileEvents(tile, entry);
-    const addTileRef = grid.querySelector('.multiview-add-tile');
-    grid.insertBefore(tile, addTileRef || null);
+    let tile = existingTiles[entry.id];
+    if(tile){
+      if(tile.nextSibling !== insertRef && tile !== insertRef){
+        grid.insertBefore(tile, insertRef);
+      }
+    }else{
+      tile = document.createElement('div');
+      tile.className = 'multiview-tile tile-entering';
+      tile.dataset.tileId = entry.id;
+      tile.innerHTML = multiviewTileHtml(entry);
+      bindMultiviewTileEvents(tile, entry);
+      tile.addEventListener('animationend', ()=> tile.classList.remove('tile-entering'), { once:true });
+      grid.insertBefore(tile, insertRef);
+    }
   });
 
   const oldAddTile = grid.querySelector('.multiview-add-tile');
@@ -7052,14 +7331,21 @@ function renderMultiviewGrid(){
   // Le nombre total de cellules (lives actifs + tuile "+" éventuelle)
   // détermine la disposition de la grille CSS.
   grid.dataset.count = String(multiviewActiveLives.length + (canAddMore ? 1 : 0));
+
+  const countBadge = document.getElementById('multiview-count-badge');
+  if(countBadge) countBadge.textContent = `${multiviewActiveLives.length}/${MULTIVIEW_MAX}`;
+  const reorderHint = document.getElementById('multiview-reorder-hint');
+  if(reorderHint) reorderHint.classList.toggle('visible', multiviewActiveLives.length >= 2);
 }
 function launchMultiview(){
+  if(multiviewLaunching) return; // évite un double-clic qui relancerait tout deux fois
   const errorEl = document.getElementById('multiview-select-error');
   if(multiviewSelectedIds.length < 2){
     errorEl.textContent = "Sélectionne au moins 2 lives pour les regarder en même temps.";
     errorEl.style.display = 'block';
     return;
   }
+  multiviewLaunching = true;
   const previous = multiviewActiveLives;
   multiviewActiveLives = multiviewSelectedIds.map(id=>{
     const existing = previous.find(x => x.id === id);
@@ -7070,6 +7356,7 @@ function launchMultiview(){
   closeOverlay('multiview-select-overlay');
   renderMultiviewGrid();
   openOverlay('multiview-overlay');
+  setTimeout(()=>{ multiviewLaunching = false; }, 400);
 }
 document.getElementById('multiview-launch-btn').addEventListener('click', launchMultiview);
 
@@ -7086,6 +7373,39 @@ document.getElementById('multiview-close-btn').addEventListener('click', closeMu
 document.getElementById('multiview-overlay').addEventListener('click', (e)=>{
   if(e.target.id === 'multiview-overlay') closeMultiview();
 });
+// Échap ferme d'abord la fenêtre de sélection si elle est ouverte,
+// sinon la grille multivue elle-même — jamais les deux d'un coup.
+document.addEventListener('keydown', (e)=>{
+  if(e.key !== 'Escape') return;
+  if(document.getElementById('multiview-select-overlay').classList.contains('open')){
+    closeOverlay('multiview-select-overlay');
+  }else if(document.getElementById('multiview-overlay').classList.contains('open')){
+    closeMultiview();
+  }
+});
+// Synchronisation en direct avec les lives Firestore : si un live affiché
+// en multivue s'arrête, on le retire automatiquement (avec l'animation de
+// sortie) au lieu de laisser une iframe morte à l'écran ; si la fenêtre de
+// sélection est ouverte, sa liste (et la case "Tout sélectionner") suit
+// aussi les lives qui apparaissent/disparaissent en temps réel.
+function syncMultiviewWithLiveStreams(){
+  if(multiviewActiveLives.length){
+    const stillLive = multiviewActiveLives.filter(x => currentLiveStreams.some(l => l.id === x.id));
+    if(stillLive.length !== multiviewActiveLives.length){
+      multiviewActiveLives = stillLive;
+      if(multiviewActiveLives.length === 0){ closeMultiview(); }
+      else{ renderMultiviewGrid(); }
+    }else if(document.getElementById('multiview-overlay').classList.contains('open')){
+      // Aucun retrait, mais l'état "on peut encore ajouter un live" ou le
+      // titre/nb de spectateurs d'un live affiché a pu changer.
+      renderMultiviewGrid();
+    }
+  }
+  if(document.getElementById('multiview-select-overlay').classList.contains('open')){
+    multiviewSelectedIds = multiviewSelectedIds.filter(id => currentLiveStreams.some(l => l.id === id));
+    renderMultiviewSelectList();
+  }
+}
 
 /* --- Twitch : jeton d'application (client_credentials) --- */
 let twitchAppToken = null;
