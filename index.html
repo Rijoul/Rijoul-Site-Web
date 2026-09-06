@@ -7471,38 +7471,6 @@ document.getElementById('multiview-close-btn').addEventListener('click', closeMu
 document.getElementById('multiview-overlay').addEventListener('click', (e)=>{
   if(e.target.id === 'multiview-overlay') closeMultiview();
 });
-// Mise en pause quand l'onglet passe en arrière-plan : les navigateurs
-// continuent de décoder des flux vidéo invisibles, ce qui accumule de la
-// charge et donne une impression de gel/lag au retour sur l'onglet. On
-// coupe donc toutes les tuiles (src vidé) tant que l'onglet est masqué,
-// puis on relance uniquement celles qui étaient réellement en cours au
-// retour, avec le même mécanisme d'échelonnement que le lancement initial.
-document.addEventListener('visibilitychange', ()=>{
-  if(!document.getElementById('multiview-overlay').classList.contains('open')) return;
-  const tiles = Array.from(document.querySelectorAll('#multiview-grid .multiview-tile[data-tile-id]'));
-  if(document.hidden){
-    tiles.forEach(t=>{
-      const iframe = t.querySelector('iframe');
-      if(!iframe || !iframe.src || iframe.src === 'about:blank') return;
-      iframe.dataset.bgPausedSrc = iframe.src;
-      iframe.src = 'about:blank';
-    });
-  }else{
-    tiles.forEach((t, i)=>{
-      const iframe = t.querySelector('iframe');
-      if(!iframe || !iframe.dataset.bgPausedSrc) return;
-      const src = iframe.dataset.bgPausedSrc;
-      delete iframe.dataset.bgPausedSrc;
-      const loadingEl = t.querySelector('[data-tile-loading]');
-      setTimeout(()=>{
-        if(!iframe.isConnected) return;
-        if(loadingEl) loadingEl.classList.remove('hidden');
-        iframe.dataset.paused = '0';
-        iframe.src = src;
-      }, i * MULTIVIEW_LOAD_STAGGER_MS);
-    });
-  }
-});
 // Échap ferme d'abord la fenêtre de sélection si elle est ouverte,
 // sinon la grille multivue elle-même — jamais les deux d'un coup.
 document.addEventListener('keydown', (e)=>{
