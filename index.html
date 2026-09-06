@@ -7296,22 +7296,35 @@ function renderMultiviewGrid(){
   });
 
   // Place chaque tuile (existante ou nouvelle) dans l'ordre voulu par
-  // multiviewActiveLives, juste avant la tuile "+" le cas échéant.
-  let insertRef = grid.querySelector('.multiview-add-tile');
+  // multiviewActiveLives. Important : on ne déplace dans le DOM QUE les
+  // tuiles qui ne sont pas déjà à la bonne position. Déplacer un <iframe>
+  // dans le DOM (même vers la même position "logique") force certains
+  // navigateurs à recharger son contenu — donc si on réordonnait toutes
+  // les tuiles à chaque rendu (comme avant), un simple rafraîchissement
+  // des données (nouveau spectateur, mise à jour du nombre de vues, ajout
+  // d'un live...) coupait TOUS les lives déjà affichés. Ici, une tuile
+  // déjà à sa place n'est jamais touchée.
+  function nextPlaceholder(node){
+    while(node && node.classList && node.classList.contains('tile-leaving')) node = node.nextElementSibling;
+    return node;
+  }
+  let refNode = nextPlaceholder(grid.firstElementChild);
   multiviewActiveLives.forEach(entry=>{
     let tile = existingTiles[entry.id];
-    if(tile){
-      if(tile.nextSibling !== insertRef && tile !== insertRef){
-        grid.insertBefore(tile, insertRef);
-      }
-    }else{
+    if(!tile){
       tile = document.createElement('div');
       tile.className = 'multiview-tile tile-entering';
       tile.dataset.tileId = entry.id;
       tile.innerHTML = multiviewTileHtml(entry);
       bindMultiviewTileEvents(tile, entry);
       tile.addEventListener('animationend', ()=> tile.classList.remove('tile-entering'), { once:true });
-      grid.insertBefore(tile, insertRef);
+    }
+    if(tile === refNode){
+      // Déjà à la bonne position : on avance simplement le curseur,
+      // sans toucher au DOM (l'iframe reste intacte).
+      refNode = nextPlaceholder(refNode.nextElementSibling);
+    }else{
+      grid.insertBefore(tile, refNode);
     }
   });
 
