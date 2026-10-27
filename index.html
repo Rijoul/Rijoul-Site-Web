@@ -5725,6 +5725,16 @@ document.getElementById('clip-create-submit').addEventListener('click', async ()
     errorEl.style.display = 'block';
     return;
   }
+  let endFinal = end;
+  try{
+    const vd = ytPlayerInstance && typeof ytPlayerInstance.getDuration === 'function' ? ytPlayerInstance.getDuration() : 0;
+    if(vd && end > vd) endFinal = Math.floor(vd);
+  }catch(e){}
+  if(endFinal <= start){
+    errorEl.textContent = "La fin dépasse la durée de la vidéo : choisis un début plus tôt.";
+    errorEl.style.display = 'block';
+    return;
+  }
   const btn = document.getElementById('clip-create-submit');
   btn.disabled = true; btn.textContent = 'Création…';
   try{
@@ -5736,7 +5746,7 @@ document.getElementById('clip-create-submit').addEventListener('click', async ()
       sourceTitle: clipCreateBaseVideo.title || null,
       author: clipCreateBaseVideo.author || null,
       startSeconds: start,
-      endSeconds: end,
+      endSeconds: endFinal,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     closeOverlay('clip-create-overlay');
@@ -6038,6 +6048,7 @@ async function recordClipAsVideo(clip, stream){
     let clipEndReached = () => {
       try{
         const cur = ytPlayerInstance.getCurrentTime();
+        if(typeof ytPlayerInstance.getPlayerState === 'function' && ytPlayerInstance.getPlayerState() === YT.PlayerState.ENDED) return true;
         return cur >= effectiveEnd - 0.15;
       }catch(e){ return true; }
     };
@@ -6114,6 +6125,48 @@ async function recordClipAsMp3(clip, stream){
     try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
     return;
   }
+  const audioTracks = stream.getAudioTracks();
+  if(audioTracks.length === 0){
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    alert("Aucun son n'a été partagé (vérifie la case « partager l'audio » dans la fenêtre de partage). Impossible de créer le MP3.");
+    return;
+  }
+  const audioOnlyStream = new MediaStream(audioTracks);
+
+  /* Encodage MP3 en continu pendant l'enregistrement : on ne garde que les
+     blocs MP3 déjà encodés (~16 Ko/s), au lieu de décoder tout l'audio en
+     mémoire à la fin. Ça permet des clips très longs. */
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let audioCtx = null, srcNode = null, procNode = null, muteNode = null, encoder = null;
+  const mp3Parts = [];
+  try{
+    await loadLamejs();
+    audioCtx = new AudioCtx();
+    if(audioCtx.state === 'suspended'){ try{ await audioCtx.resume(); }catch(e){} }
+    encoder = new window.lamejs.Mp3Encoder(2, audioCtx.sampleRate, 128);
+    srcNode = audioCtx.createMediaStreamSource(audioOnlyStream);
+    procNode = audioCtx.createScriptProcessor(4096, 2, 2);
+    muteNode = audioCtx.createGain();
+    muteNode.gain.value = 0;
+    procNode.onaudioprocess = (ev)=>{
+      const l = floatTo16BitPCM(ev.inputBuffer.getChannelData(0));
+      const r = floatTo16BitPCM(ev.inputBuffer.getChannelData(ev.inputBuffer.numberOfChannels > 1 ? 1 : 0));
+      for(let k=0; k<l.length; k+=1152){
+        const buf = encoder.encodeBuffer(l.subarray(k, k+1152), r.subarray(k, k+1152));
+        if(buf.length > 0) mp3Parts.push(buf);
+      }
+    };
+    srcNode.connect(procNode);
+    procNode.connect(muteNode);
+    muteNode.connect(audioCtx.destination);
+  }catch(err){
+    console.error('Initialisation MP3 impossible :', err);
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    try{ if(audioCtx) audioCtx.close(); }catch(e){}
+    alert("Impossible de préparer l'encodeur MP3.\n\nDétail : " + ((err && (err.name || err.message)) ? (err.name ? err.name + ' : ' : '') + (err.message || '') : 'inconnu'));
+    return;
+  }
+
   const clipDuration = Math.max(1, clip.endSeconds - clip.startSeconds);
   let effectiveEnd = Infinity;
   try{
@@ -6122,55 +6175,43 @@ async function recordClipAsMp3(clip, stream){
     ytPlayerInstance.playVideo();
   }catch(e){}
 
-  const audioTracks = stream.getAudioTracks();
-  if(audioTracks.length === 0){
-    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
-    alert("Aucun son n'a été partagé (vérifie la case « partager l'audio » dans la fenêtre de partage). Impossible de créer le MP3.");
-    return;
-  }
-  const audioOnlyStream = new MediaStream(audioTracks);
-  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-  const recorder = new MediaRecorder(audioOnlyStream, { mimeType: mime });
-  const chunks = [];
-  recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
-
   await new Promise((resolve)=>{
-    let endWatcher = setInterval(()=>{
-      try{
-        const cur = ytPlayerInstance.getCurrentTime();
-        if(cur >= effectiveEnd - 0.15 && recorder.state !== 'inactive') recorder.stop();
-      }catch(e){
-        if(recorder.state !== 'inactive') recorder.stop();
-      }
-    }, 200);
-    recorder.onstop = ()=>{
+    let endWatcher = null;
+    let done = false;
+    const finish = ()=>{
+      if(done) return;
+      done = true;
       if(endWatcher){ clearInterval(endWatcher); endWatcher = null; }
-      try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
       resolve();
     };
-    stream.getVideoTracks()[0].addEventListener('ended', ()=>{
-      if(recorder.state !== 'inactive') recorder.stop();
-    });
-    showClipRecordingBanner('Enregistrement audio du clip…', ()=>{
-      if(recorder.state !== 'inactive') recorder.stop();
-    });
-    recorder.start();
+    endWatcher = setInterval(()=>{
+      try{
+        const cur = ytPlayerInstance.getCurrentTime();
+        const ended = typeof ytPlayerInstance.getPlayerState === 'function' && ytPlayerInstance.getPlayerState() === YT.PlayerState.ENDED;
+        if(ended || cur >= effectiveEnd - 0.15) finish();
+      }catch(e){ finish(); }
+    }, 200);
+    const vt = stream.getVideoTracks()[0];
+    if(vt) vt.addEventListener('ended', finish);
+    audioTracks[0].addEventListener('ended', finish);
+    showClipRecordingBanner('Enregistrement audio du clip…', finish);
   });
 
   try{
-    showClipRecordingBanner('Conversion en MP3…', null);
-    const blob = new Blob(chunks, { type: 'audio/webm' });
-    const arrayBuffer = await blob.arrayBuffer();
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AudioCtx();
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-    await loadLamejs();
-    const mp3Blob = audioBufferToMp3(audioBuffer);
-    downloadBlob(mp3Blob, buildClipFilename(clip, 'mp3'));
-    audioCtx.close();
+    showClipRecordingBanner('Finalisation du MP3…', null);
+    try{ procNode.onaudioprocess = null; srcNode.disconnect(); procNode.disconnect(); muteNode.disconnect(); }catch(e){}
+    const end = encoder.flush();
+    if(end.length > 0) mp3Parts.push(end);
+    try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
+    try{ audioCtx.close(); }catch(e){}
+    if(mp3Parts.length === 0){
+      alert("L'enregistrement audio est vide : aucun son n'a été capturé.");
+    }else{
+      downloadBlob(new Blob(mp3Parts, { type: 'audio/mpeg' }), buildClipFilename(clip, 'mp3'));
+    }
   }catch(err){
-    console.error('Conversion MP3 impossible :', err);
-    alert("La conversion en MP3 a échoué (le clip n'a pas pu être exporté).");
+    console.error('Finalisation MP3 impossible :', err);
+    alert("La création du MP3 a échoué (le clip n'a pas pu être exporté).");
   }finally{
     hideClipRecordingBanner();
   }
