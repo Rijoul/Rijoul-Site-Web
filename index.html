@@ -6009,9 +6009,29 @@ async function recordClipAsVideo(clip, stream){
     ytPlayerInstance.playVideo();
   }catch(e){}
 
-  return new Promise((resolve)=>{
+  return new Promise((resolve, reject)=>{
     const { mime, ext, outType } = pickVideoMimeType();
-    const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    let recorder;
+    try{
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    }catch(e1){
+      console.warn('MediaRecorder avec ce format impossible, repli sur le format par défaut :', e1);
+      try{ recorder = new MediaRecorder(stream); }
+      catch(e2){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){} reject(e2); return; }
+    }
+    let finalExt = ext, finalType = outType;
+    if(recorder.mimeType){
+      const isMp4 = recorder.mimeType.indexOf('mp4') !== -1;
+      finalExt = isMp4 ? 'mp4' : 'webm';
+      finalType = isMp4 ? 'video/mp4' : 'video/webm';
+    }
+    recorder.onerror = (ev)=>{
+      console.error('Erreur MediaRecorder :', ev && ev.error);
+      if(endWatcher){ clearInterval(endWatcher); endWatcher = null; }
+      hideClipRecordingBanner();
+      try{ stream.getTracks().forEach(t=>t.stop()); }catch(_){}
+      reject((ev && ev.error) || new Error('Erreur MediaRecorder'));
+    };
     const chunks = [];
     recorder.ondataavailable = (e)=>{ if(e.data && e.data.size) chunks.push(e.data); };
     let endWatcher = null;
@@ -6028,8 +6048,12 @@ async function recordClipAsVideo(clip, stream){
       if(endWatcher){ clearInterval(endWatcher); endWatcher = null; }
       hideClipRecordingBanner();
       try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){}
-      const blob = new Blob(chunks, { type: outType });
-      downloadBlob(blob, buildClipFilename(clip, ext));
+      const blob = new Blob(chunks, { type: finalType });
+      if(blob.size === 0){
+        alert("L'enregistrement est vide : aucune image n'a été capturée. Vérifie que tu as bien partagé l'onglet actuel.");
+      }else{
+        downloadBlob(blob, buildClipFilename(clip, finalExt));
+      }
       resolve();
     };
     stream.getVideoTracks()[0].addEventListener('ended', ()=>{
@@ -6038,7 +6062,7 @@ async function recordClipAsVideo(clip, stream){
     showClipRecordingBanner('Enregistrement du clip en cours…', ()=>{
       if(recorder.state !== 'inactive') recorder.stop();
     });
-    recorder.start();
+    recorder.start(1000);
   });
 }
 
@@ -6180,7 +6204,8 @@ async function downloadClip(clip){
     }
   }catch(err){
     console.error('Erreur téléchargement clip :', err);
-    alert("Une erreur est survenue pendant l'enregistrement du clip.");
+    const detail = err ? ((err.name ? err.name + ' : ' : '') + (err.message || '')) : '';
+    alert("Une erreur est survenue pendant l'enregistrement du clip." + (detail ? "\n\nDétail : " + detail : ''));
   }finally{
     clipDownloadActive = false;
     hideClipRecordingBanner();
