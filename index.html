@@ -3178,7 +3178,7 @@
       <input type="number" id="clip-create-end" min="0" step="1" style="flex:1;">
       <button type="button" class="btn" id="clip-create-end-capture" style="padding:0.55rem 0.8rem; font-size:0.7rem; white-space:nowrap;">⏱ Temps actuel</button>
     </div>
-    <div class="modal-hint">Le clip reprend l'extrait choisi de la vidéo (5 minutes maximum) et se met en pause automatiquement à la fin.</div>
+    <div class="modal-hint">Le clip reprend l'extrait choisi de la vidéo (sans limite de durée) et se met en pause automatiquement à la fin.</div>
     <div class="modal-error" id="clip-create-error"></div>
     <div class="modal-actions">
       <button class="btn" data-close="clip-create-overlay">Annuler</button>
@@ -5722,11 +5722,6 @@ document.getElementById('clip-create-submit').addEventListener('click', async ()
   if(!title){ errorEl.textContent = "Merci de donner un titre au clip."; errorEl.style.display = 'block'; return; }
   if(isNaN(start) || isNaN(end) || start < 0 || end <= start){
     errorEl.textContent = "L'heure de fin doit être supérieure à l'heure de début.";
-    errorEl.style.display = 'block';
-    return;
-  }
-  if(end - start > 300){
-    errorEl.textContent = "Un clip ne peut pas dépasser 5 minutes.";
     errorEl.style.display = 'block';
     return;
   }
